@@ -1,0 +1,92 @@
+## =========================
+## .NET / Visual Studio
+## =========================
+
+# Build results
+bin/
+obj/
+out/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Visual Studio
+.vs/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# DotCover
+*.dotCover
+
+# Test results
+TestResults/
+
+## =========================
+## ASP.NET Core
+## =========================
+
+# Logs
+*.log
+
+# Environment files
+appsettings.Development.json
+appsettings.Staging.json
+
+# Secrets
+secrets.json
+
+# HTTPS dev cert
+*.pfx
+
+# User secrets
+**/Properties/launchSettings.json
+
+## =========================
+## OS
+## =========================
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Mac
+.DS_Store
+
+# Linux
+*~
+
+## =========================
+## Tools & Others
+## =========================
+
+# Docker
+.dockerignore
+
+# Entity Framework
+Migrations/*.Designer.cs
+Migrations/*.resx
+
+# Publish
+publish/
