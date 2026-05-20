@@ -23,6 +23,20 @@ namespace PRN232_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        [HttpPost("RefreshToken")]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto requestDto)
+        {
+            var response = await _authService.RefreshTokenAsync(requestDto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        [HttpPost("Logout")]
+        public async Task<IActionResult> Logout([FromBody] LogoutRequestDto requestDto)
+        {
+            var response = await _authService.LogoutAsync(requestDto);
+            return StatusCode(response.StatusCode, response);
+        }
+
         [HttpPost("Register")]
         public async Task<IActionResult> Register([FromBody] RegisterDto registerDto)
         {
@@ -55,6 +69,13 @@ namespace PRN232_be.Controllers
         public async Task<IActionResult> GetAllRoles()
         {
             var response = await _authService.GetAllRolesAsync();
+            return StatusCode(response.StatusCode, response);
+        }
+
+        [HttpGet("GetAllRole")]
+        public async Task<IActionResult> GetAllRole([FromQuery] RoleSearchDto searchDto)
+        {
+            var response = await _authService.GetAllRoleAsync(searchDto);
             return StatusCode(response.StatusCode, response);
         }
 

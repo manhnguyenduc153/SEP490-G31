@@ -3317,3 +3317,15 @@ Details: Query: None | User: manhvipyb1
 [2026-05-19 14:31:25] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-05-19 21:21:58] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-05-19 21:41:56] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-05-19 21:51:17] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-05-20 14:27:20] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------

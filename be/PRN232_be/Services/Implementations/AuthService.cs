@@ -33,6 +33,104 @@ namespace PRN232_be.Services.Implementations
             _dbContext = dbContext;
         }
 
+        private string GenerateRefreshToken()
+        {
+            var randomNumber = new byte[64];
+            using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+            return Convert.ToBase64String(randomNumber);
+        }
+
+        private async Task<TokenResponseDto> GenerateTokensAsync(IdentityUser user, List<Claim> authClaims)
+        {
+            var jwtKey = _configuration["Jwt:Key"];
+            if (string.IsNullOrEmpty(jwtKey))
+            {
+                throw new InvalidOperationException("Jwt Key chưa được cấu hình");
+            }
+
+            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+            
+            var accessTokenMinutes = _configuration.GetValue<int>("Jwt:AccessTokenMinutes", 15);
+            var tokenExpirationTimeHour = _configuration.GetValue<int>("Jwt:ExpirationTimeHour", 0);
+            
+            DateTime tokenExpiry;
+            if (accessTokenMinutes > 0)
+            {
+                tokenExpiry = DateTime.Now.AddMinutes(accessTokenMinutes);
+            }
+            else
+            {
+                tokenExpiry = DateTime.Now.AddHours(tokenExpirationTimeHour == 0 ? 3 : tokenExpirationTimeHour);
+            }
+
+            var jtiClaim = authClaims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti);
+            if (jtiClaim == null)
+            {
+                jtiClaim = new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString());
+                authClaims.Add(jtiClaim);
+            }
+
+            var token = new JwtSecurityToken(
+                issuer: _configuration["Jwt:Issuer"],
+                audience: _configuration["Jwt:Audience"],
+                expires: tokenExpiry,
+                claims: authClaims,
+                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
+            );
+
+            var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+            var refreshTokenString = GenerateRefreshToken();
+            
+            var refreshTokenDays = _configuration.GetValue<int>("Jwt:RefreshTokenDays", 7);
+            
+            var refreshToken = new RefreshToken
+            {
+                Token = refreshTokenString,
+                JwtId = jtiClaim.Value,
+                UserId = user.Id,
+                AddedDate = DateTime.Now,
+                ExpiryDate = DateTime.Now.AddDays(refreshTokenDays),
+                IsUsed = false,
+                IsRevoked = false
+            };
+
+            await _dbContext.RefreshTokens.AddAsync(refreshToken);
+            await _dbContext.SaveChangesAsync();
+
+            return new TokenResponseDto
+            {
+                Token = tokenString,
+                Expiration = token.ValidTo,
+                RefreshToken = refreshTokenString,
+                Username = user.UserName!
+            };
+        }
+
+        private ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
+        {
+            var tokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateAudience = true,
+                ValidateIssuer = true,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!)),
+                ValidateLifetime = false,
+                ValidIssuer = _configuration["Jwt:Issuer"],
+                ValidAudience = _configuration["Jwt:Audience"]
+            };
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out SecurityToken securityToken);
+            if (securityToken is not JwtSecurityToken jwtSecurityToken || 
+                !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+            {
+                throw new SecurityTokenException("Invalid token");
+            }
+
+            return principal;
+        }
+
         public async Task<ApiResponse<TokenResponseDto>> LoginAsync(LoginDto loginDto)
         {
             try
@@ -69,37 +167,127 @@ namespace PRN232_be.Services.Implementations
                     }
                 }
 
-                var jwtKey = _configuration["Jwt:Key"];
-                if (string.IsNullOrEmpty(jwtKey))
-                {
-                    return ApiResponse<TokenResponseDto>.Fail("Jwt Key chưa được cấu hình", StatusCodes.Status500InternalServerError);
-                }
-
-                var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
-                var tokenExpirationTimeHour = _configuration.GetValue<int>("Jwt:ExpirationTimeHour", 3);
-
-                var token = new JwtSecurityToken(
-                    issuer: _configuration["Jwt:Issuer"],
-                    audience: _configuration["Jwt:Audience"],
-                    expires: DateTime.Now.AddHours(tokenExpirationTimeHour == 0 ? 3 : tokenExpirationTimeHour),
-                    claims: authClaims,
-                    signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
-                );
-
-                var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-
-                var response = new TokenResponseDto
-                {
-                    Token = tokenString,
-                    Expiration = token.ValidTo,
-                    Username = user.UserName!
-                };
+                var response = await GenerateTokensAsync(user, authClaims);
 
                 return ApiResponse<TokenResponseDto>.Ok(response, "Đăng nhập thành công");
             }
             catch (Exception ex)
             {
                 return ApiResponse<TokenResponseDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<TokenResponseDto>> RefreshTokenAsync(RefreshTokenRequestDto requestDto)
+        {
+            try
+            {
+                var principal = GetPrincipalFromExpiredToken(requestDto.Token);
+                if (principal == null)
+                {
+                    return ApiResponse<TokenResponseDto>.Fail("Token không hợp lệ", StatusCodes.Status400BadRequest);
+                }
+
+                var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var jti = principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+
+                if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(jti))
+                {
+                    return ApiResponse<TokenResponseDto>.Fail("Token thiếu thông tin định danh", StatusCodes.Status400BadRequest);
+                }
+
+                var storedToken = await _dbContext.RefreshTokens
+                    .FirstOrDefaultAsync(x => x.Token == requestDto.RefreshToken);
+
+                if (storedToken == null)
+                {
+                    return ApiResponse<TokenResponseDto>.Fail("Refresh Token không tồn tại", StatusCodes.Status400BadRequest);
+                }
+
+                if (storedToken.IsUsed)
+                {
+                    return ApiResponse<TokenResponseDto>.Fail("Refresh Token đã được sử dụng", StatusCodes.Status400BadRequest);
+                }
+
+                if (storedToken.IsRevoked)
+                {
+                    return ApiResponse<TokenResponseDto>.Fail("Refresh Token đã bị thu hồi", StatusCodes.Status400BadRequest);
+                }
+
+                if (storedToken.JwtId != jti)
+                {
+                    return ApiResponse<TokenResponseDto>.Fail("Refresh Token không khớp với Access Token", StatusCodes.Status400BadRequest);
+                }
+
+                if (storedToken.ExpiryDate < DateTime.Now)
+                {
+                    return ApiResponse<TokenResponseDto>.Fail("Refresh Token đã hết hạn", StatusCodes.Status400BadRequest);
+                }
+
+                storedToken.IsUsed = true;
+                _dbContext.RefreshTokens.Update(storedToken);
+                await _dbContext.SaveChangesAsync();
+
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    return ApiResponse<TokenResponseDto>.Fail("Người dùng không tồn tại", StatusCodes.Status400BadRequest);
+                }
+
+                var userRoles = await _userManager.GetRolesAsync(user);
+                var authClaims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.Name, user.UserName!),
+                    new Claim(ClaimTypes.NameIdentifier, user.Id),
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                };
+
+                foreach (var roleName in userRoles)
+                {
+                    authClaims.Add(new Claim(ClaimTypes.Role, roleName));
+                    var role = await _roleManager.FindByNameAsync(roleName);
+                    if (role != null)
+                    {
+                        var roleClaims = await _roleManager.GetClaimsAsync(role);
+                        foreach (var claim in roleClaims)
+                        {
+                            if (claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase))
+                            {
+                                authClaims.Add(new Claim("Permission", claim.Value));
+                            }
+                        }
+                    }
+                }
+
+                var response = await GenerateTokensAsync(user, authClaims);
+                return ApiResponse<TokenResponseDto>.Ok(response, "Refresh token thành công");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<TokenResponseDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<bool>> LogoutAsync(LogoutRequestDto requestDto)
+        {
+            try
+            {
+                var storedToken = await _dbContext.RefreshTokens
+                    .FirstOrDefaultAsync(x => x.Token == requestDto.RefreshToken);
+
+                if (storedToken == null)
+                {
+                    return ApiResponse<bool>.Fail("Refresh Token không hợp lệ hoặc không tồn tại", StatusCodes.Status400BadRequest);
+                }
+
+                storedToken.IsRevoked = true;
+                _dbContext.RefreshTokens.Update(storedToken);
+                await _dbContext.SaveChangesAsync();
+
+                return ApiResponse<bool>.Ok(true, "Đăng xuất thành công");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -267,6 +455,58 @@ namespace PRN232_be.Services.Implementations
             catch (Exception ex)
             {
                 return ApiResponse<List<string>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<PagingResponse<RoleDto>>> GetAllRoleAsync(RoleSearchDto searchDto)
+        {
+            try
+            {
+                var query = _dbContext.Roles.AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
+                {
+                    query = query.Where(r => r.Name != null && r.Name.Contains(searchDto.Keyword));
+                }
+
+                var totalRecords = await query.CountAsync();
+
+                var roles = await query
+                    .Skip((searchDto.PageIndex - 1) * searchDto.PageSize)
+                    .Take(searchDto.PageSize)
+                    .ToListAsync();
+
+                var roleIds = roles.Select(r => r.Id).ToList();
+                var roleClaims = await _dbContext.RoleClaims
+                    .Where(rc => roleIds.Contains(rc.RoleId) && rc.ClaimType == "Permission")
+                    .ToListAsync();
+
+                var roleDtos = roles.Select(role => new RoleDto
+                {
+                    Id = role.Id,
+                    Name = role.Name ?? string.Empty,
+                    Description = $"Vai trò {role.Name}",
+                    Status = "Active",
+                    CreatedAt = new DateTime(2026, 5, 19),
+                    Permissions = roleClaims
+                        .Where(rc => rc.RoleId == role.Id)
+                        .Select(rc => rc.ClaimValue ?? string.Empty)
+                        .ToList()
+                }).ToList();
+
+                var pagingResponse = new PagingResponse<RoleDto>
+                {
+                    PageIndex = searchDto.PageIndex,
+                    PageSize = searchDto.PageSize,
+                    TotalRecords = totalRecords,
+                    Items = roleDtos
+                };
+
+                return ApiResponse<PagingResponse<RoleDto>>.Ok(pagingResponse, "Lấy danh sách vai trò thành công");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<PagingResponse<RoleDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 
