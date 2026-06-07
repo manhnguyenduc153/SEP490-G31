@@ -138,7 +138,7 @@ namespace PRN232_be.Services.Implementations
                 var user = await _userManager.FindByNameAsync(loginDto.Username);
                 if (user == null || !await _userManager.CheckPasswordAsync(user, loginDto.Password))
                 {
-                    return ApiResponse<TokenResponseDto>.Fail("Tên đăng nhập hoặc mật khẩu không đúng", StatusCodes.Status401Unauthorized);
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_INVALID_CREDENTIALS", StatusCodes.Status401Unauthorized);
                 }
 
                 var userRoles = await _userManager.GetRolesAsync(user);
@@ -169,7 +169,7 @@ namespace PRN232_be.Services.Implementations
 
                 var response = await GenerateTokensAsync(user, authClaims);
 
-                return ApiResponse<TokenResponseDto>.Ok(response, "Đăng nhập thành công");
+                return ApiResponse<TokenResponseDto>.Ok(response, "LOGIN_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -184,7 +184,7 @@ namespace PRN232_be.Services.Implementations
                 var principal = GetPrincipalFromExpiredToken(requestDto.Token);
                 if (principal == null)
                 {
-                    return ApiResponse<TokenResponseDto>.Fail("Token không hợp lệ", StatusCodes.Status400BadRequest);
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_INVALID_TOKEN", StatusCodes.Status400BadRequest);
                 }
 
                 var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -192,7 +192,7 @@ namespace PRN232_be.Services.Implementations
 
                 if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(jti))
                 {
-                    return ApiResponse<TokenResponseDto>.Fail("Token thiếu thông tin định danh", StatusCodes.Status400BadRequest);
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_TOKEN_MISSING_INFO", StatusCodes.Status400BadRequest);
                 }
 
                 var storedToken = await _dbContext.RefreshTokens
@@ -200,27 +200,27 @@ namespace PRN232_be.Services.Implementations
 
                 if (storedToken == null)
                 {
-                    return ApiResponse<TokenResponseDto>.Fail("Refresh Token không tồn tại", StatusCodes.Status400BadRequest);
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_REFRESH_TOKEN_NOT_FOUND", StatusCodes.Status400BadRequest);
                 }
 
                 if (storedToken.IsUsed)
                 {
-                    return ApiResponse<TokenResponseDto>.Fail("Refresh Token đã được sử dụng", StatusCodes.Status400BadRequest);
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_REFRESH_TOKEN_USED", StatusCodes.Status400BadRequest);
                 }
 
                 if (storedToken.IsRevoked)
                 {
-                    return ApiResponse<TokenResponseDto>.Fail("Refresh Token đã bị thu hồi", StatusCodes.Status400BadRequest);
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_REFRESH_TOKEN_REVOKED", StatusCodes.Status400BadRequest);
                 }
 
                 if (storedToken.JwtId != jti)
                 {
-                    return ApiResponse<TokenResponseDto>.Fail("Refresh Token không khớp với Access Token", StatusCodes.Status400BadRequest);
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_REFRESH_TOKEN_MISMATCH", StatusCodes.Status400BadRequest);
                 }
 
                 if (storedToken.ExpiryDate < DateTime.Now)
                 {
-                    return ApiResponse<TokenResponseDto>.Fail("Refresh Token đã hết hạn", StatusCodes.Status400BadRequest);
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_REFRESH_TOKEN_EXPIRED", StatusCodes.Status400BadRequest);
                 }
 
                 storedToken.IsUsed = true;
@@ -230,7 +230,7 @@ namespace PRN232_be.Services.Implementations
                 var user = await _userManager.FindByIdAsync(userId);
                 if (user == null)
                 {
-                    return ApiResponse<TokenResponseDto>.Fail("Người dùng không tồn tại", StatusCodes.Status400BadRequest);
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status400BadRequest);
                 }
 
                 var userRoles = await _userManager.GetRolesAsync(user);
@@ -259,7 +259,7 @@ namespace PRN232_be.Services.Implementations
                 }
 
                 var response = await GenerateTokensAsync(user, authClaims);
-                return ApiResponse<TokenResponseDto>.Ok(response, "Refresh token thành công");
+                return ApiResponse<TokenResponseDto>.Ok(response, "REFRESH_TOKEN_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -276,14 +276,14 @@ namespace PRN232_be.Services.Implementations
 
                 if (storedToken == null)
                 {
-                    return ApiResponse<bool>.Fail("Refresh Token không hợp lệ hoặc không tồn tại", StatusCodes.Status400BadRequest);
+                    return ApiResponse<bool>.Fail("ERR_REFRESH_TOKEN_INVALID_OR_NOT_FOUND", StatusCodes.Status400BadRequest);
                 }
 
                 storedToken.IsRevoked = true;
                 _dbContext.RefreshTokens.Update(storedToken);
                 await _dbContext.SaveChangesAsync();
 
-                return ApiResponse<bool>.Ok(true, "Đăng xuất thành công");
+                return ApiResponse<bool>.Ok(true, "LOGOUT_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -298,7 +298,7 @@ namespace PRN232_be.Services.Implementations
                 var userExists = await _userManager.FindByNameAsync(registerDto.Username);
                 if (userExists != null)
                 {
-                    return ApiResponse<bool>.Fail("Người dùng đã tồn tại", StatusCodes.Status400BadRequest);
+                    return ApiResponse<bool>.Fail("ERR_USER_EXISTS", StatusCodes.Status400BadRequest);
                 }
 
                 IdentityUser user = new()
@@ -312,10 +312,10 @@ namespace PRN232_be.Services.Implementations
                 if (!result.Succeeded)
                 {
                     var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                    return ApiResponse<bool>.Fail($"Tạo tài khoản thất bại: {errors}", StatusCodes.Status400BadRequest);
+                    return ApiResponse<bool>.Fail("ERR_REGISTER_FAILED", StatusCodes.Status400BadRequest);
                 }
 
-                return ApiResponse<bool>.Ok(true, "Tạo tài khoản thành công");
+                return ApiResponse<bool>.Ok(true, "REGISTER_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -329,23 +329,23 @@ namespace PRN232_be.Services.Implementations
             {
                 if (string.IsNullOrWhiteSpace(createRoleDto.RoleName))
                 {
-                    return ApiResponse<bool>.Fail("Tên vai trò không được để trống", StatusCodes.Status400BadRequest);
+                    return ApiResponse<bool>.Fail("ERR_ROLE_NAME_EMPTY", StatusCodes.Status400BadRequest);
                 }
 
                 var roleExists = await _roleManager.RoleExistsAsync(createRoleDto.RoleName);
                 if (roleExists)
                 {
-                    return ApiResponse<bool>.Fail("Vai trò đã tồn tại", StatusCodes.Status400BadRequest);
+                    return ApiResponse<bool>.Fail("ERR_ROLE_DUPLICATE", StatusCodes.Status400BadRequest);
                 }
 
                 var result = await _roleManager.CreateAsync(new IdentityRole(createRoleDto.RoleName));
                 if (!result.Succeeded)
                 {
                     var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                    return ApiResponse<bool>.Fail($"Tạo vai trò thất bại: {errors}", StatusCodes.Status400BadRequest);
+                    return ApiResponse<bool>.Fail("ERR_CREATE_ROLE_FAILED", StatusCodes.Status400BadRequest);
                 }
 
-                return ApiResponse<bool>.Ok(true, "Tạo vai trò thành công");
+                return ApiResponse<bool>.Ok(true, "CREATE_ROLE_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -360,7 +360,7 @@ namespace PRN232_be.Services.Implementations
                 var role = await _roleManager.FindByNameAsync(assignRolePermissionsDto.RoleName);
                 if (role == null)
                 {
-                    return ApiResponse<bool>.Fail("Vai trò không tồn tại", StatusCodes.Status404NotFound);
+                    return ApiResponse<bool>.Fail("ERR_ROLE_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 // 1. Lấy tất cả các Claim dạng Permission của Role này trực tiếp từ DbContext
@@ -401,7 +401,7 @@ namespace PRN232_be.Services.Implementations
                 // Lưu thay đổi chỉ với 1 lần kết nối Database duy nhất
                 await _dbContext.SaveChangesAsync();
 
-                return ApiResponse<bool>.Ok(true, "Gán quyền thành công");
+                return ApiResponse<bool>.Ok(true, "ASSIGN_PERMISSIONS_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -416,28 +416,28 @@ namespace PRN232_be.Services.Implementations
                 var user = await _userManager.FindByNameAsync(username);
                 if (user == null)
                 {
-                    return ApiResponse<bool>.Fail("Người dùng không tồn tại", StatusCodes.Status404NotFound);
+                    return ApiResponse<bool>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 var roleExists = await _roleManager.RoleExistsAsync(roleName);
                 if (!roleExists)
                 {
-                    return ApiResponse<bool>.Fail("Vai trò không tồn tại", StatusCodes.Status400BadRequest);
+                    return ApiResponse<bool>.Fail("ERR_ROLE_NOT_FOUND", StatusCodes.Status400BadRequest);
                 }
 
                 if (await _userManager.IsInRoleAsync(user, roleName))
                 {
-                    return ApiResponse<bool>.Fail("Người dùng đã có vai trò này", StatusCodes.Status400BadRequest);
+                    return ApiResponse<bool>.Fail("ERR_USER_ALREADY_HAS_ROLE", StatusCodes.Status400BadRequest);
                 }
 
                 var result = await _userManager.AddToRoleAsync(user, roleName);
                 if (!result.Succeeded)
                 {
                     var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                    return ApiResponse<bool>.Fail($"Gán vai trò thất bại: {errors}", StatusCodes.Status400BadRequest);
+                    return ApiResponse<bool>.Fail("ERR_ASSIGN_ROLE_FAILED", StatusCodes.Status400BadRequest);
                 }
 
-                return ApiResponse<bool>.Ok(true, "Gán vai trò thành công");
+                return ApiResponse<bool>.Ok(true, "ASSIGN_ROLE_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -450,7 +450,7 @@ namespace PRN232_be.Services.Implementations
             try
             {
                 var roles = await _roleManager.Roles.Select(r => r.Name!).ToListAsync();
-                return ApiResponse<List<string>>.Ok(roles, "Lấy danh sách vai trò thành công");
+                return ApiResponse<List<string>>.Ok(roles, "GET_ROLE_LIST_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -502,7 +502,7 @@ namespace PRN232_be.Services.Implementations
                     Items = roleDtos
                 };
 
-                return ApiResponse<PagingResponse<RoleDto>>.Ok(pagingResponse, "Lấy danh sách vai trò thành công");
+                return ApiResponse<PagingResponse<RoleDto>>.Ok(pagingResponse, "GET_ROLE_LIST_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -514,8 +514,8 @@ namespace PRN232_be.Services.Implementations
         {
             try
             {
-                var permissions = DmsPermissions.GetAllPermissions();
-                return Task.FromResult(ApiResponse<List<string>>.Ok(permissions, "Lấy danh sách quyền hệ thống thành công"));
+                var permissions = Permissions.GetAllPermissions();
+                return Task.FromResult(ApiResponse<List<string>>.Ok(permissions, "GET_SYSTEM_PERMISSIONS_SUCCESS"));
             }
             catch (Exception ex)
             {
@@ -530,11 +530,11 @@ namespace PRN232_be.Services.Implementations
                 var user = await _userManager.FindByNameAsync(username);
                 if (user == null)
                 {
-                    return ApiResponse<List<string>>.Fail("Người dùng không tồn tại", StatusCodes.Status404NotFound);
+                    return ApiResponse<List<string>>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 var roles = (await _userManager.GetRolesAsync(user)).ToList();
-                return ApiResponse<List<string>>.Ok(roles, "Lấy vai trò của người dùng thành công");
+                return ApiResponse<List<string>>.Ok(roles, "GET_USER_ROLES_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -549,7 +549,7 @@ namespace PRN232_be.Services.Implementations
                 var user = await _userManager.FindByNameAsync(username);
                 if (user == null)
                 {
-                    return ApiResponse<List<string>>.Fail("Người dùng không tồn tại", StatusCodes.Status404NotFound);
+                    return ApiResponse<List<string>>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 var roles = await _userManager.GetRolesAsync(user);
@@ -573,7 +573,7 @@ namespace PRN232_be.Services.Implementations
 
                 permissions = permissions.Distinct().ToList();
 
-                return ApiResponse<List<string>>.Ok(permissions, "Lấy danh sách quyền của người dùng thành công");
+                return ApiResponse<List<string>>.Ok(permissions, "GET_USER_PERMISSIONS_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -588,7 +588,7 @@ namespace PRN232_be.Services.Implementations
                 var role = await _roleManager.FindByNameAsync(roleName);
                 if (role == null)
                 {
-                    return ApiResponse<List<string>>.Fail("Vai trò không tồn tại", StatusCodes.Status404NotFound);
+                    return ApiResponse<List<string>>.Fail("ERR_ROLE_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 var permissions = await _dbContext.RoleClaims
@@ -596,7 +596,7 @@ namespace PRN232_be.Services.Implementations
                     .Select(rc => rc.ClaimValue!)
                     .ToListAsync();
 
-                return ApiResponse<List<string>>.Ok(permissions, "Lấy quyền của vai trò thành công");
+                return ApiResponse<List<string>>.Ok(permissions, "GET_ROLE_PERMISSIONS_SUCCESS");
             }
             catch (Exception ex)
             {

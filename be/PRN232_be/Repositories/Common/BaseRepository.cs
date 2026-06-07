@@ -47,6 +47,23 @@ namespace PRN232_be.Repositories.Common
             _dbContext.Set<T>().Update(entity);
             return Task.CompletedTask;
         }
+        public Task DeactiveAsync(T entity)
+        {
+            var isDeletedProp = typeof(T).GetProperty("IsDeleted");
+            if (isDeletedProp != null && isDeletedProp.CanWrite)
+            {
+                isDeletedProp.SetValue(entity, true);
+                
+                var deletedAtProp = typeof(T).GetProperty("DeletedAt");
+                if (deletedAtProp != null && deletedAtProp.CanWrite)
+                {
+                    deletedAtProp.SetValue(entity, DateTime.UtcNow);
+                }
+                
+                _dbContext.Set<T>().Update(entity);
+            }
+            return Task.CompletedTask;
+        }
         public Task DeleteAsync(T entity)
         {
             _dbContext.Set<T>().Remove(entity);

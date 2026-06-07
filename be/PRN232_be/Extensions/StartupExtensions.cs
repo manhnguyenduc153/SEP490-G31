@@ -22,6 +22,8 @@ namespace PRN232_be.Extensions
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(configuration.GetConnectionString("Default")));
 
+            services.AddHttpContextAccessor();
+
             // 2. Cấu hình Redis Cache
             var redisConnectionString = configuration["Redis:ConnectionString"] ?? "localhost:6379";
             services.AddSingleton<IConnectionMultiplexer>(

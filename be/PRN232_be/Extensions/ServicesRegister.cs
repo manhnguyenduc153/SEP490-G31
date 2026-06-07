@@ -16,9 +16,11 @@ namespace PRN232_be.Extensions
             services.AddScoped<IUnitOfWork, UnitOfWork<ApplicationDbContext>>();
             services.AddScoped(typeof(IBaseRepository<,>), typeof(BaseRepository<,>));
             services.AddScoped<IProductRepository, ProductRepository>();
+            services.AddScoped<IQuestionCategoryRepository, QuestionCategoryRepository>();
             
             // Services
             services.AddScoped<IProductService, ProductService>();
+            services.AddScoped<IQuestionCategoryService, QuestionCategoryService>();
             services.AddScoped<IAuthService, AuthService>();
         }
     }

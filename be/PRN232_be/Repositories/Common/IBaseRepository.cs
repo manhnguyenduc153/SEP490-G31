@@ -14,6 +14,7 @@ namespace PRN232_be.Repositories.Common
         Task<T> AddAsync(T entity);
         Task<IEnumerable<T>> AddRangeAsync(IEnumerable<T> entities);
         Task UpdateAsync(T entity);
+        Task DeactiveAsync(T entity);
         Task DeleteAsync(T entity);
         Task UpdateRangeAsync(IEnumerable<T> entities);
         Task DeleteRangeAsync(IEnumerable<T> entities);
