@@ -9,6 +9,8 @@ namespace PRN232_be.Models.Configurations
         {
             builder.ToTable("activities");
             builder.HasKey(x => x.Id);
+            builder.Property(x => x.Code).IsRequired().HasMaxLength(50);
+            builder.Property(x => x.Name).IsRequired().HasMaxLength(200);
 
             builder.Property(x => x.Title).IsRequired().HasMaxLength(250);
             builder.Property(x => x.TotalScore).HasColumnType("decimal(18,2)");

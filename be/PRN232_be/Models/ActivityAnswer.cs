@@ -3,7 +3,7 @@ using PRN232_be.Models.BaseEntities;
 
 namespace PRN232_be.Models
 {
-    public class ActivityAnswer : BaseEntity<int>
+    public class ActivityAnswer : StandardEntity<int>
     {
         public int AttemptId { get; set; }
         public int QuestionId { get; set; }

@@ -9,8 +9,8 @@ namespace PRN232_be.Models.Configurations
         {
             builder.ToTable("question_categories");
             builder.HasKey(x => x.Id);
-
-            builder.Property(x => x.Name).IsRequired().HasMaxLength(150);
+            builder.Property(x => x.Code).IsRequired().HasMaxLength(50);
+            builder.Property(x => x.Name).IsRequired().HasMaxLength(200);
             builder.Property(x => x.Description).HasMaxLength(1000);
         }
     }

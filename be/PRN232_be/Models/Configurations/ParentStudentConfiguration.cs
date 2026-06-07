@@ -9,7 +9,6 @@ namespace PRN232_be.Models.Configurations
         {
             builder.ToTable("parent_students");
             builder.HasKey(x => x.Id);
-
             builder.Property(x => x.ParentName).HasMaxLength(200);
             builder.Property(x => x.ParentPhone).HasMaxLength(20);
             builder.Property(x => x.Relationship).HasMaxLength(50);

@@ -4,7 +4,7 @@ using PRN232_be.Models.BaseEntities;
 
 namespace PRN232_be.Models
 {
-    public class ExamSchedule : BaseEntity<int>
+    public class ExamSchedule : StandardEntity<int>
     {
         public int? ActivityId { get; set; }
         public int? RoomId { get; set; }

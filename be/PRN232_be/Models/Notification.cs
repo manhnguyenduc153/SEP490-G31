@@ -3,7 +3,7 @@ using PRN232_be.Models.BaseEntities;
 
 namespace PRN232_be.Models
 {
-    public class Notification : BaseEntity<int>
+    public class Notification : StandardEntity<int>
     {
         public string? Title { get; set; }
         public string? Content { get; set; }

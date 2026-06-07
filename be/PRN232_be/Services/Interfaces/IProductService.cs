@@ -10,5 +10,6 @@ namespace PRN232_be.Services.Interfaces
         Task<ApiResponse<ProductDto>> CreateProductAsync(ProductSaveDto productDto);
         Task<ApiResponse<ProductDto>> EditProductAsync(ProductSaveDto productDto);
         Task<ApiResponse<bool>> DeleteProductAsync(int id);
+        Task<ApiResponse<bool>> DeactiveProductAsync(int id);
     }
 }

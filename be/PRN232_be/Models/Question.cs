@@ -3,7 +3,7 @@ using PRN232_be.Models.BaseEntities;
 
 namespace PRN232_be.Models
 {
-    public class Question : BaseEntity<int>
+    public class Question : StandardEntity<int>
     {
         public int? CategoryId { get; set; }
         public string Content { get; set; } = string.Empty;

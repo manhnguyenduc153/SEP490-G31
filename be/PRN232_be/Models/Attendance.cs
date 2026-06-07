@@ -3,7 +3,7 @@ using PRN232_be.Models.BaseEntities;
 
 namespace PRN232_be.Models
 {
-    public class Attendance : BaseEntity<int>
+    public class Attendance : StandardEntity<int>
     {
         public int? ScheduleId { get; set; }
         public int? StudentId { get; set; }

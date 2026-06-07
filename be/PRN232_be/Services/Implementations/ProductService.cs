@@ -179,5 +179,26 @@ namespace PRN232_be.Services.Implementations
                 return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
+
+        public async Task<ApiResponse<bool>> DeactiveProductAsync(int id)
+        {
+            try
+            {
+                var existingProduct = await _productRepository.GetByIdAsync(id);
+                if (existingProduct == null)
+                {
+                    return ApiResponse<bool>.Fail("Không tìm thấy sản phẩm", StatusCodes.Status404NotFound);
+                }
+
+                await _productRepository.DeactiveAsync(existingProduct);
+                await _productRepository.SaveChangesAsync();
+
+                return ApiResponse<bool>.Ok(true, "Vô hiệu hóa thành công");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
     }
 }

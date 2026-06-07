@@ -66,5 +66,14 @@ namespace PRN232_be.Controllers
             var response = await _productService.DeleteProductAsync(id);
             return StatusCode(response.StatusCode, response);
         }
+
+        // POST: api/Product/{id}/deactive
+        [HttpPost("{id}/deactive")]
+        [HasPermission(DmsPermissions.Product.Product_Delete)]
+        public async Task<IActionResult> DeactiveProduct(int id)
+        {
+            var response = await _productService.DeactiveProductAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }
