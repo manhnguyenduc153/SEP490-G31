@@ -1,6 +1,8 @@
+using PRN232_be.Helpers;
+
 namespace PRN232_be.DTO.Product
 {
-    public class CreateOrEditProductDto
+    public class ProductSaveDto
     {
         public int Id { get; set; }
         public string Code { get; set; } = string.Empty;
@@ -8,5 +10,7 @@ namespace PRN232_be.DTO.Product
         public string Description { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public int StockQuantity { get; set; }
+
+        public string TextSearch => StringHelper.GenerateTextSearch(Code, Name);
     }
 }

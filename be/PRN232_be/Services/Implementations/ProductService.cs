@@ -70,18 +70,26 @@ namespace PRN232_be.Services.Implementations
             }
         }
 
-        public async Task<ApiResponse<ProductDto>> CreateOrEditProductAsync(CreateOrEditProductDto productDto)
+        public async Task<ApiResponse<ProductDto>> CreateProductAsync(ProductSaveDto productDto)
         {
             try
             {
-                if (productDto.Id <= 0)
+                var validationError = await ValidateProductAsync(productDto, isEdit: false);
+                if (validationError != null)
                 {
-                    return await Create(productDto);
+                    return ApiResponse<ProductDto>.Fail(validationError, StatusCodes.Status400BadRequest);
                 }
-                else
-                {
-                    return await Update(productDto);
-                }
+
+                var product = productDto.Adapt<Product>();
+                
+                // Explicitly set Id to 0 so the database auto-increments it
+                product.Id = 0; 
+                
+                await _productRepository.AddAsync(product);
+                await _productRepository.SaveChangesAsync();
+                
+                var resultDto = product.Adapt<ProductDto>();
+                return ApiResponse<ProductDto>.Created(resultDto, "Tạo mới thành công");
             }
             catch (Exception ex)
             {
@@ -89,37 +97,66 @@ namespace PRN232_be.Services.Implementations
             }
         }
 
-        private async Task<ApiResponse<ProductDto>> Create(CreateOrEditProductDto productDto)
+        public async Task<ApiResponse<ProductDto>> EditProductAsync(ProductSaveDto productDto)
         {
-            var product = productDto.Adapt<Product>();
-            
-            // Explicitly set Id to 0 so the database auto-increments it, ignoring whatever was mapped if it was <= 0
-            product.Id = 0; 
-            product.TextSearch = StringHelper.GenerateTextSearch(product.Code, product.Name);
-            
-            await _productRepository.AddAsync(product);
-            await _productRepository.SaveChangesAsync();
-            
-            var resultDto = product.Adapt<ProductDto>();
-            return ApiResponse<ProductDto>.Created(resultDto, "Tạo mới thành công");
+            try
+            {
+                var validationError = await ValidateProductAsync(productDto, isEdit: true);
+                if (validationError != null)
+                {
+                    return ApiResponse<ProductDto>.Fail(validationError, StatusCodes.Status400BadRequest);
+                }
+
+                var existingProduct = await _productRepository.GetByIdAsync(productDto.Id);
+                if (existingProduct == null)
+                {
+                    return ApiResponse<ProductDto>.Fail("Không tìm thấy sản phẩm", StatusCodes.Status404NotFound);
+                }
+
+                productDto.Adapt(existingProduct);
+
+                await _productRepository.UpdateAsync(existingProduct);
+                await _productRepository.SaveChangesAsync();
+
+                var resultDto = existingProduct.Adapt<ProductDto>();
+                return ApiResponse<ProductDto>.Ok(resultDto, "Cập nhật thành công");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<ProductDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
         }
 
-        private async Task<ApiResponse<ProductDto>> Update(CreateOrEditProductDto productDto)
+        private async Task<string?> ValidateProductAsync(ProductSaveDto productDto, bool isEdit)
         {
-            var existingProduct = await _productRepository.GetByIdAsync(productDto.Id);
-            if (existingProduct == null)
+            if (string.IsNullOrWhiteSpace(productDto.Code))
+                return "Mã sản phẩm không được để trống";
+
+            if (productDto.Code.Length > 50)
+                return "Mã sản phẩm không được vượt quá 50 ký tự";
+
+            if (string.IsNullOrWhiteSpace(productDto.Name))
+                return "Tên sản phẩm không được để trống";
+
+            if (productDto.Name.Length > 200)
+                return "Tên sản phẩm không được vượt quá 200 ký tự";
+
+            if (productDto.Price < 0)
+                return "Giá sản phẩm không được nhỏ hơn 0";
+
+            if (productDto.StockQuantity < 0)
+                return "Số lượng tồn kho không được nhỏ hơn 0";
+
+            // Kiểm tra trùng mã sản phẩm
+            var duplicateProduct = await _productRepository.FindAll()
+                .FirstOrDefaultAsync(p => p.Code == productDto.Code && (!isEdit || p.Id != productDto.Id));
+            
+            if (duplicateProduct != null)
             {
-                return ApiResponse<ProductDto>.Fail("Không tìm thấy sản phẩm", StatusCodes.Status404NotFound);
+                return $"Mã sản phẩm '{productDto.Code}' đã tồn tại trên hệ thống";
             }
 
-            productDto.Adapt(existingProduct);
-            existingProduct.TextSearch = StringHelper.GenerateTextSearch(existingProduct.Code, existingProduct.Name);
-
-            await _productRepository.UpdateAsync(existingProduct);
-            await _productRepository.SaveChangesAsync();
-
-            var resultDto = existingProduct.Adapt<ProductDto>();
-            return ApiResponse<ProductDto>.Ok(resultDto, "Cập nhật thành công");
+            return null; // Hợp lệ
         }
 
         public async Task<ApiResponse<bool>> DeleteProductAsync(int id)

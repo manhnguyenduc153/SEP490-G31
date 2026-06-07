@@ -39,28 +39,22 @@ namespace PRN232_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
-        // POST: api/Product/CreateOrEdit
-        [HttpPost("CreateOrEdit")]
-        public async Task<IActionResult> CreateOrEditProduct([FromBody] CreateOrEditProductDto productDto)
+        // POST: api/Product
+        [HttpPost]
+        [HasPermission(DmsPermissions.Product.Product_Create)]
+        public async Task<IActionResult> CreateProduct([FromBody] ProductSaveDto productDto)
         {
-            if (productDto.Id == 0)
-            {
-                var authResult = await _authorizationService.AuthorizeAsync(User, DmsPermissions.Product.Product_Create);
-                if (!authResult.Succeeded)
-                {
-                    return Forbid();
-                }
-            }
-            else
-            {
-                var authResult = await _authorizationService.AuthorizeAsync(User, DmsPermissions.Product.Product_Edit);
-                if (!authResult.Succeeded)
-                {
-                    return Forbid();
-                }
-            }
+            var response = await _productService.CreateProductAsync(productDto);
+            return StatusCode(response.StatusCode, response);
+        }
 
-            var response = await _productService.CreateOrEditProductAsync(productDto);
+        // PUT: api/Product/{id}
+        [HttpPut("{id}")]
+        [HasPermission(DmsPermissions.Product.Product_Edit)]
+        public async Task<IActionResult> EditProduct(int id, [FromBody] ProductSaveDto productDto)
+        {
+            productDto.Id = id;
+            var response = await _productService.EditProductAsync(productDto);
             return StatusCode(response.StatusCode, response);
         }
 
