@@ -34,6 +34,9 @@ namespace PRN232_be.Models.Configurations
                 .WithMany(t => t.ClassSchedules)
                 .HasForeignKey(x => x.TeacherId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Soft-delete global filter
+            builder.HasQueryFilter(x => !x.IsDeleted);
         }
     }
 }

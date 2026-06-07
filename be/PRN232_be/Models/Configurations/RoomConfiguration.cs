@@ -12,6 +12,9 @@ namespace PRN232_be.Models.Configurations
 
             builder.Property(x => x.Code).IsRequired().HasMaxLength(50);
             builder.Property(x => x.Name).IsRequired().HasMaxLength(200);
+
+            // Soft-delete global filter
+            builder.HasQueryFilter(x => !x.IsDeleted);
         }
     }
 }

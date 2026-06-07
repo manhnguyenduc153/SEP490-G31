@@ -14,6 +14,9 @@ namespace PRN232_be.Models.Configurations
             builder.Property(x => x.Name).IsRequired().HasMaxLength(200);
             builder.Property(x => x.StartTime).HasColumnType("time");
             builder.Property(x => x.EndTime).HasColumnType("time");
+
+            // Soft-delete global filter
+            builder.HasQueryFilter(x => !x.IsDeleted);
         }
     }
 }

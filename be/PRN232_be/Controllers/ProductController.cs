@@ -23,7 +23,7 @@ namespace PRN232_be.Controllers
 
         // GET: api/Product
         [HttpGet]
-        [HasPermission(DmsPermissions.Product.Product_View)]
+        [HasPermission(Permissions.Product.Product_View)]
         public async Task<IActionResult> GetAllProducts([FromQuery] ProductSearchDto searchDto)
         {
             var response = await _productService.GetAllProductsAsync(searchDto);
@@ -32,7 +32,7 @@ namespace PRN232_be.Controllers
 
         // GET: api/Product/5
         [HttpGet("{id}")]
-        [HasPermission(DmsPermissions.Product.Product_View)]
+        [HasPermission(Permissions.Product.Product_View)]
         public async Task<IActionResult> GetProductById(int id)
         {
             var response = await _productService.GetProductByIdAsync(id);
@@ -41,7 +41,7 @@ namespace PRN232_be.Controllers
 
         // POST: api/Product
         [HttpPost]
-        [HasPermission(DmsPermissions.Product.Product_Create)]
+        [HasPermission(Permissions.Product.Product_Create)]
         public async Task<IActionResult> CreateProduct([FromBody] ProductSaveDto productDto)
         {
             var response = await _productService.CreateProductAsync(productDto);
@@ -50,7 +50,7 @@ namespace PRN232_be.Controllers
 
         // PUT: api/Product/{id}
         [HttpPut("{id}")]
-        [HasPermission(DmsPermissions.Product.Product_Edit)]
+        [HasPermission(Permissions.Product.Product_Edit)]
         public async Task<IActionResult> EditProduct(int id, [FromBody] ProductSaveDto productDto)
         {
             productDto.Id = id;
@@ -60,7 +60,7 @@ namespace PRN232_be.Controllers
 
         // DELETE: api/Product/5
         [HttpDelete("{id}")]
-        [HasPermission(DmsPermissions.Product.Product_Delete)]
+        [HasPermission(Permissions.Product.Product_Delete)]
         public async Task<IActionResult> DeleteProduct(int id)
         {
             var response = await _productService.DeleteProductAsync(id);
@@ -69,7 +69,7 @@ namespace PRN232_be.Controllers
 
         // POST: api/Product/{id}/deactive
         [HttpPost("{id}/deactive")]
-        [HasPermission(DmsPermissions.Product.Product_Delete)]
+        [HasPermission(Permissions.Product.Product_Delete)]
         public async Task<IActionResult> DeactiveProduct(int id)
         {
             var response = await _productService.DeactiveProductAsync(id);

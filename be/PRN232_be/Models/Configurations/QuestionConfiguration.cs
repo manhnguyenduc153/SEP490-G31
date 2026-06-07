@@ -18,6 +18,9 @@ namespace PRN232_be.Models.Configurations
                 .WithMany(qc => qc.Questions)
                 .HasForeignKey(x => x.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Soft-delete global filter
+            builder.HasQueryFilter(x => !x.IsDeleted);
         }
     }
 }

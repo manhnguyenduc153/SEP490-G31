@@ -30,6 +30,9 @@ namespace PRN232_be.Models.Configurations
                 .WithMany(t => t.ActivityAnswers)
                 .HasForeignKey(x => x.GradedBy)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Soft-delete global filter
+            builder.HasQueryFilter(x => !x.IsDeleted);
         }
     }
 }

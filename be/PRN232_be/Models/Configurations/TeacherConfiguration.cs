@@ -18,6 +18,9 @@ namespace PRN232_be.Models.Configurations
             builder.Property(x => x.Address).HasMaxLength(500);
             builder.Property(x => x.Certificate).HasMaxLength(500);
             builder.Property(x => x.Avatar).HasMaxLength(500);
+
+            // Soft-delete global filter
+            builder.HasQueryFilter(x => !x.IsDeleted);
         }
     }
 }

@@ -21,7 +21,7 @@ namespace PRN232_be.Helpers
             }
 
             // 2. Đồng bộ các Claims (Permissions) của Role Admin
-            var allPermissions = DmsPermissions.GetAllPermissions();
+            var allPermissions = Permissions.GetAllPermissions();
             var existingClaims = await roleManager.GetClaimsAsync(adminRole);
 
             // Xóa các Claim cũ không còn tồn tại trong Code

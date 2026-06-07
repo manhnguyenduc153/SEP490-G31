@@ -1327,7 +1327,7 @@ namespace PRN232_be.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens");
+                    b.ToTable("RefreshTokens", (string)null);
                 });
 
             modelBuilder.Entity("PRN232_be.Models.Room", b =>
