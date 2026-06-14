@@ -24,6 +24,7 @@ namespace PRN232_be.Extensions
             services.AddScoped<IQuestionCategoryService, QuestionCategoryService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ITeacherService, TeacherService>();
+            services.AddScoped<IFileService, FileService>();
         }
     }
 }

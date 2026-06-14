@@ -1,4 +1,5 @@
 using System;
+using PRN232_be.Enums;
 
 namespace PRN232_be.DTO.Teacher
 {
@@ -14,7 +15,8 @@ namespace PRN232_be.DTO.Teacher
         public string? Address { get; set; }
         public int Status { get; set; }
         public string? Description { get; set; }
-        public int? GradeLevel { get; set; }
+        public GradeLevel? GradeLevel { get; set; }
+        public string? GradeLevelName { get; set; }
         public string? Avatar { get; set; }
         public string? Certificate { get; set; }
     }

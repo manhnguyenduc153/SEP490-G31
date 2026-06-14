@@ -7,6 +7,7 @@ using PRN232_be.Models;
 using PRN232_be.Repositories.Interfaces;
 using PRN232_be.Services.Interfaces;
 using PRN232_be.Helpers;
+using PRN232_be.Enums;
 
 namespace PRN232_be.Services.Implementations
 {
@@ -173,6 +174,7 @@ namespace PRN232_be.Services.Implementations
             Status = entity.Status,
             Description = entity.Description,
             GradeLevel = entity.GradeLevel,
+            GradeLevelName = entity.GradeLevel?.GetStringValue(),
             Avatar = entity.Avatar,
             Certificate = entity.Certificate
         };
