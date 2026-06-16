@@ -201,4 +201,20 @@ namespace PRN232_be.Enums
         [StringValue("Absent")]
         Absent = 2
     }
+
+    public enum GradeLevel
+    {
+        [StringValue("Foundation")]
+        Foundation = 1,
+        [StringValue("Pre-IELTS")]
+        PreIelts = 2,
+        [StringValue("IELTS 4.0 - 5.0")]
+        Ielts4_5 = 3,
+        [StringValue("IELTS 5.0 - 6.0")]
+        Ielts5_6 = 4,
+        [StringValue("IELTS 6.0 - 6.5")]
+        Ielts6_65 = 5,
+        [StringValue("IELTS 6.5+")]
+        Ielts65Plus = 6
+    }
 }
