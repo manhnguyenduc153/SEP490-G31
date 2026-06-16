@@ -3496,3 +3496,12 @@ Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
 [2026-06-14 23:53:53] [CLIENT ERROR 401] GET /api/Teacher
 Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
 ------------------------------------------------------------
+[2026-06-17 04:08:27] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-17 04:10:07] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-17 04:16:01] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------

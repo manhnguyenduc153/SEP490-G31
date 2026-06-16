@@ -7,6 +7,7 @@ using PRN232_be.Models;
 using PRN232_be.Repositories.Interfaces;
 using PRN232_be.Services.Interfaces;
 using PRN232_be.Helpers;
+using PRN232_be.Enums;
 
 namespace PRN232_be.Services.Implementations
 {
@@ -32,14 +33,15 @@ namespace PRN232_be.Services.Implementations
 
                 if (searchDto.Status.HasValue)
                 {
-                    query = query.Where(c => c.Status == searchDto.Status.Value);
+                    var statusValue = searchDto.Status.Value ? 1 : 0;
+                    query = query.Where(c => c.Status == statusValue);
                 }
 
                 var totalRecords = await query.CountAsync();
-                var entities = await query.ApplyPagingAsync(searchDto.PageIndex, searchDto.PageSize);
+                var entities = await query.ApplyPagingAsync(searchDto);
 
                 var dtos = entities.Select(MapToDto);
-                var pagingResponse = dtos.ToPagingResponse(totalRecords, searchDto.PageIndex, searchDto.PageSize);
+                var pagingResponse = dtos.ToPagingResponse(totalRecords, searchDto);
 
                 return ApiResponse<PagingResponse<CourseDto>>.Ok(pagingResponse, "GET_COURSE_LIST_SUCCESS");
             }
@@ -79,6 +81,7 @@ namespace PRN232_be.Services.Implementations
 
                 var entity = dto.Adapt<Course>();
                 entity.Id = 0;
+                entity.Status = dto.Status != 0 ? dto.Status : 1; // Default to Active (1) if not set
 
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
@@ -162,20 +165,17 @@ namespace PRN232_be.Services.Implementations
             }
         }
 
-        // ===================== PRIVATE MAPPING =====================
-
         private static CourseDto MapToDto(Course entity) => new()
         {
             Id = entity.Id,
             Code = entity.Code ?? string.Empty,
             Name = entity.Name ?? string.Empty,
             Status = entity.Status,
+            StatusName = ((GeneralStatus)entity.Status).GetStringValue(),
             Duration = entity.Duration,
             Price = entity.Price,
             Description = entity.Description
         };
-
-        // ===================== PRIVATE VALIDATE =====================
 
         private async Task<string?> ValidateAsync(CourseSaveDto dto, bool isEdit)
         {
@@ -194,20 +194,20 @@ namespace PRN232_be.Services.Implementations
             if (dto.Description != null && dto.Description.Length > 1000)
                 return "ERR_DESC_MAX_LENGTH";
 
+            if (dto.Duration.HasValue && dto.Duration.Value <= 0)
+                return "ERR_DURATION_INVALID";
+
             if (dto.Price.HasValue && dto.Price.Value < 0)
-                return "ERR_PRICE_NEGATIVE";
+                return "ERR_PRICE_INVALID";
 
-            if (dto.Duration.HasValue && dto.Duration.Value < 0)
-                return "ERR_DURATION_NEGATIVE";
-
-            // Kiểm tra trùng mã khóa học
+            // Code duplication check
             var duplicateCode = await _repository.FindAll()
                 .FirstOrDefaultAsync(c => c.Code == dto.Code && (!isEdit || c.Id != dto.Id));
 
             if (duplicateCode != null)
                 return "ERR_CODE_DUPLICATE";
 
-            // Kiểm tra trùng tên khóa học
+            // Name duplication check
             var duplicateName = await _repository.FindAll()
                 .FirstOrDefaultAsync(c => c.Name == dto.Name && (!isEdit || c.Id != dto.Id));
 
