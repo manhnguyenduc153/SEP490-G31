@@ -39,10 +39,19 @@ namespace PRN232_be.Helpers
             int totalRecords,
             BaseSearchDto searchDto)
         {
+            return items.ToPagingResponse(totalRecords, searchDto.PageIndex, searchDto.PageSize);
+        }
+
+        public static PagingResponse<TDto> ToPagingResponse<TDto>(
+            this IEnumerable<TDto> items,
+            int totalRecords,
+            int pageIndex,
+            int pageSize)
+        {
             return new PagingResponse<TDto>
             {
-                PageIndex = searchDto.PageIndex,
-                PageSize = searchDto.PageSize,
+                PageIndex = pageIndex,
+                PageSize = pageSize,
                 TotalRecords = totalRecords,
                 Items = items
             };
@@ -62,9 +71,17 @@ namespace PRN232_be.Helpers
             this IQueryable<T> query,
             BaseSearchDto searchDto) where T : class
         {
+            return query.ApplyPagingAsync(searchDto.PageIndex, searchDto.PageSize);
+        }
+
+        public static Task<List<T>> ApplyPagingAsync<T>(
+            this IQueryable<T> query,
+            int pageIndex,
+            int pageSize) where T : class
+        {
             return query
-                .Skip((searchDto.PageIndex - 1) * searchDto.PageSize)
-                .Take(searchDto.PageSize)
+                .Skip((pageIndex - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
         }
     }
