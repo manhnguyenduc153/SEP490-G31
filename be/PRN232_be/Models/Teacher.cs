@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PRN232_be.Enums;
 using PRN232_be.Models.BaseEntities;
 
 namespace PRN232_be.Models
@@ -13,7 +14,7 @@ namespace PRN232_be.Models
         public string? Address { get; set; }
         public int Status { get; set; }
         public string? Description { get; set; }
-        public int? GradeLevel { get; set; }
+        public GradeLevel? GradeLevel { get; set; }
         public string? Avatar { get; set; }
         public string? Certificate { get; set; }
 
