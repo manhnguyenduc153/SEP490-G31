@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using PRN232_be.DTO.Class;
@@ -71,6 +72,32 @@ namespace PRN232_be.Controllers
         public async Task<IActionResult> Deactive(int id)
         {
             var response = await _service.DeactiveAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Class/TeacherSchedules
+        [HttpGet("TeacherSchedules")]
+        public async Task<IActionResult> GetTeacherSchedules()
+        {
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                return Unauthorized();
+            }
+            var response = await _service.GetTeacherSchedulesAsync(username);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Class/StudentSchedules
+        [HttpGet("StudentSchedules")]
+        public async Task<IActionResult> GetStudentSchedules()
+        {
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                return Unauthorized();
+            }
+            var response = await _service.GetStudentSchedulesAsync(username);
             return StatusCode(response.StatusCode, response);
         }
     }

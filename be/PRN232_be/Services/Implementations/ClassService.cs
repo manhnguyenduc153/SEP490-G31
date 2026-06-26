@@ -9,6 +9,7 @@ using PRN232_be.Services.Interfaces;
 using PRN232_be.Helpers;
 using PRN232_be.Enums;
 using PRN232_be.Repositories.Common;
+using Microsoft.AspNetCore.Identity;
 
 namespace PRN232_be.Services.Implementations
 {
@@ -20,14 +21,16 @@ namespace PRN232_be.Services.Implementations
         private readonly IStudentRepository _studentRepository;
         private readonly IBaseRepository<TimeSlot, ApplicationDbContext> _timeSlotRepository;
         private readonly IBaseRepository<ClassSchedule, ApplicationDbContext> _scheduleRepository;
-
+        private readonly UserManager<IdentityUser> _userManager;
+ 
         public ClassService(
             IClassRepository repository,
             ICourseRepository courseRepository,
             ITeacherRepository teacherRepository,
             IStudentRepository studentRepository,
             IBaseRepository<TimeSlot, ApplicationDbContext> timeSlotRepository,
-            IBaseRepository<ClassSchedule, ApplicationDbContext> scheduleRepository)
+            IBaseRepository<ClassSchedule, ApplicationDbContext> scheduleRepository,
+            UserManager<IdentityUser> userManager)
         {
             _repository = repository;
             _courseRepository = courseRepository;
@@ -35,6 +38,7 @@ namespace PRN232_be.Services.Implementations
             _studentRepository = studentRepository;
             _timeSlotRepository = timeSlotRepository;
             _scheduleRepository = scheduleRepository;
+            _userManager = userManager;
         }
 
         public async Task<ApiResponse<PagingResponse<ClassDto>>> GetAllAsync(ClassSearchDto searchDto)
@@ -85,6 +89,12 @@ namespace PRN232_be.Services.Implementations
                     .Include(c => c.Teacher)
                     .Include(c => c.StudentClasses)
                         .ThenInclude(sc => sc.Student)
+                    .Include(c => c.ClassSchedules)
+                        .ThenInclude(cs => cs.TimeSlot)
+                    .Include(c => c.ClassSchedules)
+                        .ThenInclude(cs => cs.Room)
+                    .Include(c => c.ClassSchedules)
+                        .ThenInclude(cs => cs.Teacher)
                     .FirstOrDefaultAsync(c => c.Id == id);
 
                 if (entity == null)
@@ -282,7 +292,27 @@ namespace PRN232_be.Services.Implementations
             StudentCount = entity.StudentClasses.Count,
             ExpectedLessons = entity.ExpectedLessons,
             WeeklySchedulesJson = entity.WeeklySchedulesJson,
-            AutoRefund = entity.AutoRefund
+            AutoRefund = entity.AutoRefund,
+            Schedules = entity.ClassSchedules?.Select(cs => new ClassScheduleDto
+            {
+                Id = cs.Id,
+                ClassId = cs.ClassId,
+                ClassCode = cs.Class?.Code,
+                ClassName = cs.Class?.Name,
+                LessonNo = cs.LessonNo,
+                ScheduleDate = cs.ScheduleDate,
+                SlotId = cs.SlotId,
+                SlotName = cs.TimeSlot?.Name,
+                StartTime = cs.TimeSlot?.StartTime.ToString(@"hh\:mm"),
+                EndTime = cs.TimeSlot?.EndTime.ToString(@"hh\:mm"),
+                RoomId = cs.RoomId,
+                RoomName = cs.Room?.Name,
+                TeacherId = cs.TeacherId,
+                TeacherName = cs.Teacher?.Name,
+                TeacherAvatar = cs.Teacher?.Avatar,
+                Status = cs.Status,
+                Note = cs.Note
+            }).OrderBy(cs => cs.LessonNo).ToList() ?? new List<ClassScheduleDto>()
         };
 
         // ===================== PRIVATE VALIDATE =====================
@@ -451,6 +481,119 @@ namespace PRN232_be.Services.Implementations
             if (entity.ClassSchedules.Any())
             {
                 entity.EndDate = entity.ClassSchedules.Last().ScheduleDate;
+            }
+        }
+
+        public async Task<ApiResponse<List<ClassScheduleDto>>> GetTeacherSchedulesAsync(string username)
+        {
+            try
+            {
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
+                {
+                    return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var teacher = await _teacherRepository.FindAll()
+                    .FirstOrDefaultAsync(t => t.Email == user.Email || t.Email == username);
+                if (teacher == null)
+                {
+                    return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var schedules = await _scheduleRepository.FindAll()
+                    .Include(cs => cs.TimeSlot)
+                    .Include(cs => cs.Room)
+                    .Include(cs => cs.Class)
+                    .Where(cs => cs.TeacherId == teacher.Id)
+                    .OrderBy(cs => cs.ScheduleDate)
+                    .Select(cs => new ClassScheduleDto
+                    {
+                        Id = cs.Id,
+                        ClassId = cs.ClassId,
+                        ClassCode = cs.Class != null ? cs.Class.Code : null,
+                        ClassName = cs.Class != null ? cs.Class.Name : null,
+                        LessonNo = cs.LessonNo,
+                        ScheduleDate = cs.ScheduleDate,
+                        SlotId = cs.SlotId,
+                        SlotName = cs.TimeSlot != null ? cs.TimeSlot.Name : null,
+                        StartTime = cs.TimeSlot != null ? cs.TimeSlot.StartTime.ToString(@"hh\:mm") : null,
+                        EndTime = cs.TimeSlot != null ? cs.TimeSlot.EndTime.ToString(@"hh\:mm") : null,
+                        RoomId = cs.RoomId,
+                        RoomName = cs.Room != null ? cs.Room.Name : null,
+                        TeacherId = cs.TeacherId,
+                        TeacherName = teacher.Name,
+                        TeacherAvatar = teacher.Avatar,
+                        Status = cs.Status,
+                        Note = cs.Note
+                    })
+                    .ToListAsync();
+
+                return ApiResponse<List<ClassScheduleDto>>.Ok(schedules, "GET_TEACHER_SCHEDULES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ClassScheduleDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<ClassScheduleDto>>> GetStudentSchedulesAsync(string username)
+        {
+            try
+            {
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
+                {
+                    return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var student = await _studentRepository.FindAll()
+                    .Include(s => s.StudentClasses)
+                    .FirstOrDefaultAsync(s => s.Email == user.Email || s.Email == username);
+                if (student == null)
+                {
+                    return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var classIds = student.StudentClasses
+                    .Where(sc => sc.Status == (int)StudentClassStatus.Enrolled || sc.Status == (int)StudentClassStatus.Studying)
+                    .Select(sc => sc.ClassId)
+                    .ToList();
+
+                var schedules = await _scheduleRepository.FindAll()
+                    .Include(cs => cs.TimeSlot)
+                    .Include(cs => cs.Room)
+                    .Include(cs => cs.Class)
+                    .Include(cs => cs.Teacher)
+                    .Where(cs => cs.ClassId.HasValue && classIds.Contains(cs.ClassId.Value))
+                    .OrderBy(cs => cs.ScheduleDate)
+                    .Select(cs => new ClassScheduleDto
+                    {
+                        Id = cs.Id,
+                        ClassId = cs.ClassId,
+                        ClassCode = cs.Class != null ? cs.Class.Code : null,
+                        ClassName = cs.Class != null ? cs.Class.Name : null,
+                        LessonNo = cs.LessonNo,
+                        ScheduleDate = cs.ScheduleDate,
+                        SlotId = cs.SlotId,
+                        SlotName = cs.TimeSlot != null ? cs.TimeSlot.Name : null,
+                        StartTime = cs.TimeSlot != null ? cs.TimeSlot.StartTime.ToString(@"hh\:mm") : null,
+                        EndTime = cs.TimeSlot != null ? cs.TimeSlot.EndTime.ToString(@"hh\:mm") : null,
+                        RoomId = cs.RoomId,
+                        RoomName = cs.Room != null ? cs.Room.Name : null,
+                        TeacherId = cs.TeacherId,
+                        TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
+                        TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
+                        Status = cs.Status,
+                        Note = cs.Note
+                    })
+                    .ToListAsync();
+
+                return ApiResponse<List<ClassScheduleDto>>.Ok(schedules, "GET_STUDENT_SCHEDULES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ClassScheduleDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
     }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace PRN232_be.DTO.Class
 {
@@ -22,5 +23,6 @@ namespace PRN232_be.DTO.Class
         public int? ExpectedLessons { get; set; }
         public string? WeeklySchedulesJson { get; set; }
         public bool AutoRefund { get; set; }
+        public List<ClassScheduleDto> Schedules { get; set; } = new();
     }
 }
