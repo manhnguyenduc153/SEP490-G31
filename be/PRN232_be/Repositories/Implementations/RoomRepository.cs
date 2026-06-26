@@ -6,7 +6,8 @@ namespace PRN232_be.Repositories.Implementations
 {
     public class RoomRepository : BaseRepository<Room, ApplicationDbContext>, IRoomRepository
     {
-        public RoomRepository(ApplicationDbContext context, IUnitOfWork unitOfWork) : base(context, unitOfWork)
+        public RoomRepository(ApplicationDbContext context, IUnitOfWork unitOfWork)
+            : base(context, unitOfWork)
         {
         }
     }
