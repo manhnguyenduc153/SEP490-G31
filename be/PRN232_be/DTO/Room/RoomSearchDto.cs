@@ -1,4 +1,5 @@
 using PRN232_be.Enums;
+using PRN232_be.DTO;
 
 namespace PRN232_be.DTO.Room
 {
