@@ -1,18 +1,21 @@
-﻿namespace PRN232_be.Enums
+
+namespace PRN232_be.Enums
 {
     public enum RoomStatus
     {
-        Active = 1 ,
-        Inactive =2 ,
+        [StringValue("Active")]
+        Active = 1,
+        [StringValue("Inactive")]
+        Inactive = 2,
+        [StringValue("Maintenance")]
         Maintaince = 3
-
     }
 
     public enum RoomType
     {
+        [StringValue("Theory")]
         Theory = 1,
-        Pratice =2 ,
-
+        [StringValue("Practice")]
+        Pratice = 2,
     }
-
 }

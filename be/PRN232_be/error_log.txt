@@ -3509,3 +3509,39 @@ Details: Query: None | User: Anonymous
 >>>>>>> 14b7ab0743793cfecb2a49830eb80ba9d2ca389f
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-06-25 22:50:26] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-25 23:57:00] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-26 00:01:40] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-26 00:18:03] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-26 18:54:17] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-27 03:58:12] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-27 04:03:06] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-06-27 04:10:50] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-27 04:21:20] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-27 04:22:06] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-06-27 04:22:12] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-06-27 04:22:21] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------

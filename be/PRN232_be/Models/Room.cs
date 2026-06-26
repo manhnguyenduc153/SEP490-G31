@@ -10,6 +10,11 @@ namespace PRN232_be.Models
         public int Status { get; set; }
         public RoomType RoomType { get; set; }
 
+        public string? Building { get; set; }
+        public string? Floor { get; set; }
+
+        public string? Image { get; set; }
+
         public virtual ICollection<ClassSchedule> ClassSchedules { get; set; } = new List<ClassSchedule>();
         public virtual ICollection<ExamSchedule> ExamSchedules { get; set; } = new List<ExamSchedule>();
     }
