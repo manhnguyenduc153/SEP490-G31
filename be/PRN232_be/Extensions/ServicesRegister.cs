@@ -19,6 +19,9 @@ namespace PRN232_be.Extensions
             services.AddScoped<IQuestionCategoryRepository, QuestionCategoryRepository>();
             services.AddScoped<ICourseRepository, CourseRepository>();
             services.AddScoped<ITeacherRepository, TeacherRepository>();
+            services.AddScoped<IClassRepository, ClassRepository>();
+            services.AddScoped<IStudentRepository, StudentRepository>();
+            services.AddScoped<IRoomRepository, RoomRepository>();
             services.AddScoped<IStudentRepository, StudentRepository>();
             
             // Services
@@ -29,6 +32,10 @@ namespace PRN232_be.Extensions
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ITeacherService, TeacherService>();
             services.AddScoped<IFileService, FileService>();
+            services.AddScoped<ICourseService, CourseService>();
+            services.AddScoped<IClassService, ClassService>();
+            services.AddScoped<IStudentService, StudentService>();
+            services.AddScoped<IRoomService, RoomService>();
         }
     }
 }
