@@ -22,10 +22,13 @@ namespace PRN232_be.Extensions
             services.AddScoped<IClassRepository, ClassRepository>();
             services.AddScoped<IStudentRepository, StudentRepository>();
             services.AddScoped<IRoomRepository, RoomRepository>();
+            services.AddScoped<IStudentRepository, StudentRepository>();
             
             // Services
             services.AddScoped<IProductService, ProductService>();
             services.AddScoped<IQuestionCategoryService, QuestionCategoryService>();
+            services.AddScoped<ICourseService, CourseService>();
+            services.AddScoped<IStudentService, StudentService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ITeacherService, TeacherService>();
             services.AddScoped<IFileService, FileService>();

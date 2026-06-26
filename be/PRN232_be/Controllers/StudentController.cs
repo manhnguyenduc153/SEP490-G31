@@ -36,5 +36,42 @@ namespace PRN232_be.Controllers
             var response = await _service.GetByIdAsync(id);
             return StatusCode(response.StatusCode, response);
         }
+
+        // POST: api/Student
+        [HttpPost]
+        [HasPermission(Permissions.Student.Student_Create)]
+        public async Task<IActionResult> Create([FromBody] StudentSaveDto dto)
+        {
+            var response = await _service.CreateAsync(dto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // PUT: api/Student/5
+        [HttpPut("{id}")]
+        [HasPermission(Permissions.Student.Student_Edit)]
+        public async Task<IActionResult> Edit(int id, [FromBody] StudentSaveDto dto)
+        {
+            dto.Id = id;
+            var response = await _service.EditAsync(dto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // DELETE: api/Student/5
+        [HttpDelete("{id}")]
+        [HasPermission(Permissions.Student.Student_Delete)]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var response = await _service.DeleteAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Student/5/deactive
+        [HttpPost("{id}/deactive")]
+        [HasPermission(Permissions.Student.Student_Delete)]
+        public async Task<IActionResult> Deactive(int id)
+        {
+            var response = await _service.DeactiveAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }
