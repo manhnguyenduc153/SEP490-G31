@@ -337,7 +337,21 @@ namespace PRN232_be.Services.Implementations
                 TeacherAvatar = cs.Teacher?.Avatar,
                 Status = cs.Status,
                 Note = cs.Note
-            }).OrderBy(cs => cs.LessonNo).ToList() ?? new List<ClassScheduleDto>()
+            }).OrderBy(cs => cs.LessonNo).ToList() ?? new List<ClassScheduleDto>(),
+            StudentClasses = entity.StudentClasses?.Select(sc => new ClassStudentDto
+            {
+                Id = sc.Id,
+                StudentId = sc.StudentId,
+                Student = sc.Student != null ? new PRN232_be.DTO.Student.StudentDto
+                {
+                    Id = sc.Student.Id,
+                    Code = sc.Student.Code ?? string.Empty,
+                    Name = sc.Student.Name ?? string.Empty,
+                    Email = sc.Student.Email,
+                    Phone = sc.Student.Phone,
+                    Avatar = sc.Student.Avatar
+                } : null
+            }).ToList() ?? new List<ClassStudentDto>()
         };
 
         // ===================== PRIVATE VALIDATE =====================
