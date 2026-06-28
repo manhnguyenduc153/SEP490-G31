@@ -73,5 +73,14 @@ namespace PRN232_be.Controllers
             var response = await _service.DeactiveAsync(id);
             return StatusCode(response.StatusCode, response);
         }
+
+        // POST: api/Student/check-emails
+        [HttpPost("check-emails")]
+        [HasPermission(Permissions.Student.Student_View)]
+        public async Task<IActionResult> CheckEmails([FromBody] List<string> emails)
+        {
+            var response = await _service.CheckEmailsAsync(emails);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }

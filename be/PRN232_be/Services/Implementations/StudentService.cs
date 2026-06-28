@@ -181,6 +181,34 @@ namespace PRN232_be.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<Dictionary<string, int>>> CheckEmailsAsync(List<string> emails)
+        {
+            try
+            {
+                if (emails == null || !emails.Any())
+                {
+                    return ApiResponse<Dictionary<string, int>>.Ok(new Dictionary<string, int>(), "CHECK_EMAILS_SUCCESS");
+                }
+
+                var cleanEmails = emails.Where(e => !string.IsNullOrWhiteSpace(e)).Select(e => e.Trim().ToLower()).ToList();
+
+                var existingStudents = await _repository.FindAll()
+                    .Where(s => s.Email != null && cleanEmails.Contains(s.Email.ToLower()))
+                    .Select(s => new { s.Email, s.Id })
+                    .ToListAsync();
+
+                var result = existingStudents
+                    .GroupBy(s => s.Email!.ToLower())
+                    .ToDictionary(g => g.Key, g => g.First().Id);
+
+                return ApiResponse<Dictionary<string, int>>.Ok(result, "CHECK_EMAILS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<Dictionary<string, int>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
         // ===================== PRIVATE MAPPING =====================
 
         private static StudentDto MapToDto(Student entity)

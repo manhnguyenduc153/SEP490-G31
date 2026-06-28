@@ -21,8 +21,19 @@ namespace PRN232_be.DTO.Class
         public bool AutoRefund { get; set; }
         public List<int> StudentIds { get; set; } = new List<int>();
         public List<WeeklyScheduleDto> WeeklySchedules { get; set; } = new List<WeeklyScheduleDto>();
+        public List<NewStudentDto> NewStudents { get; set; } = new List<NewStudentDto>();
+        public string? NewTeacherEmail { get; set; }
+        public string? NewTeacherName { get; set; }
+        public string? NewCourseName { get; set; }
 
         public string TextSearch => StringHelper.GenerateTextSearch(Code, Name, Description, ScheduleDisplay);
+    }
+
+    public class NewStudentDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string? Phone { get; set; }
     }
 
     public class WeeklyScheduleDto

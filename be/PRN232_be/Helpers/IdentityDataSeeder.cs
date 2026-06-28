@@ -64,6 +64,11 @@ namespace PRN232_be.Helpers
                 {
                     await userManager.AddToRoleAsync(adminUser, adminRoleName);
                 }
+                else
+                {
+                    var errors = string.Join(", ", createResult.Errors.Select(e => e.Description));
+                    throw new Exception($"Không thể tạo tài khoản admin: {errors}");
+                }
             }
             else
             {
