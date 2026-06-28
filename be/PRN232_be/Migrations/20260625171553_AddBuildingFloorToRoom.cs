@@ -24,8 +24,6 @@ namespace PRN232_be.Migrations
                 maxLength: 50,
                 nullable: true);
 
-            // Bỏ qua tạo cột RoomImg và RoomType vì nó đã có sẵn trong db
-            /*
             migrationBuilder.AddColumn<string>(
                 name: "RoomImg",
                 table: "rooms",
@@ -39,7 +37,6 @@ namespace PRN232_be.Migrations
                 type: "int",
                 nullable: false,
                 defaultValue: 0);
-            */
         }
 
         /// <inheritdoc />
@@ -53,7 +50,6 @@ namespace PRN232_be.Migrations
                 name: "Floor",
                 table: "rooms");
 
-            /*
             migrationBuilder.DropColumn(
                 name: "RoomImg",
                 table: "rooms");
@@ -61,7 +57,6 @@ namespace PRN232_be.Migrations
             migrationBuilder.DropColumn(
                 name: "RoomType",
                 table: "rooms");
-            */
         }
     }
 }
