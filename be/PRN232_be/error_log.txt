@@ -3551,3 +3551,12 @@ Details: Query: None | User: Anonymous
 [2026-06-27 04:38:43] [CLIENT ERROR 400] POST /api/Room
 Details: Query: None | User: admin
 ------------------------------------------------------------
+[2026-06-28 21:12:48] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-28 21:14:05] [CLIENT ERROR 400] POST /api/Auth/Logout
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-28 21:32:00] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
