@@ -30,6 +30,7 @@ namespace PRN232_be.Extensions
             services.AddScoped<ICourseService, CourseService>();
             services.AddScoped<IStudentService, StudentService>();
             services.AddScoped<IAuthService, AuthService>();
+            services.AddScoped<IUserService, UserService>();
             services.AddScoped<ITeacherService, TeacherService>();
             services.AddScoped<IFileService, FileService>();
             services.AddScoped<IRoomService, RoomService>();
