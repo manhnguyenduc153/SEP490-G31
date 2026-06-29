@@ -24,6 +24,7 @@ namespace PRN232_be.Services.Implementations
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly ApplicationDbContext _dbContext;
+        private readonly IScheduleOptimizationService _optService;
  
         public ClassService(
             IClassRepository repository,
@@ -34,7 +35,8 @@ namespace PRN232_be.Services.Implementations
             IBaseRepository<ClassSchedule, ApplicationDbContext> scheduleRepository,
             UserManager<IdentityUser> userManager,
             RoleManager<IdentityRole> roleManager,
-            ApplicationDbContext dbContext)
+            ApplicationDbContext dbContext,
+            IScheduleOptimizationService optService)
         {
             _repository = repository;
             _courseRepository = courseRepository;
@@ -45,6 +47,7 @@ namespace PRN232_be.Services.Implementations
             _userManager = userManager;
             _roleManager = roleManager;
             _dbContext = dbContext;
+            _optService = optService;
         }
 
         public async Task<ApiResponse<PagingResponse<ClassDto>>> GetAllAsync(ClassSearchDto searchDto)
@@ -376,9 +379,6 @@ namespace PRN232_be.Services.Implementations
             if (!dto.ExpectedLessons.HasValue || dto.ExpectedLessons.Value <= 0)
                 return "ERR_EXPECTED_LESSONS_INVALID";
 
-            if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any())
-                return "ERR_WEEKLY_SCHEDULES_EMPTY";
-
             if (dto.Description != null && dto.Description.Length > 1000)
                 return "ERR_DESC_MAX_LENGTH";
 
@@ -424,6 +424,21 @@ namespace PRN232_be.Services.Implementations
                     return "ERR_STUDENT_NOT_FOUND";
             }
 
+            // Kiểm tra trùng lịch dạy của giáo viên hoặc phòng học
+            var conflictCheck = await _optService.CheckConflictAsync(dto);
+            if (conflictCheck.Success && conflictCheck.Data != null && conflictCheck.Data.HasConflict)
+            {
+                var firstConflict = conflictCheck.Data.Conflicts.First();
+                if (firstConflict.Type == "Teacher")
+                {
+                    return $"ERR_TEACHER_CONFLICT_{firstConflict.ConflictClassCode}";
+                }
+                else
+                {
+                    return $"ERR_ROOM_CONFLICT_{firstConflict.ConflictClassCode}";
+                }
+            }
+ 
             return null;
         }
 
@@ -544,7 +559,7 @@ namespace PRN232_be.Services.Implementations
                     .Include(cs => cs.TimeSlot)
                     .Include(cs => cs.Room)
                     .Include(cs => cs.Class)
-                    .Where(cs => cs.TeacherId == teacher.Id)
+                    .Where(cs => cs.TeacherId == teacher.Id && cs.Class != null && !cs.Class.IsDeleted)
                     .OrderBy(cs => cs.ScheduleDate)
                     .Select(cs => new ClassScheduleDto
                     {
@@ -604,7 +619,7 @@ namespace PRN232_be.Services.Implementations
                     .Include(cs => cs.Room)
                     .Include(cs => cs.Class)
                     .Include(cs => cs.Teacher)
-                    .Where(cs => cs.ClassId.HasValue && classIds.Contains(cs.ClassId.Value))
+                    .Where(cs => cs.ClassId.HasValue && classIds.Contains(cs.ClassId.Value) && cs.Class != null && !cs.Class.IsDeleted)
                     .OrderBy(cs => cs.ScheduleDate)
                     .Select(cs => new ClassScheduleDto
                     {
