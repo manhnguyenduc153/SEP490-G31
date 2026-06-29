@@ -3743,3 +3743,18 @@ Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
 [2026-06-30 00:13:03] [CLIENT ERROR 404] GET /
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-06-30 00:36:23] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-06-30 00:36:23] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-06-30 00:36:23] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-06-30 00:36:23] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-06-30 00:37:07] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------

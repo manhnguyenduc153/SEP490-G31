@@ -115,9 +115,9 @@ namespace PRN232_be.Controllers
         // POST: api/Class/auto-schedule
         [HttpPost("auto-schedule")]
         [HasPermission(Permissions.Class.Class_Edit)]
-        public async Task<IActionResult> AutoSchedule([FromBody] List<int> classIds)
+        public async Task<IActionResult> AutoSchedule([FromBody] AutoScheduleRequestDto request)
         {
-            var response = await _optService.AutoScheduleAsync(classIds);
+            var response = await _optService.AutoScheduleAsync(request.ClassIds, request.Constraints);
             return StatusCode(response.StatusCode, response);
         }
 

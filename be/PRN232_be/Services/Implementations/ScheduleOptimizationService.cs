@@ -154,17 +154,21 @@ namespace PRN232_be.Services.Implementations
             }
         }
 
-        public async Task<ApiResponse<List<ClassDto>>> AutoScheduleAsync(List<int> classIds)
+        public async Task<ApiResponse<List<ClassDto>>> AutoScheduleAsync(List<int> classIds, AutoScheduleConstraintDto constraints)
         {
             try
             {
                 if (classIds == null || !classIds.Any())
-                {
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_CLASSES_SELECTED", StatusCodes.Status400BadRequest);
-                }
 
-                // 1. Fetch data
-                var classes = await _dbContext.Classes
+                // Validate constraints
+                constraints ??= new AutoScheduleConstraintDto();
+                constraints.SessionsPerWeek = Math.Clamp(constraints.SessionsPerWeek, 1, 5);
+                if (constraints.TimePreferences == null || !constraints.TimePreferences.Any())
+                    constraints.TimePreferences = new List<string> { "morning", "afternoon", "evening" };
+
+                // ── 1. Load all selected classes ────────────────────────────────────────
+                var allClasses = await _dbContext.Classes
                     .Include(c => c.Course)
                     .Include(c => c.Teacher)
                     .Include(c => c.ClassSchedules)
@@ -172,40 +176,32 @@ namespace PRN232_be.Services.Implementations
                     .Where(c => classIds.Contains(c.Id) && !c.IsDeleted)
                     .ToListAsync();
 
-                if (!classes.Any())
-                {
+                if (!allClasses.Any())
                     return ApiResponse<List<ClassDto>>.Fail("ERR_CLASSES_NOT_FOUND", StatusCodes.Status404NotFound);
-                }
 
-                var teachers = await _dbContext.Teachers
-                    .Where(t => t.Status == (int)TeacherStatus.Active && !t.IsDeleted)
-                    .ToListAsync();
+                // Separate: classes to schedule vs classes already scheduled (skip but use for conflict)
+                var jsonOpts = new System.Text.Json.JsonSerializerOptions
+                    { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
 
-                var rooms = await _dbContext.Rooms
-                    .Where(r => r.Status == (int)RoomStatus.Active && !r.IsDeleted)
-                    .ToListAsync();
-
-                var timeSlots = await _dbContext.TimeSlots
-                    .Where(ts => !ts.IsDeleted)
-                    .ToListAsync();
-
-                if (!teachers.Any())
+                bool HasExistingSchedule(Class c)
                 {
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_TEACHERS", StatusCodes.Status400BadRequest);
+                    if (string.IsNullOrWhiteSpace(c.WeeklySchedulesJson)) return false;
+                    try
+                    {
+                        var list = System.Text.Json.JsonSerializer.Deserialize<List<WeeklyScheduleDto>>(c.WeeklySchedulesJson, jsonOpts);
+                        return list != null && list.Count > 0;
+                    }
+                    catch { return false; }
                 }
 
-                if (!rooms.Any())
-                {
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_ROOMS", StatusCodes.Status400BadRequest);
-                }
+                var classesToSchedule = allClasses.Where(c => !HasExistingSchedule(c)).ToList();
+                var classesAlreadyScheduled = allClasses.Where(c => HasExistingSchedule(c)).ToList();
 
-                if (!timeSlots.Any())
-                {
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_TIMESLOTS", StatusCodes.Status400BadRequest);
-                }
+                if (!classesToSchedule.Any())
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_ALL_CLASSES_ALREADY_SCHEDULED", StatusCodes.Status400BadRequest);
 
-                // Check validation for each selected class
-                foreach (var c in classes)
+                // ── 2. Validate per-class requirements ──────────────────────────────────
+                foreach (var c in classesToSchedule)
                 {
                     if (c.CourseId == null)
                         return ApiResponse<List<ClassDto>>.Fail($"ERR_CLASS_NO_COURSE_{c.Code}", StatusCodes.Status400BadRequest);
@@ -213,102 +209,126 @@ namespace PRN232_be.Services.Implementations
                         return ApiResponse<List<ClassDto>>.Fail($"ERR_CLASS_NO_STUDENTS_{c.Code}", StatusCodes.Status400BadRequest);
                 }
 
-                // 2. FIXED 5 slots (hard-coded, source of truth) ───────────────────────────
-                var fixedSlots  = FixedTimeSlot.All;
-                int numFixed    = fixedSlots.Length;
-                int numClasses  = classes.Count;
+                // ── 3. Load resources ───────────────────────────────────────────────────
+                var teachers = await _dbContext.Teachers
+                    .Where(t => t.Status == (int)TeacherStatus.Active && !t.IsDeleted)
+                    .ToListAsync();
+                var rooms = await _dbContext.Rooms
+                    .Where(r => r.Status == (int)RoomStatus.Active && !r.IsDeleted)
+                    .ToListAsync();
+                var timeSlots = await _dbContext.TimeSlots
+                    .Where(ts => !ts.IsDeleted)
+                    .ToListAsync();
+
+                if (!teachers.Any())
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_TEACHERS", StatusCodes.Status400BadRequest);
+                if (!rooms.Any())
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_ROOMS", StatusCodes.Status400BadRequest);
+                if (!timeSlots.Any())
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_TIMESLOTS", StatusCodes.Status400BadRequest);
+
+                // ── 4. Fixed 5 slots ────────────────────────────────────────────────────
+                var fixedSlots = FixedTimeSlot.All;
+                int numFixed = fixedSlots.Length;
+
+                // Map time preference buckets → allowed slot indices
+                var slotMap = new Dictionary<string, int[]>
+                {
+                    { "morning",   new[] { 0, 1 } },
+                    { "afternoon", new[] { 2, 3 } },
+                    { "evening",   new[] { 4 }    }
+                };
+                var allowedSlotIndices = constraints.TimePreferences
+                    .Where(p => slotMap.ContainsKey(p))
+                    .SelectMany(p => slotMap[p])
+                    .Distinct()
+                    .OrderBy(x => x)
+                    .ToArray();
+                if (!allowedSlotIndices.Any())
+                    allowedSlotIndices = new[] { 0, 1, 2, 3, 4 };
+
+                // Allowed days (DayOfWeek)
+                var allowedDays = constraints.AllowWeekend
+                    ? new[] { 0, 1, 2, 3, 4, 5, 6 }
+                    : new[] { 1, 2, 3, 4, 5 };
+
+                int numClasses  = classesToSchedule.Count;
                 int numTeachers = teachers.Count;
                 int numRooms    = rooms.Count;
+                int freq        = constraints.SessionsPerWeek; // same for all unscheduled classes
 
-                // Parse frequency for each class (number of weekly sessions)
-                var frequencies = new int[numClasses];
-                var existingWS  = new List<WeeklyScheduleDto>[numClasses];
-                var jsonOpts    = new System.Text.Json.JsonSerializerOptions
-                    { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
-
-                for (int i = 0; i < numClasses; i++)
-                {
-                    frequencies[i] = 2;
-                    existingWS[i]  = new List<WeeklyScheduleDto>();
-                    if (!string.IsNullOrEmpty(classes[i].WeeklySchedulesJson))
-                    {
-                        try
-                        {
-                            var list = System.Text.Json.JsonSerializer.Deserialize<List<WeeklyScheduleDto>>(classes[i].WeeklySchedulesJson, jsonOpts);
-                            if (list != null && list.Any()) { existingWS[i] = list; frequencies[i] = list.Count; }
-                        }
-                        catch { /* ignore */ }
-                    }
-                }
-
-                int maxSessions = frequencies.Max();
-
-                // 3. CP-SAT model ──────────────────────────────────────────────────────────
+                // ── 5. Build CP-SAT model ──────────────────────────────────────────────
                 var model = new CpModel();
 
-                // Decision variables
                 var teacherVar   = new IntVar[numClasses];
                 var roomVar      = new IntVar[numClasses];
-                var dayVar       = new IntVar[numClasses, maxSessions]; // 1=Mon..6=Sat
-                var slotIndexVar = new IntVar[numClasses, maxSessions]; // 0..numFixed-1
-                var slotVar      = new IntVar[numClasses, maxSessions]; // flat = day*numFixed + slotIndex
+                var dayVar       = new IntVar[numClasses, freq];
+                var slotIndexVar = new IntVar[numClasses, freq];
+                var slotVar      = new IntVar[numClasses, freq]; // flat = day*numFixed + slotIndex
 
                 for (int i = 0; i < numClasses; i++)
                 {
                     teacherVar[i] = model.NewIntVar(0, numTeachers - 1, $"t_{i}");
                     roomVar[i]    = model.NewIntVar(0, numRooms - 1,    $"r_{i}");
 
-                    // Pin teacher only if already assigned and still active
-                    if (classes[i].TeacherId.HasValue)
+                    // Pin teacher if already assigned and still active
+                    if (classesToSchedule[i].TeacherId.HasValue)
                     {
-                        int tIdx = teachers.FindIndex(t => t.Id == classes[i].TeacherId.Value);
+                        int tIdx = teachers.FindIndex(t => t.Id == classesToSchedule[i].TeacherId.Value);
                         if (tIdx >= 0) model.Add(teacherVar[i] == tIdx);
                     }
 
-                    int freq = frequencies[i];
-                    for (int j = 0; j < maxSessions; j++)
+                    for (int j = 0; j < freq; j++)
                     {
-                        if (j < freq)
-                        {
-                            dayVar[i, j]       = model.NewIntVar(1, 6, $"day_{i}_{j}");
-                            slotIndexVar[i, j] = model.NewIntVar(0, numFixed - 1, $"fs_{i}_{j}");
-                            slotVar[i, j]      = model.NewIntVar(0, 7 * numFixed - 1, $"flat_{i}_{j}");
-                            // flat relationship
-                            model.Add(slotVar[i, j] == dayVar[i, j] * numFixed + slotIndexVar[i, j]);
+                        // Day variable — restricted to allowedDays
+                        dayVar[i, j]       = model.NewIntVar(allowedDays.Min(), allowedDays.Max(), $"day_{i}_{j}");
+                        slotIndexVar[i, j] = model.NewIntVar(allowedSlotIndices.Min(), allowedSlotIndices.Max(), $"fs_{i}_{j}");
+                        slotVar[i, j]      = model.NewIntVar(0, 7 * numFixed - 1, $"flat_{i}_{j}");
+                        model.Add(slotVar[i, j] == dayVar[i, j] * numFixed + slotIndexVar[i, j]);
 
-                            // Pin if existing weekly schedule has this session
-                            if (j < existingWS[i].Count)
-                            {
-                                var ws = existingWS[i][j];
-                                if (ws.DayOfWeek >= 1 && ws.DayOfWeek <= 6)
-                                    model.Add(dayVar[i, j] == ws.DayOfWeek);
-                                if (TimeSpan.TryParse(ws.StartTime, out var st))
-                                {
-                                    int fi = Array.FindIndex(fixedSlots, fs => fs.Start == st);
-                                    if (fi >= 0) model.Add(slotIndexVar[i, j] == fi);
-                                }
-                            }
-                        }
-                        else
+                        // Restrict dayVar to allowedDays (BoolOr over equality literals)
+                        if (allowedDays.Length < allowedDays.Max() - allowedDays.Min() + 1)
                         {
-                            dayVar[i, j]       = model.NewConstant(-1);
-                            slotIndexVar[i, j] = model.NewConstant(-1);
-                            slotVar[i, j]      = model.NewConstant(-1);
+                            var dayLiterals = allowedDays.Select(d =>
+                            {
+                                var b = model.NewBoolVar($"dayOk_{i}_{j}_{d}");
+                                model.Add(dayVar[i, j] == d).OnlyEnforceIf(b);
+                                model.Add(dayVar[i, j] != d).OnlyEnforceIf(b.Not());
+                                return (ILiteral)b;
+                            }).ToArray();
+                            model.AddBoolOr(dayLiterals);
+                        }
+
+                        // Restrict slotIndexVar to allowedSlotIndices
+                        if (allowedSlotIndices.Length < allowedSlotIndices.Max() - allowedSlotIndices.Min() + 1)
+                        {
+                            var slotLiterals = allowedSlotIndices.Select(s =>
+                            {
+                                var b = model.NewBoolVar($"slotOk_{i}_{j}_{s}");
+                                model.Add(slotIndexVar[i, j] == s).OnlyEnforceIf(b);
+                                model.Add(slotIndexVar[i, j] != s).OnlyEnforceIf(b.Not());
+                                return (ILiteral)b;
+                            }).ToArray();
+                            model.AddBoolOr(slotLiterals);
                         }
                     }
 
-                    // Sessions of the same class must be on different days (ascending breaks symmetry)
+                    // Sessions of the same class: ordered days + gap constraint
                     for (int j = 0; j < freq - 1; j++)
-                        model.Add(dayVar[i, j] < dayVar[i, j + 1]);
+                    {
+                        if (constraints.AllowConsecutiveDays)
+                            model.Add(dayVar[i, j + 1] > dayVar[i, j]);        // just different, ascending
+                        else
+                            model.Add(dayVar[i, j + 1] >= dayVar[i, j] + 2);   // at least 1 day gap
+                    }
                 }
 
-                // 4. No-conflict between selected classes ──────────────────────────────────
+                // ── 6. No-conflict between classes being scheduled ─────────────────────
                 var intervals = new ClassDateInterval[numClasses];
                 for (int i = 0; i < numClasses; i++)
                 {
-                    var start = classes[i].StartDate ?? DateTime.Today.AddDays(7);
-                    int freq  = frequencies[i];
-                    int weeks = (int)Math.Ceiling((double)(classes[i].ExpectedLessons ?? 30) / freq);
+                    var start = classesToSchedule[i].StartDate ?? DateTime.Today.AddDays(7);
+                    int weeks = (int)Math.Ceiling((double)(classesToSchedule[i].ExpectedLessons ?? 30) / freq);
                     intervals[i] = new ClassDateInterval
                         { ClassIndex = i, StartDate = start, EndDate = start.AddDays(weeks * 7) };
                 }
@@ -316,60 +336,56 @@ namespace PRN232_be.Services.Implementations
                 for (int i1 = 0; i1 < numClasses; i1++)
                 for (int i2 = i1 + 1; i2 < numClasses; i2++)
                 {
-                    // Only constrain if their date ranges overlap
                     if (intervals[i1].StartDate > intervals[i2].EndDate ||
                         intervals[i2].StartDate > intervals[i1].EndDate) continue;
 
-                    int freq1 = frequencies[i1], freq2 = frequencies[i2];
-                    for (int j1 = 0; j1 < freq1; j1++)
-                    for (int j2 = 0; j2 < freq2; j2++)
+                    for (int j1 = 0; j1 < freq; j1++)
+                    for (int j2 = 0; j2 < freq; j2++)
                     {
-                        // sameSlot <=> same flat (day + time) for both sessions
                         var same = model.NewBoolVar($"same_{i1}_{j1}_{i2}_{j2}");
                         model.Add(slotVar[i1, j1] == slotVar[i2, j2]).OnlyEnforceIf(same);
                         model.Add(slotVar[i1, j1] != slotVar[i2, j2]).OnlyEnforceIf(same.Not());
-
-                        // same slot → different teacher AND different room
                         model.Add(teacherVar[i1] != teacherVar[i2]).OnlyEnforceIf(same);
                         model.Add(roomVar[i1]    != roomVar[i2]).OnlyEnforceIf(same);
                     }
                 }
 
-                // 5. No-conflict against existing DB schedules ─────────────────────────────
+                // ── 7. No-conflict against EXISTING DB schedules ───────────────────────
                 var minStart = intervals.Min(d => d.StartDate);
                 var maxEnd   = intervals.Max(d => d.EndDate);
+
+                // Include already-scheduled classes from this batch in the conflict scope
+                var skipIds = new HashSet<int>(classesToSchedule.Select(c => c.Id));
 
                 var dbSchedules = await _dbContext.ClassSchedules
                     .Include(cs => cs.Class)
                     .Include(cs => cs.TimeSlot)
                     .Where(cs => cs.Class != null && !cs.Class.IsDeleted
-                              && cs.ClassId.HasValue && !classIds.Contains(cs.ClassId.Value)
+                              && cs.ClassId.HasValue && !skipIds.Contains(cs.ClassId.Value)
                               && cs.ScheduleDate >= minStart && cs.ScheduleDate <= maxEnd)
                     .ToListAsync();
 
-                // Build lookup: (dayOfWeek 1-6, fixedSlotIdx) → list of (teacherId?, roomId?)
+                // Group by (dayOfWeek, fixedSlotIdx) → list of (teacherId?, roomId?)
                 var occupied = new Dictionary<(int day, int fi), List<(int? tId, int? rId)>>();
                 foreach (var ext in dbSchedules)
                 {
                     if (!ext.ScheduleDate.HasValue || ext.TimeSlot == null) continue;
-                    int extDay = (int)ext.ScheduleDate.Value.DayOfWeek; // 0=Sun..6=Sat
+                    int extDay = (int)ext.ScheduleDate.Value.DayOfWeek;
                     int fi     = Array.FindIndex(fixedSlots, fs => fs.Start == ext.TimeSlot.StartTime);
-                    if (extDay < 1 || extDay > 6 || fi < 0) continue;
-
+                    if (extDay < 0 || extDay > 6 || fi < 0) continue;
                     var key = (extDay, fi);
                     if (!occupied.ContainsKey(key)) occupied[key] = new();
                     occupied[key].Add((ext.TeacherId, ext.RoomId));
                 }
 
                 for (int i = 0; i < numClasses; i++)
-                for (int j = 0; j < frequencies[i]; j++)
+                for (int j = 0; j < freq; j++)
                 {
                     foreach (var kvp in occupied)
                     {
                         int extDay = kvp.Key.day;
                         int extFi  = kvp.Key.fi;
 
-                        // Indicator: this session lands on extDay AND extFi
                         var dayMatch  = model.NewBoolVar($"dm_{i}_{j}_{extDay}");
                         var slotMatch = model.NewBoolVar($"sm_{i}_{j}_{extFi}");
                         model.Add(dayVar[i, j]       == extDay).OnlyEnforceIf(dayMatch);
@@ -377,7 +393,6 @@ namespace PRN232_be.Services.Implementations
                         model.Add(slotIndexVar[i, j] == extFi).OnlyEnforceIf(slotMatch);
                         model.Add(slotIndexVar[i, j] != extFi).OnlyEnforceIf(slotMatch.Not());
 
-                        // both <=> dayMatch AND slotMatch
                         var both = model.NewBoolVar($"both_{i}_{j}_{extDay}_{extFi}");
                         model.AddBoolAnd(new[] { dayMatch, slotMatch }).OnlyEnforceIf(both);
                         model.AddBoolOr(new ILiteral[] { dayMatch.Not(), slotMatch.Not() }).OnlyEnforceIf(both.Not());
@@ -398,7 +413,53 @@ namespace PRN232_be.Services.Implementations
                     }
                 }
 
-                // 6. Solve ─────────────────────────────────────────────────────────────────
+                // ── 8. Load-balancing objective ────────────────────────────────────────
+                // For each allowed slot index s, count how many classes use it in at least one session.
+                // Minimize (maxCount - minCount) to spread classes evenly across time buckets.
+                if (allowedSlotIndices.Length > 1 && numClasses > 1)
+                {
+                    var countAtSlot = new IntVar[numFixed];
+                    for (int s = 0; s < numFixed; s++)
+                    {
+                        if (!allowedSlotIndices.Contains(s))
+                        {
+                            countAtSlot[s] = model.NewConstant(0);
+                            continue;
+                        }
+                        countAtSlot[s] = model.NewIntVar(0, numClasses, $"cnt_{s}");
+
+                        // classUsesSlot[i][s] = 1 if class i has any session at slot s
+                        var perClass = new List<IntVar>();
+                        for (int i = 0; i < numClasses; i++)
+                        {
+                            var uses = model.NewBoolVar($"uses_{i}_{s}");
+                            var sessionBools = new List<BoolVar>();
+                            for (int j = 0; j < freq; j++)
+                            {
+                                var b = model.NewBoolVar($"sb_{i}_{j}_{s}");
+                                model.Add(slotIndexVar[i, j] == s).OnlyEnforceIf(b);
+                                model.Add(slotIndexVar[i, j] != s).OnlyEnforceIf(b.Not());
+                                sessionBools.Add(b);
+                            }
+                            // uses = OR(sessionBools)
+                            model.AddBoolOr(sessionBools.Cast<ILiteral>().ToArray()).OnlyEnforceIf(uses);
+                            model.AddBoolAnd(sessionBools.Select(b => (ILiteral)b.Not()).ToArray()).OnlyEnforceIf(uses.Not());
+                            perClass.Add(uses); // BoolVar is IntVar subtype via LinearExpr
+                        }
+                        model.Add(countAtSlot[s] == LinearExpr.Sum(perClass.ToArray()));
+                    }
+
+                    var activeCounts = allowedSlotIndices.Select(s => countAtSlot[s]).ToArray();
+                    var maxCount = model.NewIntVar(0, numClasses, "maxCnt");
+                    var minCount = model.NewIntVar(0, numClasses, "minCnt");
+                    model.AddMaxEquality(maxCount, activeCounts);
+                    model.AddMinEquality(minCount, activeCounts);
+                    var spread = model.NewIntVar(0, numClasses, "spread");
+                    model.Add(spread == maxCount - minCount);
+                    model.Minimize(spread);
+                }
+
+                // ── 9. Solve ────────────────────────────────────────────────────────────
                 var solver = new CpSolver();
                 solver.StringParameters = "max_time_in_seconds:30.0";
                 var status = solver.Solve(model);
@@ -406,13 +467,13 @@ namespace PRN232_be.Services.Implementations
                 if (status != CpSolverStatus.Feasible && status != CpSolverStatus.Optimal)
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_FEASIBLE_SCHEDULE_FOUND", StatusCodes.Status409Conflict);
 
-                // 7. Persist ───────────────────────────────────────────────────────────────
+                // ── 10. Persist ─────────────────────────────────────────────────────────
                 using var transaction = await _dbContext.Database.BeginTransactionAsync();
                 try
                 {
                     for (int i = 0; i < numClasses; i++)
                     {
-                        var entity = classes[i];
+                        var entity = classesToSchedule[i];
                         int tIdx   = (int)solver.Value(teacherVar[i]);
                         int rIdx   = (int)solver.Value(roomVar[i]);
 
@@ -420,7 +481,6 @@ namespace PRN232_be.Services.Implementations
                         entity.StartDate = intervals[i].StartDate;
                         entity.Status    = (int)ClassStatus.Planning;
 
-                        int freq = frequencies[i];
                         var newWS = new List<WeeklyScheduleDto>();
                         for (int j = 0; j < freq; j++)
                         {
@@ -430,8 +490,8 @@ namespace PRN232_be.Services.Implementations
                             newWS.Add(new WeeklyScheduleDto
                             {
                                 DayOfWeek = dayVal,
-                                StartTime = fs.Start.ToString(@"hh\:mm"),
-                                EndTime   = fs.End.ToString(@"hh\:mm"),
+                                StartTime = fs.StartStr,
+                                EndTime   = fs.EndStr,
                                 RoomId    = rooms[rIdx].Id
                             });
                         }
@@ -458,8 +518,9 @@ namespace PRN232_be.Services.Implementations
                     await _dbContext.SaveChangesAsync();
                     await transaction.CommitAsync();
 
+                    // Return all classes in the original selection (scheduled + already-had-schedule)
                     var resultList = new List<ClassDto>();
-                    foreach (var c in classes)
+                    foreach (var c in allClasses)
                     {
                         var reloaded = await _dbContext.Classes
                             .Include(cl => cl.Course)
