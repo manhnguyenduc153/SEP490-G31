@@ -6,7 +6,7 @@ namespace PRN232_be.Models
 {
     public class ExamSchedule : StandardEntity<int>
     {
-        public int? ActivityId { get; set; }
+        public int? ExamId { get; set; }
         public int? RoomId { get; set; }
         public DateTime? ExamDate { get; set; }
         public int? SlotId { get; set; }
@@ -14,7 +14,7 @@ namespace PRN232_be.Models
         public int Status { get; set; }
         public string? Note { get; set; }
 
-        public virtual Activity? Activity { get; set; }
+        public virtual Exam? Exam { get; set; }
         public virtual Room? Room { get; set; }
         public virtual TimeSlot? TimeSlot { get; set; }
         public virtual Teacher? Supervisor { get; set; }
