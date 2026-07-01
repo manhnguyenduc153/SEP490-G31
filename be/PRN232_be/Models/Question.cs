@@ -14,7 +14,7 @@ namespace PRN232_be.Models
 
         public virtual QuestionCategory? QuestionCategory { get; set; }
         public virtual ICollection<QuestionAnswer> QuestionAnswers { get; set; } = new List<QuestionAnswer>();
-        public virtual ICollection<ActivityQuestion> ActivityQuestions { get; set; } = new List<ActivityQuestion>();
-        public virtual ICollection<ActivityAnswer> ActivityAnswers { get; set; } = new List<ActivityAnswer>();
+        public virtual ICollection<ExamQuestion> ExamQuestions { get; set; } = new List<ExamQuestion>();
+        public virtual ICollection<ExamAnswer> ExamAnswers { get; set; } = new List<ExamAnswer>();
     }
 }

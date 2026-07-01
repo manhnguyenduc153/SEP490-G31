@@ -270,7 +270,7 @@ namespace PRN232_be.Services.Implementations
                 var examSchedules = await _repository.FindAll()
                     .Where(r => r.Id == roomId)
                     .SelectMany(r => r.ExamSchedules)
-                    .Include(es => es.Activity)
+                    .Include(es => es.Exam)
                     .Include(es => es.TimeSlot)
                     .OrderByDescending(es => es.ExamDate)
                     .ToListAsync();
@@ -297,7 +297,7 @@ namespace PRN232_be.Services.Implementations
                 {
                     ScheduleId   = es.Id,
                     ScheduleType = "ExamSchedule",
-                    ClassName    = es.Activity?.Name,
+                    ClassName    = es.Exam?.Name,
                     SlotName     = es.TimeSlot?.Name,
                     SlotTime     = es.TimeSlot != null
                         ? $"{es.TimeSlot.StartTime:hh\\:mm} - {es.TimeSlot.EndTime:hh\\:mm}"

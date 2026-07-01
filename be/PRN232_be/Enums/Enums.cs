@@ -150,7 +150,7 @@ namespace PRN232_be.Enums
         Hard = 3
     }
 
-    public enum ActivityType
+    public enum ExamType
     {
         [StringValue("Assignment")]
         Assignment = 1,
@@ -160,7 +160,7 @@ namespace PRN232_be.Enums
         Exam = 3
     }
 
-    public enum ActivityStatus
+    public enum ExamStatus
     {
         [StringValue("Draft")]
         Draft = 0,
@@ -170,7 +170,7 @@ namespace PRN232_be.Enums
         Closed = 2
     }
 
-    public enum ActivityAttemptStatus
+    public enum ExamAttemptStatus
     {
         [StringValue("Incomplete")]
         Incomplete = 0,

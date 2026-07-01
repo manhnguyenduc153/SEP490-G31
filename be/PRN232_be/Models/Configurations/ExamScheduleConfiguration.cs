@@ -15,9 +15,9 @@ namespace PRN232_be.Models.Configurations
             builder.Property(x => x.ExamDate).HasColumnType("date");
             builder.Property(x => x.Note).HasMaxLength(1000);
 
-            builder.HasOne(x => x.Activity)
+            builder.HasOne(x => x.Exam)
                 .WithMany(a => a.ExamSchedules)
-                .HasForeignKey(x => x.ActivityId)
+                .HasForeignKey(x => x.ExamId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasOne(x => x.Room)
