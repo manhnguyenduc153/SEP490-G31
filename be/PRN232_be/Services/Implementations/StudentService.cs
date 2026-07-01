@@ -12,16 +12,25 @@ using PRN232_be.Enums;
 using PRN232_be.Repositories.Interfaces;
 using PRN232_be.Services.Interfaces;
 using PRN232_be.Helpers;
+using Microsoft.AspNetCore.Identity;
+
 
 namespace PRN232_be.Services.Implementations
 {
     public class StudentService : IStudentService
     {
         private readonly IStudentRepository _repository;
+        private readonly UserManager<IdentityUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
 
-        public StudentService(IStudentRepository repository)
+        public StudentService(
+            IStudentRepository repository,
+            UserManager<IdentityUser> userManager,
+            RoleManager<IdentityRole> roleManager)
         {
             _repository = repository;
+            _userManager = userManager;
+            _roleManager = roleManager;
         }
 
         public async Task<ApiResponse<PagingResponse<StudentDto>>> GetAllAsync(StudentSearchDto searchDto)
@@ -95,6 +104,29 @@ namespace PRN232_be.Services.Implementations
                 {
                     return ApiResponse<StudentDto>.Fail(validationError, StatusCodes.Status400BadRequest);
                 }
+
+                // Tạo tài khoản IdentityUser cho học sinh
+                var emailTrimmed = dto.Email!.Trim();
+                var identityUser = new IdentityUser
+                {
+                    UserName = emailTrimmed, // username là email
+                    Email = emailTrimmed,
+                    PhoneNumber = dto.Phone?.Trim(),
+                    EmailConfirmed = true
+                };
+
+                var userResult = await _userManager.CreateAsync(identityUser, "123456");
+                if (!userResult.Succeeded)
+                {
+                    var errors = string.Join(", ", userResult.Errors.Select(e => e.Description));
+                    return ApiResponse<StudentDto>.Fail($"ERR_CREATE_USER_FAILED: {errors}", StatusCodes.Status400BadRequest);
+                }
+
+                if (!await _roleManager.RoleExistsAsync("Student"))
+                {
+                    await _roleManager.CreateAsync(new IdentityRole("Student"));
+                }
+                await _userManager.AddToRoleAsync(identityUser, "Student");
 
                 var entity = dto.Adapt<Student>();
                 entity.Id = 0;
@@ -256,7 +288,10 @@ namespace PRN232_be.Services.Implementations
             if (dto.Name.Length > 200)
                 return "ERR_NAME_MAX_LENGTH";
 
-            if (dto.Email != null && dto.Email.Length > 150)
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return "ERR_EMAIL_EMPTY";
+
+            if (dto.Email.Length > 150)
                 return "ERR_EMAIL_MAX_LENGTH";
 
             if (dto.Phone != null && dto.Phone.Length > 20)
@@ -280,6 +315,24 @@ namespace PRN232_be.Services.Implementations
 
             if (duplicateCode != null)
                 return "ERR_CODE_DUPLICATE";
+
+            // Check duplicate Email in Student repository
+            if (!string.IsNullOrWhiteSpace(dto.Email))
+            {
+                var duplicateEmail = await _repository.FindAll()
+                    .FirstOrDefaultAsync(s => s.Email == dto.Email && (!isEdit || s.Id != dto.Id));
+
+                if (duplicateEmail != null)
+                    return "ERR_EMAIL_DUPLICATE";
+            }
+
+            // Check duplicate Email in Identity Users for new creations
+            if (!isEdit && !string.IsNullOrWhiteSpace(dto.Email))
+            {
+                var identityUser = await _userManager.FindByEmailAsync(dto.Email.Trim());
+                if (identityUser != null)
+                    return "ERR_EMAIL_DUPLICATE";
+            }
 
             return null;
         }
