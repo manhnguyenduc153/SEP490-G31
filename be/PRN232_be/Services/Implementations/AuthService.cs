@@ -141,6 +141,11 @@ namespace PRN232_be.Services.Implementations
                     return ApiResponse<TokenResponseDto>.Fail("ERR_INVALID_CREDENTIALS", StatusCodes.Status401Unauthorized);
                 }
 
+                if (await _userManager.IsLockedOutAsync(user))
+                {
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_USER_LOCKED", StatusCodes.Status401Unauthorized);
+                }
+
                 var userRoles = await _userManager.GetRolesAsync(user);
 
                 var authClaims = new List<Claim>
@@ -231,6 +236,11 @@ namespace PRN232_be.Services.Implementations
                 if (user == null)
                 {
                     return ApiResponse<TokenResponseDto>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status400BadRequest);
+                }
+
+                if (await _userManager.IsLockedOutAsync(user))
+                {
+                    return ApiResponse<TokenResponseDto>.Fail("ERR_USER_LOCKED", StatusCodes.Status400BadRequest);
                 }
 
                 var userRoles = await _userManager.GetRolesAsync(user);
