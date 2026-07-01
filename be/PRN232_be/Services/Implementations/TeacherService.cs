@@ -8,16 +8,24 @@ using PRN232_be.Repositories.Interfaces;
 using PRN232_be.Services.Interfaces;
 using PRN232_be.Helpers;
 using PRN232_be.Enums;
+using Microsoft.AspNetCore.Identity;
 
 namespace PRN232_be.Services.Implementations
 {
     public class TeacherService : ITeacherService
     {
         private readonly ITeacherRepository _repository;
+        private readonly UserManager<IdentityUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
 
-        public TeacherService(ITeacherRepository repository)
+        public TeacherService(
+            ITeacherRepository repository,
+            UserManager<IdentityUser> userManager,
+            RoleManager<IdentityRole> roleManager)
         {
             _repository = repository;
+            _userManager = userManager;
+            _roleManager = roleManager;
         }
 
         public async Task<ApiResponse<PagingResponse<TeacherDto>>> GetAllAsync(TeacherSearchDto searchDto)
@@ -65,6 +73,7 @@ namespace PRN232_be.Services.Implementations
 
         public async Task<ApiResponse<TeacherDto>> CreateAsync(TeacherSaveDto dto)
         {
+            await using var transaction = await _repository.BeginTransactionAsync();
             try
             {
                 var validationError = await ValidateAsync(dto, isEdit: false);
@@ -72,6 +81,35 @@ namespace PRN232_be.Services.Implementations
                 {
                     return ApiResponse<TeacherDto>.Fail(validationError, StatusCodes.Status400BadRequest);
                 }
+
+                // Create IdentityUser
+                var username = !string.IsNullOrWhiteSpace(dto.Email) ? dto.Email : dto.Code;
+                var existingUser = await _userManager.FindByNameAsync(username);
+                if (existingUser != null)
+                {
+                    return ApiResponse<TeacherDto>.Fail("ERR_USER_ALREADY_EXISTS", StatusCodes.Status400BadRequest);
+                }
+
+                var newUser = new IdentityUser
+                {
+                    UserName = username,
+                    Email = dto.Email,
+                    EmailConfirmed = true
+                };
+
+                var createResult = await _userManager.CreateAsync(newUser, "123456");
+                if (!createResult.Succeeded)
+                {
+                    var errors = string.Join(", ", createResult.Errors.Select(e => e.Description));
+                    return ApiResponse<TeacherDto>.Fail($"ERR_CREATE_USER_FAILED: {errors}", StatusCodes.Status500InternalServerError);
+                }
+
+                const string teacherRoleName = "Teacher";
+                if (!await _roleManager.RoleExistsAsync(teacherRoleName))
+                {
+                    await _roleManager.CreateAsync(new IdentityRole(teacherRoleName));
+                }
+                await _userManager.AddToRoleAsync(newUser, teacherRoleName);
 
                 var entity = dto.Adapt<Teacher>();
                 entity.Id = 0;
@@ -82,10 +120,13 @@ namespace PRN232_be.Services.Implementations
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
 
+                await _repository.CommitTransactionAsync();
+
                 return ApiResponse<TeacherDto>.Created(MapToDto(entity), "CREATE_TEACHER_SUCCESS");
             }
             catch (Exception ex)
             {
+                await _repository.RollbackTransactionAsync();
                 return ApiResponse<TeacherDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
