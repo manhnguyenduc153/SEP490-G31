@@ -32,7 +32,7 @@ namespace PRN232_be.Controllers
         }
 
         // GET: api/Class/5
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         [HasPermission(Permissions.Class.Class_View)]
         public async Task<IActionResult> GetById(int id)
         {
@@ -118,6 +118,15 @@ namespace PRN232_be.Controllers
         public async Task<IActionResult> AutoSchedule([FromBody] AutoScheduleRequestDto request)
         {
             var response = await _optService.AutoScheduleAsync(request.ClassIds, request.Constraints);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Class/Schedules
+        [HttpGet("Schedules")]
+        [HasPermission(Permissions.ClassSchedule.ClassSchedule_View)]
+        public async Task<IActionResult> GetClassSchedules()
+        {
+            var response = await _service.GetClassSchedulesAsync();
             return StatusCode(response.StatusCode, response);
         }
 
