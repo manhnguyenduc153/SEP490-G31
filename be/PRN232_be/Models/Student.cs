@@ -22,7 +22,7 @@ namespace PRN232_be.Models
         public virtual ICollection<ParentStudent> ParentStudents { get; set; } = new List<ParentStudent>();
         public virtual ICollection<StudentClass> StudentClasses { get; set; } = new List<StudentClass>();
         public virtual ICollection<Attendance> Attendances { get; set; } = new List<Attendance>();
-        public virtual ICollection<ActivityAttempt> ActivityAttempts { get; set; } = new List<ActivityAttempt>();
+        public virtual ICollection<ExamAttempt> ExamAttempts { get; set; } = new List<ExamAttempt>();
         public virtual ICollection<ExamStudent> ExamStudents { get; set; } = new List<ExamStudent>();
     }
 }

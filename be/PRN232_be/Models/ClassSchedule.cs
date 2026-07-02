@@ -22,6 +22,6 @@ namespace PRN232_be.Models
 
         public virtual ICollection<Attendance> Attendances { get; set; } = new List<Attendance>();
         public virtual ICollection<LearningMaterial> LearningMaterials { get; set; } = new List<LearningMaterial>();
-        public virtual ICollection<Activity> Activities { get; set; } = new List<Activity>();
+        public virtual ICollection<Exam> Exams { get; set; } = new List<Exam>();
     }
 }

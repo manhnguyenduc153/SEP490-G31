@@ -19,9 +19,9 @@ namespace PRN232_be.Models.Configurations
                 .HasForeignKey(x => x.StudentClassId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            builder.HasOne(x => x.Activity)
+            builder.HasOne(x => x.Exam)
                 .WithMany(a => a.StudentGrades)
-                .HasForeignKey(x => x.ActivityId)
+                .HasForeignKey(x => x.ExamId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

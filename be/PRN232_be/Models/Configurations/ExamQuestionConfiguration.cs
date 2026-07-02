@@ -3,22 +3,22 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace PRN232_be.Models.Configurations
 {
-    public class ActivityQuestionConfiguration : IEntityTypeConfiguration<ActivityQuestion>
+    public class ExamQuestionConfiguration : IEntityTypeConfiguration<ExamQuestion>
     {
-        public void Configure(EntityTypeBuilder<ActivityQuestion> builder)
+        public void Configure(EntityTypeBuilder<ExamQuestion> builder)
         {
-            builder.ToTable("activity_questions");
+            builder.ToTable("exam_questions");
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Point).HasColumnType("decimal(18,2)");
 
-            builder.HasOne(x => x.Activity)
-                .WithMany(a => a.ActivityQuestions)
-                .HasForeignKey(x => x.ActivityId)
+            builder.HasOne(x => x.Exam)
+                .WithMany(a => a.ExamQuestions)
+                .HasForeignKey(x => x.ExamId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasOne(x => x.Question)
-                .WithMany(q => q.ActivityQuestions)
+                .WithMany(q => q.ExamQuestions)
                 .HasForeignKey(x => x.QuestionId)
                 .OnDelete(DeleteBehavior.Restrict);
         }

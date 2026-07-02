@@ -166,40 +166,40 @@ namespace PRN232_be.DTO.Common
             public const string QuestionAnswer_Delete = "QuestionAnswer.Delete";
         }
 
-        public static class Activity
+        public static class Exam
         {
-            public const string ActivityPage = "Activity";
-            public const string Activity_View = "Activity.View";
-            public const string Activity_Create = "Activity.Create";
-            public const string Activity_Edit = "Activity.Edit";
-            public const string Activity_Delete = "Activity.Delete";
+            public const string ExamPage = "Exam";
+            public const string Exam_View = "Exam.View";
+            public const string Exam_Create = "Exam.Create";
+            public const string Exam_Edit = "Exam.Edit";
+            public const string Exam_Delete = "Exam.Delete";
         }
 
-        public static class ActivityQuestion
+        public static class ExamQuestion
         {
-            public const string ActivityQuestionPage = "ActivityQuestion";
-            public const string ActivityQuestion_View = "ActivityQuestion.View";
-            public const string ActivityQuestion_Create = "ActivityQuestion.Create";
-            public const string ActivityQuestion_Edit = "ActivityQuestion.Edit";
-            public const string ActivityQuestion_Delete = "ActivityQuestion.Delete";
+            public const string ExamQuestionPage = "ExamQuestion";
+            public const string ExamQuestion_View = "ExamQuestion.View";
+            public const string ExamQuestion_Create = "ExamQuestion.Create";
+            public const string ExamQuestion_Edit = "ExamQuestion.Edit";
+            public const string ExamQuestion_Delete = "ExamQuestion.Delete";
         }
 
-        public static class ActivityAttempt
+        public static class ExamAttempt
         {
-            public const string ActivityAttemptPage = "ActivityAttempt";
-            public const string ActivityAttempt_View = "ActivityAttempt.View";
-            public const string ActivityAttempt_Create = "ActivityAttempt.Create";
-            public const string ActivityAttempt_Edit = "ActivityAttempt.Edit";
-            public const string ActivityAttempt_Delete = "ActivityAttempt.Delete";
+            public const string ExamAttemptPage = "ExamAttempt";
+            public const string ExamAttempt_View = "ExamAttempt.View";
+            public const string ExamAttempt_Create = "ExamAttempt.Create";
+            public const string ExamAttempt_Edit = "ExamAttempt.Edit";
+            public const string ExamAttempt_Delete = "ExamAttempt.Delete";
         }
 
-        public static class ActivityAnswer
+        public static class ExamAnswer
         {
-            public const string ActivityAnswerPage = "ActivityAnswer";
-            public const string ActivityAnswer_View = "ActivityAnswer.View";
-            public const string ActivityAnswer_Create = "ActivityAnswer.Create";
-            public const string ActivityAnswer_Edit = "ActivityAnswer.Edit";
-            public const string ActivityAnswer_Delete = "ActivityAnswer.Delete";
+            public const string ExamAnswerPage = "ExamAnswer";
+            public const string ExamAnswer_View = "ExamAnswer.View";
+            public const string ExamAnswer_Create = "ExamAnswer.Create";
+            public const string ExamAnswer_Edit = "ExamAnswer.Edit";
+            public const string ExamAnswer_Delete = "ExamAnswer.Delete";
         }
 
         public static class ExamSchedule
