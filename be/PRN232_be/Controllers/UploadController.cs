@@ -56,9 +56,10 @@ namespace PRN232_be.Controllers
                 }
 
                 var ext = System.IO.Path.GetExtension(file.FileName).ToLower();
-                if (ext != ".jpg" && ext != ".png" && ext != ".jpeg" && ext != ".pdf" && ext != ".doc" && ext != ".docx")
+                var allowed = new[] { ".jpg", ".png", ".jpeg", ".pdf", ".doc", ".docx", ".mp3", ".wav", ".ogg", ".mp4" };
+                if (!Array.Exists(allowed, e => e == ext))
                 {
-                    return BadRequest(ApiResponse<string>.Fail("Only .jpg, .jpeg, .png, .pdf, .doc, .docx are allowed."));
+                    return BadRequest(ApiResponse<string>.Fail("File format is not allowed."));
                 }
 
                 var path = await _fileService.UploadFileAsync(file, "documents");

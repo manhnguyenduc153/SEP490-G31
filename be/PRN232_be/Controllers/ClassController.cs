@@ -22,7 +22,6 @@ namespace PRN232_be.Controllers
 
         // GET: api/Class
         [HttpGet]
-        [HasPermission(Permissions.Class.Class_View)]
         public async Task<IActionResult> GetAll([FromQuery] ClassSearchDto searchDto)
         {
             var response = await _service.GetAllAsync(searchDto);
@@ -31,7 +30,6 @@ namespace PRN232_be.Controllers
 
         // GET: api/Class/5
         [HttpGet("{id}")]
-        [HasPermission(Permissions.Class.Class_View)]
         public async Task<IActionResult> GetById(int id)
         {
             var response = await _service.GetByIdAsync(id);

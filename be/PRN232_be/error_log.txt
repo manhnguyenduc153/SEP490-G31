@@ -3560,3 +3560,378 @@ Details: Query: None | User: admin
 [2026-07-01 18:45:09] [CLIENT ERROR 400] POST /api/Teacher
 Details: Query: None | User: admin
 ------------------------------------------------------------
+[2026-07-02 18:35:35] [SERVER ERROR 500] GET /
+Details: Query: None | User: Anonymous
+Exception Message: Value cannot be null. (Parameter 's')
+StackTrace:    at System.ArgumentNullException.Throw(String paramName)
+   at System.Text.Encoding.GetBytes(String s)
+   at PRN232_be.Extensions.StartupExtensions.<>c__DisplayClass1_0.<AddSecurityServices>b__2(JwtBearerOptions options) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Extensions\StartupExtensions.cs:line 63
+   at Microsoft.Extensions.Options.ConfigureNamedOptions`1.Configure(String name, TOptions options)
+   at Microsoft.Extensions.Options.OptionsFactory`1.Create(String name)
+   at Microsoft.Extensions.Options.OptionsMonitor`1.<>c.<Get>b__10_0(String name, IOptionsFactory`1 factory)
+   at Microsoft.Extensions.Options.OptionsCache`1.<>c__DisplayClass3_1`1.<GetOrAdd>b__2()
+   at System.Lazy`1.ViaFactory(LazyThreadSafetyMode mode)
+   at System.Lazy`1.ExecutionAndPublication(LazyHelper executionAndPublication, Boolean useDefaultConstructor)
+   at System.Lazy`1.CreateValue()
+   at Microsoft.Extensions.Options.OptionsCache`1.GetOrAdd[TArg](String name, Func`3 createOptions, TArg factoryArgument)
+   at Microsoft.Extensions.Options.OptionsMonitor`1.Get(String name)
+   at Microsoft.AspNetCore.Authentication.AuthenticationHandler`1.InitializeAsync(AuthenticationScheme scheme, HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationHandlerProvider.GetHandlerAsync(HttpContext context, String authenticationScheme)
+   at Microsoft.AspNetCore.Authentication.AuthenticationService.AuthenticateAsync(HttpContext context, String scheme)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-07-02 18:35:37] [SERVER ERROR 500] GET /favicon.ico
+Details: Query: None | User: Anonymous
+Exception Message: Value cannot be null. (Parameter 's')
+StackTrace:    at System.ArgumentNullException.Throw(String paramName)
+   at System.Text.Encoding.GetBytes(String s)
+   at PRN232_be.Extensions.StartupExtensions.<>c__DisplayClass1_0.<AddSecurityServices>b__2(JwtBearerOptions options) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Extensions\StartupExtensions.cs:line 63
+   at Microsoft.Extensions.Options.ConfigureNamedOptions`1.Configure(String name, TOptions options)
+   at Microsoft.Extensions.Options.OptionsFactory`1.Create(String name)
+   at Microsoft.Extensions.Options.OptionsMonitor`1.<>c.<Get>b__10_0(String name, IOptionsFactory`1 factory)
+   at Microsoft.Extensions.Options.OptionsCache`1.<>c__DisplayClass3_1`1.<GetOrAdd>b__2()
+   at System.Lazy`1.ViaFactory(LazyThreadSafetyMode mode)
+--- End of stack trace from previous location ---
+   at System.Lazy`1.CreateValue()
+   at Microsoft.Extensions.Options.OptionsCache`1.GetOrAdd[TArg](String name, Func`3 createOptions, TArg factoryArgument)
+   at Microsoft.Extensions.Options.OptionsMonitor`1.Get(String name)
+   at Microsoft.AspNetCore.Authentication.AuthenticationHandler`1.InitializeAsync(AuthenticationScheme scheme, HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationHandlerProvider.GetHandlerAsync(HttpContext context, String authenticationScheme)
+   at Microsoft.AspNetCore.Authentication.AuthenticationService.AuthenticateAsync(HttpContext context, String scheme)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-07-02 18:36:05] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 18:40:46] [CLIENT ERROR 401] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 18:40:51] [CLIENT ERROR 401] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 18:40:57] [CLIENT ERROR 401] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 18:40:59] [CLIENT ERROR 401] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 18:44:46] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 18:44:46] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 18:45:34] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 18:45:34] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:07:19] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 19:11:07] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 19:11:07] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 19:11:09] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:11:09] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:11:15] [CLIENT ERROR 404] GET /api/Class/StudentSchedules
+Details: Query: None | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:11:15] [CLIENT ERROR 404] GET /api/Class/StudentSchedules
+Details: Query: None | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:11:55] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:11:55] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:18:16] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:18:16] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:18:30] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:18:30] [CLIENT ERROR 403] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:27:34] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 19:29:28] [CLIENT ERROR 400] POST /api/upload/document
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 19:29:28] [CLIENT ERROR 400] POST /api/upload/document
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 19:30:10] [CLIENT ERROR 400] POST /api/Homework
+Details: Query: None | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:30:17] [CLIENT ERROR 400] POST /api/Homework
+Details: Query: None | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-02 19:49:38] [CLIENT ERROR 400] POST /api/upload/document
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 19:49:50] [CLIENT ERROR 401] POST /api/Homework
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 20:24:02] [CLIENT ERROR 401] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 20:28:31] [SERVER ERROR 500] PUT /api/Class/2
+Details: Query: None | User: admin
+Exception Message: This SqlTransaction has completed; it is no longer usable.
+StackTrace:    at Microsoft.Data.SqlClient.SqlTransaction.ZombieCheck()
+   at Microsoft.Data.SqlClient.SqlTransaction.Rollback()
+   at System.Data.Common.DbTransaction.RollbackAsync(CancellationToken cancellationToken)
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.RelationalTransaction.RollbackAsync(CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalTransaction.RollbackAsync(CancellationToken cancellationToken)
+   at PRN232_be.Services.Implementations.ClassService.EditAsync(ClassSaveDto dto) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Services\Implementations\ClassService.cs:line 252
+   at PRN232_be.Controllers.ClassController.Edit(Int32 id, ClassSaveDto dto) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Controllers\ClassController.cs:line 54
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.TaskOfIActionResultExecutor.Execute(ActionContext actionContext, IActionResultTypeMapper mapper, ObjectMethodExecutor executor, Object controller, Object[] arguments)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeActionMethodAsync>g__Awaited|12_0(ControllerActionInvoker invoker, ValueTask`1 actionResultValueTask)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeNextActionFilterAsync>g__Awaited|10_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Rethrow(ActionExecutedContextSealed context)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeInnerFilterAsync>g__Awaited|13_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|20_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.RateLimiting.RateLimitingMiddleware.InvokeInternal(HttpContext context, EnableRateLimitingAttribute enableRateLimitingAttribute)
+   at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-07-02 20:31:44] [CLIENT ERROR 400] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+------------------------------------------------------------
+[2026-07-02 20:31:53] [CLIENT ERROR 400] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+------------------------------------------------------------
+[2026-07-02 20:32:31] [CLIENT ERROR 400] POST /api/upload/document
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 20:32:41] [CLIENT ERROR 400] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+------------------------------------------------------------
+[2026-07-02 20:32:50] [CLIENT ERROR 400] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+------------------------------------------------------------
+[2026-07-02 20:39:12] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 20:40:00] [CLIENT ERROR 404] GET /favicon.ico
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 20:40:24] [CLIENT ERROR 400] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+------------------------------------------------------------
+[2026-07-02 20:40:42] [CLIENT ERROR 400] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+------------------------------------------------------------
+[2026-07-02 20:42:01] [SERVER ERROR 500] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+Exception Message: An error occurred while saving the entity changes. See the inner exception for details.
+StackTrace:    at Microsoft.EntityFrameworkCore.Update.AffectedCountModificationCommandBatch.ConsumeResultSetAsync(Int32 startCommandIndex, RelationalDataReader reader, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.AffectedCountModificationCommandBatch.ConsumeAsync(RelationalDataReader reader, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Update.Internal.SqlServerModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at PRN232_be.Repositories.Common.UnitOfWork`1.SaveChangesAsync() in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Repositories\Common\UnitOfWork.cs:line 47
+   at PRN232_be.Services.Implementations.HomeworkService.SubmitHomeworkAsync(HomeworkSubmissionSaveDto dto) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Services\Implementations\HomeworkService.cs:line 204
+   at PRN232_be.Controllers.HomeworkController.SubmitHomework(HomeworkSubmissionSaveDto dto) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Controllers\HomeworkController.cs:line 108
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.TaskOfIActionResultExecutor.Execute(ActionContext actionContext, IActionResultTypeMapper mapper, ObjectMethodExecutor executor, Object controller, Object[] arguments)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeActionMethodAsync>g__Awaited|12_0(ControllerActionInvoker invoker, ValueTask`1 actionResultValueTask)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeNextActionFilterAsync>g__Awaited|10_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Rethrow(ActionExecutedContextSealed context)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeInnerFilterAsync>g__Awaited|13_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|20_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.RateLimiting.RateLimitingMiddleware.InvokeInternal(HttpContext context, EnableRateLimitingAttribute enableRateLimitingAttribute)
+   at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-07-02 20:42:34] [SERVER ERROR 500] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+Exception Message: An error occurred while saving the entity changes. See the inner exception for details.
+StackTrace:    at Microsoft.EntityFrameworkCore.Update.AffectedCountModificationCommandBatch.ConsumeResultSetAsync(Int32 startCommandIndex, RelationalDataReader reader, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.AffectedCountModificationCommandBatch.ConsumeAsync(RelationalDataReader reader, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Update.Internal.SqlServerModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at PRN232_be.Repositories.Common.UnitOfWork`1.SaveChangesAsync() in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Repositories\Common\UnitOfWork.cs:line 47
+   at PRN232_be.Services.Implementations.HomeworkService.SubmitHomeworkAsync(HomeworkSubmissionSaveDto dto) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Services\Implementations\HomeworkService.cs:line 204
+   at PRN232_be.Controllers.HomeworkController.SubmitHomework(HomeworkSubmissionSaveDto dto) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Controllers\HomeworkController.cs:line 108
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.TaskOfIActionResultExecutor.Execute(ActionContext actionContext, IActionResultTypeMapper mapper, ObjectMethodExecutor executor, Object controller, Object[] arguments)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeActionMethodAsync>g__Awaited|12_0(ControllerActionInvoker invoker, ValueTask`1 actionResultValueTask)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeNextActionFilterAsync>g__Awaited|10_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Rethrow(ActionExecutedContextSealed context)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeInnerFilterAsync>g__Awaited|13_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|20_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.RateLimiting.RateLimitingMiddleware.InvokeInternal(HttpContext context, EnableRateLimitingAttribute enableRateLimitingAttribute)
+   at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-07-02 20:42:55] [SERVER ERROR 500] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+Exception Message: An error occurred while saving the entity changes. See the inner exception for details.
+StackTrace:    at Microsoft.EntityFrameworkCore.Update.AffectedCountModificationCommandBatch.ConsumeResultSetAsync(Int32 startCommandIndex, RelationalDataReader reader, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.AffectedCountModificationCommandBatch.ConsumeAsync(RelationalDataReader reader, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.ReaderModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Update.Internal.SqlServerModificationCommandBatch.ExecuteAsync(IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Update.Internal.BatchExecutor.ExecuteAsync(IEnumerable`1 commandBatches, IRelationalConnection connection, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalDatabase.SaveChangesAsync(IList`1 entries, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(IList`1 entriesToSave, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.ChangeTracking.Internal.StateManager.SaveChangesAsync(StateManager stateManager, Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync(Boolean acceptAllChangesOnSuccess, CancellationToken cancellationToken)
+   at PRN232_be.Repositories.Common.UnitOfWork`1.SaveChangesAsync() in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Repositories\Common\UnitOfWork.cs:line 47
+   at PRN232_be.Services.Implementations.HomeworkService.SubmitHomeworkAsync(HomeworkSubmissionSaveDto dto) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Services\Implementations\HomeworkService.cs:line 204
+   at PRN232_be.Controllers.HomeworkController.SubmitHomework(HomeworkSubmissionSaveDto dto) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Controllers\HomeworkController.cs:line 108
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.TaskOfIActionResultExecutor.Execute(ActionContext actionContext, IActionResultTypeMapper mapper, ObjectMethodExecutor executor, Object controller, Object[] arguments)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeActionMethodAsync>g__Awaited|12_0(ControllerActionInvoker invoker, ValueTask`1 actionResultValueTask)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeNextActionFilterAsync>g__Awaited|10_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Rethrow(ActionExecutedContextSealed context)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeInnerFilterAsync>g__Awaited|13_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|20_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.RateLimiting.RateLimitingMiddleware.InvokeInternal(HttpContext context, EnableRateLimitingAttribute enableRateLimitingAttribute)
+   at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-07-02 20:47:13] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 20:48:33] [CLIENT ERROR 400] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+------------------------------------------------------------
+[2026-07-02 20:49:23] [CLIENT ERROR 400] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+------------------------------------------------------------
+[2026-07-02 20:49:43] [CLIENT ERROR 400] POST /api/Homework/submit
+Details: Query: None | User: hoangnguyensehe@gmail.com
+------------------------------------------------------------
+[2026-07-02 20:52:28] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 20:52:39] [SERVER ERROR 500] POST /api/Auth/Logout
+Details: Query: None | User: Anonymous
+Exception Message: The client reset the request stream.
+StackTrace:    at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpRequestStream.ReadAsyncInternal(Memory`1 destination, CancellationToken cancellationToken)
+   at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder`1.StateMachineBox`1.System.Threading.Tasks.Sources.IValueTaskSource<TResult>.GetResult(Int16 token)
+   at System.Text.Json.Serialization.ReadBufferState.ReadFromStreamAsync(Stream utf8Json, CancellationToken cancellationToken, Boolean fillBuffer)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.DeserializeAsync(Stream utf8Json, CancellationToken cancellationToken)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.DeserializeAsObjectAsync(Stream utf8Json, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Mvc.Formatters.SystemTextJsonInputFormatter.ReadRequestBodyAsync(InputFormatterContext context, Encoding encoding)
+   at Microsoft.AspNetCore.Mvc.Formatters.SystemTextJsonInputFormatter.ReadRequestBodyAsync(InputFormatterContext context, Encoding encoding)
+   at Microsoft.AspNetCore.Mvc.ModelBinding.Binders.BodyModelBinder.BindModelAsync(ModelBindingContext bindingContext)
+   at Microsoft.AspNetCore.Mvc.ModelBinding.ParameterBinder.BindModelAsync(ActionContext actionContext, IModelBinder modelBinder, IValueProvider valueProvider, ParameterDescriptor parameter, ModelMetadata metadata, Object value, Object container)
+   at Microsoft.AspNetCore.Mvc.Controllers.ControllerBinderDelegateProvider.<>c__DisplayClass0_0.<<CreateBinderDelegate>g__Bind|0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeInnerFilterAsync>g__Awaited|13_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|20_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Awaited|17_0(ResourceInvoker invoker, Task task, IDisposable scope)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.RateLimiting.RateLimitingMiddleware.InvokeInternal(HttpContext context, EnableRateLimitingAttribute enableRateLimitingAttribute)
+   at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-07-02 20:52:42] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 20:52:42] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 21:44:40] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 21:47:06] [CLIENT ERROR 401] GET /api/Class/StudentSchedules
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 21:47:06] [CLIENT ERROR 401] GET /api/Class/StudentSchedules
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 21:47:24] [CLIENT ERROR 404] GET /favicon.ico
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 04:09:54] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 04:13:08] [CLIENT ERROR 401] GET /api/Class/StudentSchedules
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 04:13:08] [CLIENT ERROR 401] GET /api/Class/StudentSchedules
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 04:14:43] [CLIENT ERROR 404] GET /favicon.ico
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
