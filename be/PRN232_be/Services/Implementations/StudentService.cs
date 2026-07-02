@@ -272,6 +272,49 @@ namespace PRN232_be.Services.Implementations
             };
         }
 
+        public async Task<ApiResponse<List<StudentDto>>> ImportAsync(List<StudentSaveDto> dtos)
+        {
+            var results = new List<StudentDto>();
+            var errors = new List<string>();
+            
+            foreach (var dto in dtos)
+            {
+                try 
+                {
+                    if (string.IsNullOrWhiteSpace(dto.Code))
+                    {
+                        dto.Code = $"ST_{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
+                    }
+
+                    var res = await CreateAsync(dto);
+                    if (res.Success && res.Data != null)
+                    {
+                        results.Add(res.Data);
+                    }
+                    else
+                    {
+                        errors.Add($"Học sinh '{dto.Name}' (Email: {dto.Email}): {res.Message}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Học sinh '{dto.Name}': {ex.Message}");
+                }
+            }
+
+            if (errors.Any())
+            {
+                var combinedMessage = string.Join("; ", errors);
+                if (results.Any())
+                {
+                    return ApiResponse<List<StudentDto>>.Ok(results, $"IMPORT_PARTIAL_SUCCESS: {combinedMessage}");
+                }
+                return ApiResponse<List<StudentDto>>.Fail($"ERR_IMPORT_FAILED: {combinedMessage}", StatusCodes.Status400BadRequest);
+            }
+
+            return ApiResponse<List<StudentDto>>.Ok(results, "IMPORT_STUDENT_SUCCESS");
+        }
+
         // ===================== PRIVATE VALIDATE =====================
 
         private async Task<string?> ValidateAsync(StudentSaveDto dto, bool isEdit)
