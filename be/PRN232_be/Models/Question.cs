@@ -11,6 +11,7 @@ namespace PRN232_be.Models
         public int DifficultyLevel { get; set; }
         public string? Explanation { get; set; }
         public int Status { get; set; }
+        public decimal? Point { get; set; }
 
         public virtual QuestionCategory? QuestionCategory { get; set; }
         public virtual ICollection<QuestionAnswer> QuestionAnswers { get; set; } = new List<QuestionAnswer>();
