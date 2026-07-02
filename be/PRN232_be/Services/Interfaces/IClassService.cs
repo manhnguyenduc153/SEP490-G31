@@ -14,5 +14,6 @@ namespace PRN232_be.Services.Interfaces
         Task<ApiResponse<bool>> DeactiveAsync(int id);
         Task<ApiResponse<List<ClassScheduleDto>>> GetTeacherSchedulesAsync(string username);
         Task<ApiResponse<List<ClassScheduleDto>>> GetStudentSchedulesAsync(string username);
+        Task<ApiResponse<List<ClassScheduleDto>>> GetClassSchedulesAsync();
     }
 }

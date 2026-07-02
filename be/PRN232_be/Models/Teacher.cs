@@ -20,7 +20,7 @@ namespace PRN232_be.Models
 
         public virtual ICollection<ClassSchedule> ClassSchedules { get; set; } = new List<ClassSchedule>();
         public virtual ICollection<LearningMaterial> LearningMaterials { get; set; } = new List<LearningMaterial>();
-        public virtual ICollection<ActivityAnswer> ActivityAnswers { get; set; } = new List<ActivityAnswer>();
+        public virtual ICollection<ExamAnswer> ExamAnswers { get; set; } = new List<ExamAnswer>();
         public virtual ICollection<ExamSchedule> ExamSchedules { get; set; } = new List<ExamSchedule>();
     }
 }

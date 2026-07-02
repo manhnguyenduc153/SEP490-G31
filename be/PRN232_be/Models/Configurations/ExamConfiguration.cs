@@ -3,11 +3,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace PRN232_be.Models.Configurations
 {
-    public class ActivityConfiguration : IEntityTypeConfiguration<Activity>
+    public class ExamConfiguration : IEntityTypeConfiguration<Exam>
     {
-        public void Configure(EntityTypeBuilder<Activity> builder)
+        public void Configure(EntityTypeBuilder<Exam> builder)
         {
-            builder.ToTable("activities");
+            builder.ToTable("exams");
             builder.HasKey(x => x.Id);
             builder.Property(x => x.Code).IsRequired().HasMaxLength(50);
             builder.Property(x => x.Name).IsRequired().HasMaxLength(200);
@@ -17,12 +17,12 @@ namespace PRN232_be.Models.Configurations
             builder.Property(x => x.PassingScore).HasColumnType("decimal(18,2)");
 
             builder.HasOne(x => x.Class)
-                .WithMany(c => c.Activities)
+                .WithMany(c => c.Exams)
                 .HasForeignKey(x => x.ClassId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasOne(x => x.ClassSchedule)
-                .WithMany(cs => cs.Activities)
+                .WithMany(cs => cs.Exams)
                 .HasForeignKey(x => x.ScheduleId)
                 .OnDelete(DeleteBehavior.Restrict);
 

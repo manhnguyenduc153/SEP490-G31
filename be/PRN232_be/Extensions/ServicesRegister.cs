@@ -14,8 +14,10 @@ namespace PRN232_be.Extensions
             // Repositories & UoW
             services.AddScoped<IUnitOfWork, UnitOfWork<ApplicationDbContext>>();
             services.AddScoped(typeof(IBaseRepository<,>), typeof(BaseRepository<,>));
+            services.AddScoped<IExamRepository, ExamRepository>();
             services.AddScoped<IProductRepository, ProductRepository>();
             services.AddScoped<IQuestionCategoryRepository, QuestionCategoryRepository>();
+            services.AddScoped<IQuestionRepository, QuestionRepository>();
             services.AddScoped<ITeacherRepository, TeacherRepository>();
             services.AddScoped<IRoomRepository, RoomRepository>();
             services.AddScoped<ICourseRepository, CourseRepository>();
@@ -27,8 +29,10 @@ namespace PRN232_be.Extensions
             services.AddScoped<IHomeworkSubmissionRepository, HomeworkSubmissionRepository>();
             
             // Services
+            services.AddScoped<IExamService, ExamService>();
             services.AddScoped<IProductService, ProductService>();
             services.AddScoped<IQuestionCategoryService, QuestionCategoryService>();
+            services.AddScoped<IQuestionService, QuestionService>();
             services.AddScoped<ICourseService, CourseService>();
             services.AddScoped<IStudentService, StudentService>();
             services.AddScoped<IAuthService, AuthService>();
@@ -40,7 +44,11 @@ namespace PRN232_be.Extensions
             services.AddScoped<IClassService, ClassService>();
             services.AddScoped<IStudentService, StudentService>();
             services.AddScoped<IRoomService, RoomService>();
+<<<<<<< HEAD
             services.AddScoped<IHomeworkService, HomeworkService>();
+=======
+            services.AddScoped<IScheduleOptimizationService, ScheduleOptimizationService>();
+>>>>>>> b7bac09299b403f2a45f9cfde70768e389168ef3
         }
     }
 }

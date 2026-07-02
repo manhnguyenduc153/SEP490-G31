@@ -14,10 +14,12 @@ namespace PRN232_be.Controllers
     public class ClassController : ControllerBase
     {
         private readonly IClassService _service;
+        private readonly IScheduleOptimizationService _optService;
 
-        public ClassController(IClassService service)
+        public ClassController(IClassService service, IScheduleOptimizationService optService)
         {
             _service = service;
+            _optService = optService;
         }
 
         // GET: api/Class
@@ -29,7 +31,12 @@ namespace PRN232_be.Controllers
         }
 
         // GET: api/Class/5
+<<<<<<< HEAD
         [HttpGet("{id}")]
+=======
+        [HttpGet("{id:int}")]
+        [HasPermission(Permissions.Class.Class_View)]
+>>>>>>> b7bac09299b403f2a45f9cfde70768e389168ef3
         public async Task<IActionResult> GetById(int id)
         {
             var response = await _service.GetByIdAsync(id);
@@ -97,6 +104,48 @@ namespace PRN232_be.Controllers
             }
             var response = await _service.GetStudentSchedulesAsync(username);
             return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Class/check-conflict
+        [HttpPost("check-conflict")]
+        [HasPermission(Permissions.Class.Class_View)]
+        public async Task<IActionResult> CheckConflict([FromBody] ClassSaveDto dto)
+        {
+            var response = await _optService.CheckConflictAsync(dto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Class/auto-schedule
+        [HttpPost("auto-schedule")]
+        [HasPermission(Permissions.Class.Class_Edit)]
+        public async Task<IActionResult> AutoSchedule([FromBody] AutoScheduleRequestDto request)
+        {
+            var response = await _optService.AutoScheduleAsync(request.ClassIds, request.Constraints);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Class/Schedules
+        [HttpGet("Schedules")]
+        [HasPermission(Permissions.ClassSchedule.ClassSchedule_View)]
+        public async Task<IActionResult> GetClassSchedules()
+        {
+            var response = await _service.GetClassSchedulesAsync();
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Class/fixed-slots — returns the 5 canonical time slots hard-coded in the system
+        [HttpGet("fixed-slots")]
+        [HasPermission(Permissions.Class.Class_View)]
+        public IActionResult GetFixedSlots()
+        {
+            var slots = PRN232_be.Enums.FixedTimeSlot.All.Select(fs => new
+            {
+                index     = fs.Index,
+                name      = fs.Name,
+                startTime = fs.StartStr,
+                endTime   = fs.EndStr
+            });
+            return Ok(new { success = true, data = slots });
         }
     }
 }

@@ -35,10 +35,10 @@ namespace PRN232_be.Models
         public DbSet<QuestionCategory> QuestionCategories { get; set; }
         public DbSet<Question> Questions { get; set; }
         public DbSet<QuestionAnswer> QuestionAnswers { get; set; }
-        public DbSet<Activity> Activities { get; set; }
-        public DbSet<ActivityQuestion> ActivityQuestions { get; set; }
-        public DbSet<ActivityAttempt> ActivityAttempts { get; set; }
-        public DbSet<ActivityAnswer> ActivityAnswers { get; set; }
+        public DbSet<Exam> Exams { get; set; }
+        public DbSet<ExamQuestion> ExamQuestions { get; set; }
+        public DbSet<ExamAttempt> ExamAttempts { get; set; }
+        public DbSet<ExamAnswer> ExamAnswers { get; set; }
         public DbSet<ExamSchedule> ExamSchedules { get; set; }
         public DbSet<ExamStudent> ExamStudents { get; set; }
         public DbSet<StudentGrade> StudentGrades { get; set; }
