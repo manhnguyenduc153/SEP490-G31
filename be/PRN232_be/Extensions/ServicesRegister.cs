@@ -44,11 +44,8 @@ namespace PRN232_be.Extensions
             services.AddScoped<IClassService, ClassService>();
             services.AddScoped<IStudentService, StudentService>();
             services.AddScoped<IRoomService, RoomService>();
-<<<<<<< HEAD
             services.AddScoped<IHomeworkService, HomeworkService>();
-=======
             services.AddScoped<IScheduleOptimizationService, ScheduleOptimizationService>();
->>>>>>> b7bac09299b403f2a45f9cfde70768e389168ef3
         }
     }
 }

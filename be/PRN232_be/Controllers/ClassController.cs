@@ -31,12 +31,7 @@ namespace PRN232_be.Controllers
         }
 
         // GET: api/Class/5
-<<<<<<< HEAD
         [HttpGet("{id}")]
-=======
-        [HttpGet("{id:int}")]
-        [HasPermission(Permissions.Class.Class_View)]
->>>>>>> b7bac09299b403f2a45f9cfde70768e389168ef3
         public async Task<IActionResult> GetById(int id)
         {
             var response = await _service.GetByIdAsync(id);

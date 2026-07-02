@@ -1,3 +1,4 @@
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Mapster;
@@ -73,7 +74,6 @@ namespace PRN232_be.Services.Implementations
 
         public async Task<ApiResponse<TeacherDto>> CreateAsync(TeacherSaveDto dto)
         {
-            await using var transaction = await _repository.BeginTransactionAsync();
             try
             {
                 var validationError = await ValidateAsync(dto, isEdit: false);
@@ -81,35 +81,6 @@ namespace PRN232_be.Services.Implementations
                 {
                     return ApiResponse<TeacherDto>.Fail(validationError, StatusCodes.Status400BadRequest);
                 }
-
-                // Create IdentityUser
-                var username = !string.IsNullOrWhiteSpace(dto.Email) ? dto.Email : dto.Code;
-                var existingUser = await _userManager.FindByNameAsync(username);
-                if (existingUser != null)
-                {
-                    return ApiResponse<TeacherDto>.Fail("ERR_USER_ALREADY_EXISTS", StatusCodes.Status400BadRequest);
-                }
-
-                var newUser = new IdentityUser
-                {
-                    UserName = username,
-                    Email = dto.Email,
-                    EmailConfirmed = true
-                };
-
-                var createResult = await _userManager.CreateAsync(newUser, "123456");
-                if (!createResult.Succeeded)
-                {
-                    var errors = string.Join(", ", createResult.Errors.Select(e => e.Description));
-                    return ApiResponse<TeacherDto>.Fail($"ERR_CREATE_USER_FAILED: {errors}", StatusCodes.Status500InternalServerError);
-                }
-
-                const string teacherRoleName = "Teacher";
-                if (!await _roleManager.RoleExistsAsync(teacherRoleName))
-                {
-                    await _roleManager.CreateAsync(new IdentityRole(teacherRoleName));
-                }
-                await _userManager.AddToRoleAsync(newUser, teacherRoleName);
 
                 var entity = dto.Adapt<Teacher>();
                 entity.Id = 0;
@@ -120,13 +91,10 @@ namespace PRN232_be.Services.Implementations
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
 
-                await _repository.CommitTransactionAsync();
-
                 return ApiResponse<TeacherDto>.Created(MapToDto(entity), "CREATE_TEACHER_SUCCESS");
             }
             catch (Exception ex)
             {
-                await _repository.RollbackTransactionAsync();
                 return ApiResponse<TeacherDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
@@ -157,6 +125,57 @@ namespace PRN232_be.Services.Implementations
             catch (Exception ex)
             {
                 return ApiResponse<TeacherDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<TeacherDto>>> ImportAsync(List<TeacherSaveDto> dtos)
+        {
+            try
+            {
+                var createdTeachers = new List<Teacher>();
+                
+                foreach (var dto in dtos)
+                {
+                    var validationError = await ValidateAsync(dto, isEdit: false);
+                    if (validationError != null)
+                    {
+                        continue; // Skip invalid records
+                    }
+
+                    var entity = dto.Adapt<Teacher>();
+                    entity.Id = 0;
+                    entity.Status = dto.Status != 0 ? dto.Status : 1;
+
+                    // Tự động tạo IdentityUser cho Teacher
+                    var user = new IdentityUser
+                    {
+                        UserName = entity.Email ?? $"teacher_{Guid.NewGuid():N}",
+                        Email = entity.Email,
+                        EmailConfirmed = true
+                    };
+
+                    var result = await _userManager.CreateAsync(user, "123456"); // Mật khẩu mặc định
+                    if (result.Succeeded)
+                    {
+                        var roleExists = await _roleManager.RoleExistsAsync("Teacher");
+                        if (roleExists)
+                        {
+                            await _userManager.AddToRoleAsync(user, "Teacher");
+                        }
+                    }
+
+                    await _repository.AddAsync(entity);
+                    createdTeachers.Add(entity);
+                }
+
+                await _repository.SaveChangesAsync();
+
+                var resultDtos = createdTeachers.Select(MapToDto).ToList();
+                return ApiResponse<List<TeacherDto>>.Created(resultDtos, "IMPORT_TEACHERS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<TeacherDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -259,3 +278,5 @@ namespace PRN232_be.Services.Implementations
         }
     }
 }
+
+

@@ -46,6 +46,15 @@ namespace PRN232_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        // POST: api/Teacher/import
+        [HttpPost("import")]
+        [HasPermission(Permissions.Teacher.Teacher_Create)]
+        public async Task<IActionResult> Import([FromBody] List<TeacherSaveDto> dtos)
+        {
+            var response = await _service.ImportAsync(dtos);
+            return StatusCode(response.StatusCode, response);
+        }
+
         // PUT: api/Teacher/5
         [HttpPut("{id}")]
         [HasPermission(Permissions.Teacher.Teacher_Edit)]

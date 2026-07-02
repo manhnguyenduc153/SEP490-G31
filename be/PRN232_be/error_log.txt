@@ -3935,3 +3935,9 @@ Details: Query: None | User: Anonymous
 [2026-07-03 04:14:43] [CLIENT ERROR 404] GET /favicon.ico
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-07-03 05:09:34] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 05:11:34] [CLIENT ERROR 404] GET /favicon.ico
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
