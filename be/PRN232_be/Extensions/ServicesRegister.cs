@@ -14,6 +14,7 @@ namespace PRN232_be.Extensions
             // Repositories & UoW
             services.AddScoped<IUnitOfWork, UnitOfWork<ApplicationDbContext>>();
             services.AddScoped(typeof(IBaseRepository<,>), typeof(BaseRepository<,>));
+            services.AddScoped<IExamRepository, ExamRepository>();
             services.AddScoped<IProductRepository, ProductRepository>();
             services.AddScoped<IQuestionCategoryRepository, QuestionCategoryRepository>();
             services.AddScoped<IQuestionRepository, QuestionRepository>();
@@ -26,6 +27,7 @@ namespace PRN232_be.Extensions
             services.AddScoped<IStudentRepository, StudentRepository>();
             
             // Services
+            services.AddScoped<IExamService, ExamService>();
             services.AddScoped<IProductService, ProductService>();
             services.AddScoped<IQuestionCategoryService, QuestionCategoryService>();
             services.AddScoped<IQuestionService, QuestionService>();
