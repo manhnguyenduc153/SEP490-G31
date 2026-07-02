@@ -54,6 +54,7 @@ namespace PRN232_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var query = _repository.FindAll()
                     .Include(c => c.Course)
                     .Include(c => c.Teacher)
@@ -93,6 +94,7 @@ namespace PRN232_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var entity = await _repository.FindAll()
                     .Include(c => c.Course)
                     .Include(c => c.Teacher)
@@ -422,6 +424,106 @@ namespace PRN232_be.Services.Implementations
                     .CountAsync(s => dto.StudentIds.Contains(s.Id));
                 if (existingStudentCount != dto.StudentIds.Count)
                     return "ERR_STUDENT_NOT_FOUND";
+            }
+
+            // Kiểm tra sức chứa phòng học so với số lượng học sinh
+            int studentCount = dto.StudentIds?.Count ?? 0;
+            if (dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+            {
+                var roomIds = dto.WeeklySchedules
+                    .Where(w => w.RoomId.HasValue)
+                    .Select(w => w.RoomId.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (roomIds.Any())
+                {
+                    var rooms = await _dbContext.Rooms
+                        .Where(r => roomIds.Contains(r.Id))
+                        .ToListAsync();
+
+                    foreach (var room in rooms)
+                    {
+                        if (room.Capacity.HasValue && studentCount > room.Capacity.Value)
+                        {
+                            return $"ERR_ROOM_CAPACITY_EXCEEDED_{room.Name}";
+                        }
+                    }
+                }
+            }
+
+            // Kiểm tra trùng lịch học của học sinh (1 học sinh chỉ được học 1 lớp tại 1 thời điểm)
+            if (dto.StudentIds != null && dto.StudentIds.Any() && dto.StartDate.HasValue && dto.ExpectedLessons.HasValue && dto.ExpectedLessons.Value > 0 && dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+            {
+                var currentDate = dto.StartDate.Value;
+                int lessonNo = 1;
+                var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
+                DateTime? proposedEndDate = null;
+
+                if (!weeklySchedules.Any(w => w.DayOfWeek < 0 || w.DayOfWeek > 6))
+                {
+                    while (lessonNo <= dto.ExpectedLessons.Value)
+                    {
+                        var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                        if (match != null)
+                        {
+                            if (lessonNo == dto.ExpectedLessons.Value)
+                            {
+                                proposedEndDate = currentDate;
+                            }
+                            lessonNo++;
+                        }
+                        currentDate = currentDate.AddDays(1);
+                    }
+
+                    if (proposedEndDate.HasValue)
+                    {
+                        var proposedStartDate = dto.StartDate.Value;
+
+                        var otherStudentClasses = await _dbContext.StudentClasses
+                            .Include(sc => sc.Student)
+                            .Include(sc => sc.Class)
+                            .Where(sc => dto.StudentIds.Contains(sc.StudentId)
+                                      && sc.ClassId != dto.Id
+                                      && sc.Class != null
+                                      && !sc.Class.IsDeleted
+                                      && (sc.Status == (int)StudentClassStatus.Enrolled || sc.Status == (int)StudentClassStatus.Studying))
+                            .ToListAsync();
+
+                        if (otherStudentClasses.Any())
+                        {
+                            var otherClassIds = otherStudentClasses.Select(sc => sc.ClassId).Distinct().ToList();
+
+                            var conflictingSchedules = await _dbContext.ClassSchedules
+                                .Where(cs => cs.ClassId.HasValue
+                                          && otherClassIds.Contains(cs.ClassId.Value)
+                                          && cs.Class != null
+                                          && !cs.Class.IsDeleted
+                                          && cs.ScheduleDate >= proposedStartDate
+                                          && cs.ScheduleDate <= proposedEndDate)
+                                .ToListAsync();
+
+                            if (conflictingSchedules.Any())
+                            {
+                                var conflictingEmails = new List<string>();
+                                foreach (var sc in otherStudentClasses)
+                                {
+                                    var hasConflict = conflictingSchedules.Any(cs => cs.ClassId == sc.ClassId);
+                                    if (hasConflict && sc.Student != null && !string.IsNullOrWhiteSpace(sc.Student.Email))
+                                    {
+                                        conflictingEmails.Add(sc.Student.Email.Trim());
+                                    }
+                                }
+
+                                if (conflictingEmails.Any())
+                                {
+                                    var uniqueEmails = conflictingEmails.Distinct().ToList();
+                                    return $"ERR_STUDENT_CONFLICT_{uniqueEmails.Count}__{string.Join(",", uniqueEmails)}";
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Kiểm tra trùng lịch dạy của giáo viên hoặc phòng học
@@ -873,6 +975,45 @@ namespace PRN232_be.Services.Implementations
                 }
             }
             return "KH00001";
+        }
+
+        private async Task AutoUpdateClassStatusesAsync()
+        {
+            try
+            {
+                var today = DateTime.Today;
+
+                var planningClasses = await _repository.FindAll(trackChanges: true)
+                    .Where(c => c.Status == (int)ClassStatus.Planning 
+                             && c.StartDate.HasValue 
+                             && today >= c.StartDate.Value.Date)
+                    .ToListAsync();
+
+                foreach (var c in planningClasses)
+                {
+                    c.Status = (int)ClassStatus.Active;
+                }
+
+                var activeClasses = await _repository.FindAll(trackChanges: true)
+                    .Where(c => c.Status == (int)ClassStatus.Active 
+                             && c.EndDate.HasValue 
+                             && today > c.EndDate.Value.Date)
+                    .ToListAsync();
+
+                foreach (var c in activeClasses)
+                {
+                    c.Status = (int)ClassStatus.Completed;
+                }
+
+                if (planningClasses.Any() || activeClasses.Any())
+                {
+                    await _repository.SaveChangesAsync();
+                }
+            }
+            catch (Exception)
+            {
+                // Suppress exception
+            }
         }
     }
 }

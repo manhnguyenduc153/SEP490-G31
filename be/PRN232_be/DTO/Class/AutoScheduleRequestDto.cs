@@ -21,7 +21,7 @@ namespace PRN232_be.DTO.Class
     {
         /// <summary>
         /// Number of weekly sessions per class (applies only to classes that have no existing schedule).
-        /// Range: 1–5. Default = 2.
+        /// Range: 1–3. Default = 2.
         /// </summary>
         public int SessionsPerWeek { get; set; } = 2;
 

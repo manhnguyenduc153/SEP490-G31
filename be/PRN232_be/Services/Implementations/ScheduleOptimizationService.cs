@@ -163,7 +163,7 @@ namespace PRN232_be.Services.Implementations
 
                 // Validate constraints
                 constraints ??= new AutoScheduleConstraintDto();
-                constraints.SessionsPerWeek = Math.Clamp(constraints.SessionsPerWeek, 1, 5);
+                constraints.SessionsPerWeek = Math.Clamp(constraints.SessionsPerWeek, 1, 3);
                 if (constraints.TimePreferences == null || !constraints.TimePreferences.Any())
                     constraints.TimePreferences = new List<string> { "morning", "afternoon", "evening" };
 
@@ -227,6 +227,16 @@ namespace PRN232_be.Services.Implementations
                 if (!timeSlots.Any())
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_TIMESLOTS", StatusCodes.Status400BadRequest);
 
+                // Check room capacities for each class to be scheduled
+                foreach (var c in classesToSchedule)
+                {
+                    int studentCount = c.StudentClasses?.Count ?? 0;
+                    if (!rooms.Any(r => (r.Capacity ?? int.MaxValue) >= studentCount))
+                    {
+                        return ApiResponse<List<ClassDto>>.Fail($"ERR_CLASS_STUDENTS_EXCEED_ROOM_CAPACITY_{c.Code}", StatusCodes.Status400BadRequest);
+                    }
+                }
+
                 // ── 4. Fixed 5 slots ────────────────────────────────────────────────────
                 var fixedSlots = FixedTimeSlot.All;
                 int numFixed = fixedSlots.Length;
@@ -268,14 +278,26 @@ namespace PRN232_be.Services.Implementations
 
                 for (int i = 0; i < numClasses; i++)
                 {
+                    var classToSchedule = classesToSchedule[i];
                     teacherVar[i] = model.NewIntVar(0, numTeachers - 1, $"t_{i}");
                     roomVar[i]    = model.NewIntVar(0, numRooms - 1,    $"r_{i}");
 
                     // Pin teacher if already assigned and still active
-                    if (classesToSchedule[i].TeacherId.HasValue)
+                    if (classToSchedule.TeacherId.HasValue)
                     {
-                        int tIdx = teachers.FindIndex(t => t.Id == classesToSchedule[i].TeacherId.Value);
+                        int pinTeacherId = classToSchedule.TeacherId.Value;
+                        int tIdx = teachers.FindIndex(t => t.Id == pinTeacherId);
                         if (tIdx >= 0) model.Add(teacherVar[i] == tIdx);
+                    }
+
+                    // Room capacity check: room capacity must be >= class student count
+                    int studentCount = classToSchedule.StudentClasses?.Count ?? 0;
+                    for (int rIdx = 0; rIdx < numRooms; rIdx++)
+                    {
+                        if ((rooms[rIdx].Capacity ?? int.MaxValue) < studentCount)
+                        {
+                            model.Add(roomVar[i] != rIdx);
+                        }
                     }
 
                     for (int j = 0; j < freq; j++)
@@ -416,6 +438,7 @@ namespace PRN232_be.Services.Implementations
                 // ── 8. Load-balancing objective ────────────────────────────────────────
                 // For each allowed slot index s, count how many classes use it in at least one session.
                 // Minimize (maxCount - minCount) to spread classes evenly across time buckets.
+                IntVar? spread = null;
                 if (allowedSlotIndices.Length > 1 && numClasses > 1)
                 {
                     var countAtSlot = new IntVar[numFixed];
@@ -454,9 +477,57 @@ namespace PRN232_be.Services.Implementations
                     var minCount = model.NewIntVar(0, numClasses, "minCnt");
                     model.AddMaxEquality(maxCount, activeCounts);
                     model.AddMinEquality(minCount, activeCounts);
-                    var spread = model.NewIntVar(0, numClasses, "spread");
+                    spread = model.NewIntVar(0, numClasses, "spread");
                     model.Add(spread == maxCount - minCount);
-                    model.Minimize(spread);
+                }
+
+                IntVar? teacherSpread = null;
+                if (numTeachers > 1 && numClasses > 1)
+                {
+                    var classesCountForTeacher = new IntVar[numTeachers];
+                    for (int t = 0; t < numTeachers; t++)
+                    {
+                        classesCountForTeacher[t] = model.NewIntVar(0, numClasses, $"tCount_{t}");
+                        var assignedToTeacher = new List<IntVar>();
+                        for (int i = 0; i < numClasses; i++)
+                        {
+                            var assigned = model.NewBoolVar($"assigned_{i}_{t}");
+                            model.Add(teacherVar[i] == t).OnlyEnforceIf(assigned);
+                            model.Add(teacherVar[i] != t).OnlyEnforceIf(assigned.Not());
+                            assignedToTeacher.Add(assigned);
+                        }
+                        model.Add(classesCountForTeacher[t] == LinearExpr.Sum(assignedToTeacher.ToArray()));
+                    }
+
+                    var maxTeacherClasses = model.NewIntVar(0, numClasses, "maxTeacherClasses");
+                    var minTeacherClasses = model.NewIntVar(0, numClasses, "minTeacherClasses");
+                    model.AddMaxEquality(maxTeacherClasses, classesCountForTeacher);
+                    model.AddMinEquality(minTeacherClasses, classesCountForTeacher);
+                    teacherSpread = model.NewIntVar(0, numClasses, "teacherSpread");
+                    model.Add(teacherSpread == maxTeacherClasses - minTeacherClasses);
+                }
+
+                // Combine objectives
+                var objectiveExpressions = new List<IntVar>();
+                if (spread != null)
+                {
+                    objectiveExpressions.Add(spread!);
+                }
+                if (teacherSpread != null)
+                {
+                    objectiveExpressions.Add(teacherSpread!);
+                }
+
+                if (objectiveExpressions.Any())
+                {
+                    if (objectiveExpressions.Count == 1)
+                    {
+                        model.Minimize(objectiveExpressions[0]);
+                    }
+                    else
+                    {
+                        model.Minimize(LinearExpr.Sum(objectiveExpressions.ToArray()));
+                    }
                 }
 
                 // ── 9. Solve ────────────────────────────────────────────────────────────
