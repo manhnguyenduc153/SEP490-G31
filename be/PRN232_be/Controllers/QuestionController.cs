@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using PRN232_be.DTO.Student;
+using System.Threading.Tasks;
+using PRN232_be.DTO.Question;
 using PRN232_be.DTO.Common;
 using PRN232_be.Services.Interfaces;
 using PRN232_be.Helpers.Authorization;
@@ -10,83 +11,74 @@ namespace PRN232_be.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class StudentController : ControllerBase
+    public class QuestionController : ControllerBase
     {
-        private readonly IStudentService _service;
+        private readonly IQuestionService _service;
 
-        public StudentController(IStudentService service)
+        public QuestionController(IQuestionService service)
         {
             _service = service;
         }
 
-        // GET: api/Student
+        // GET: api/Question
         [HttpGet]
-        [HasPermission(Permissions.Student.Student_View)]
-        public async Task<IActionResult> GetAll([FromQuery] StudentSearchDto searchDto)
+        [HasPermission(Permissions.Question.Question_View)]
+        public async Task<IActionResult> GetAll([FromQuery] QuestionSearchDto searchDto)
         {
             var response = await _service.GetAllAsync(searchDto);
             return StatusCode(response.StatusCode, response);
         }
 
-        // GET: api/Student/5
+        // GET: api/Question/5
         [HttpGet("{id}")]
-        [HasPermission(Permissions.Student.Student_View)]
+        [HasPermission(Permissions.Question.Question_View)]
         public async Task<IActionResult> GetById(int id)
         {
             var response = await _service.GetByIdAsync(id);
             return StatusCode(response.StatusCode, response);
         }
 
-        // POST: api/Student
+        // POST: api/Question
         [HttpPost]
-        [HasPermission(Permissions.Student.Student_Create)]
-        public async Task<IActionResult> Create([FromBody] StudentSaveDto dto)
+        [HasPermission(Permissions.Question.Question_Create)]
+        public async Task<IActionResult> Create([FromBody] QuestionSaveDto dto)
         {
             var response = await _service.CreateAsync(dto);
             return StatusCode(response.StatusCode, response);
         }
 
-        // PUT: api/Student/5
+        // PUT: api/Question/5
         [HttpPut("{id}")]
-        [HasPermission(Permissions.Student.Student_Edit)]
-        public async Task<IActionResult> Edit(int id, [FromBody] StudentSaveDto dto)
+        [HasPermission(Permissions.Question.Question_Edit)]
+        public async Task<IActionResult> Edit(int id, [FromBody] QuestionSaveDto dto)
         {
             dto.Id = id;
             var response = await _service.EditAsync(dto);
             return StatusCode(response.StatusCode, response);
         }
 
-        // DELETE: api/Student/5
+        // DELETE: api/Question/5
         [HttpDelete("{id}")]
-        [HasPermission(Permissions.Student.Student_Delete)]
+        [HasPermission(Permissions.Question.Question_Delete)]
         public async Task<IActionResult> Delete(int id)
         {
             var response = await _service.DeleteAsync(id);
             return StatusCode(response.StatusCode, response);
         }
 
-        // POST: api/Student/5/deactive
+        // POST: api/Question/5/deactive
         [HttpPost("{id}/deactive")]
-        [HasPermission(Permissions.Student.Student_Delete)]
+        [HasPermission(Permissions.Question.Question_Delete)]
         public async Task<IActionResult> Deactive(int id)
         {
             var response = await _service.DeactiveAsync(id);
             return StatusCode(response.StatusCode, response);
         }
 
-        // POST: api/Student/check-emails
-        [HttpPost("check-emails")]
-        [HasPermission(Permissions.Student.Student_View)]
-        public async Task<IActionResult> CheckEmails([FromBody] List<string> emails)
-        {
-            var response = await _service.CheckEmailsAsync(emails);
-            return StatusCode(response.StatusCode, response);
-        }
-
-        // POST: api/Student/import
+        // POST: api/Question/import
         [HttpPost("import")]
-        [HasPermission(Permissions.Student.Student_Create)]
-        public async Task<IActionResult> Import([FromBody] List<StudentSaveDto> dtos)
+        [HasPermission(Permissions.Question.Question_Create)]
+        public async Task<IActionResult> Import([FromBody] List<QuestionSaveDto> dtos)
         {
             var response = await _service.ImportAsync(dtos);
             return StatusCode(response.StatusCode, response);
