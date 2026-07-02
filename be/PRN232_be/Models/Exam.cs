@@ -4,7 +4,7 @@ using PRN232_be.Models.BaseEntities;
 
 namespace PRN232_be.Models
 {
-    public class Activity : StandardEntity<int>
+    public class Exam : StandardEntity<int>
     {
         public int? ClassId { get; set; }
         public int? ScheduleId { get; set; }
@@ -24,8 +24,8 @@ namespace PRN232_be.Models
 
         public virtual Class? Class { get; set; }
         public virtual ClassSchedule? ClassSchedule { get; set; }
-        public virtual ICollection<ActivityQuestion> ActivityQuestions { get; set; } = new List<ActivityQuestion>();
-        public virtual ICollection<ActivityAttempt> ActivityAttempts { get; set; } = new List<ActivityAttempt>();
+        public virtual ICollection<ExamQuestion> ExamQuestions { get; set; } = new List<ExamQuestion>();
+        public virtual ICollection<ExamAttempt> ExamAttempts { get; set; } = new List<ExamAttempt>();
         public virtual ICollection<ExamSchedule> ExamSchedules { get; set; } = new List<ExamSchedule>();
         public virtual ICollection<StudentGrade> StudentGrades { get; set; } = new List<StudentGrade>();
     }

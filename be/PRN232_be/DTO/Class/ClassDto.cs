@@ -24,5 +24,13 @@ namespace PRN232_be.DTO.Class
         public string? WeeklySchedulesJson { get; set; }
         public bool AutoRefund { get; set; }
         public List<ClassScheduleDto> Schedules { get; set; } = new();
+        public List<ClassStudentDto> StudentClasses { get; set; } = new();
+    }
+
+    public class ClassStudentDto
+    {
+        public int Id { get; set; }
+        public int StudentId { get; set; }
+        public PRN232_be.DTO.Student.StudentDto? Student { get; set; }
     }
 }

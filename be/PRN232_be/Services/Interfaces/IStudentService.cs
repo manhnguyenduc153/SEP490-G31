@@ -11,5 +11,7 @@ namespace PRN232_be.Services.Interfaces
         Task<ApiResponse<StudentDto>> EditAsync(StudentSaveDto dto);
         Task<ApiResponse<bool>> DeleteAsync(int id);
         Task<ApiResponse<bool>> DeactiveAsync(int id);
+        Task<ApiResponse<Dictionary<string, int>>> CheckEmailsAsync(List<string> emails);
+        Task<ApiResponse<List<StudentDto>>> ImportAsync(List<StudentSaveDto> dtos);
     }
 }

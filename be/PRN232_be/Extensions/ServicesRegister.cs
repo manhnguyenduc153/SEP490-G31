@@ -16,6 +16,7 @@ namespace PRN232_be.Extensions
             services.AddScoped(typeof(IBaseRepository<,>), typeof(BaseRepository<,>));
             services.AddScoped<IProductRepository, ProductRepository>();
             services.AddScoped<IQuestionCategoryRepository, QuestionCategoryRepository>();
+            services.AddScoped<IQuestionRepository, QuestionRepository>();
             services.AddScoped<ITeacherRepository, TeacherRepository>();
             services.AddScoped<IRoomRepository, RoomRepository>();
             services.AddScoped<ICourseRepository, CourseRepository>();
@@ -27,6 +28,7 @@ namespace PRN232_be.Extensions
             // Services
             services.AddScoped<IProductService, ProductService>();
             services.AddScoped<IQuestionCategoryService, QuestionCategoryService>();
+            services.AddScoped<IQuestionService, QuestionService>();
             services.AddScoped<ICourseService, CourseService>();
             services.AddScoped<IStudentService, StudentService>();
             services.AddScoped<IAuthService, AuthService>();
@@ -38,6 +40,7 @@ namespace PRN232_be.Extensions
             services.AddScoped<IClassService, ClassService>();
             services.AddScoped<IStudentService, StudentService>();
             services.AddScoped<IRoomService, RoomService>();
+            services.AddScoped<IScheduleOptimizationService, ScheduleOptimizationService>();
         }
     }
 }

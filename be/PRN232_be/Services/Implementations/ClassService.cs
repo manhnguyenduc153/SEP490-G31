@@ -22,6 +22,9 @@ namespace PRN232_be.Services.Implementations
         private readonly IBaseRepository<TimeSlot, ApplicationDbContext> _timeSlotRepository;
         private readonly IBaseRepository<ClassSchedule, ApplicationDbContext> _scheduleRepository;
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly ApplicationDbContext _dbContext;
+        private readonly IScheduleOptimizationService _optService;
  
         public ClassService(
             IClassRepository repository,
@@ -30,7 +33,10 @@ namespace PRN232_be.Services.Implementations
             IStudentRepository studentRepository,
             IBaseRepository<TimeSlot, ApplicationDbContext> timeSlotRepository,
             IBaseRepository<ClassSchedule, ApplicationDbContext> scheduleRepository,
-            UserManager<IdentityUser> userManager)
+            UserManager<IdentityUser> userManager,
+            RoleManager<IdentityRole> roleManager,
+            ApplicationDbContext dbContext,
+            IScheduleOptimizationService optService)
         {
             _repository = repository;
             _courseRepository = courseRepository;
@@ -39,12 +45,16 @@ namespace PRN232_be.Services.Implementations
             _timeSlotRepository = timeSlotRepository;
             _scheduleRepository = scheduleRepository;
             _userManager = userManager;
+            _roleManager = roleManager;
+            _dbContext = dbContext;
+            _optService = optService;
         }
 
         public async Task<ApiResponse<PagingResponse<ClassDto>>> GetAllAsync(ClassSearchDto searchDto)
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var query = _repository.FindAll()
                     .Include(c => c.Course)
                     .Include(c => c.Teacher)
@@ -84,6 +94,7 @@ namespace PRN232_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var entity = await _repository.FindAll()
                     .Include(c => c.Course)
                     .Include(c => c.Teacher)
@@ -112,11 +123,17 @@ namespace PRN232_be.Services.Implementations
 
         public async Task<ApiResponse<ClassDto>> CreateAsync(ClassSaveDto dto)
         {
+            using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
+                await ProcessNewStudentsAsync(dto);
+                await ProcessNewTeacherAsync(dto);
+                await ProcessNewCourseAsync(dto);
+
                 var validationError = await ValidateAsync(dto, isEdit: false);
                 if (validationError != null)
                 {
+                    await transaction.RollbackAsync();
                     return ApiResponse<ClassDto>.Fail(validationError, StatusCodes.Status400BadRequest);
                 }
 
@@ -142,6 +159,8 @@ namespace PRN232_be.Services.Implementations
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
 
+                await transaction.CommitAsync();
+
                 // Reload to populate relationships for return value
                 var createdClass = await _repository.FindAll()
                     .Include(c => c.Course)
@@ -153,17 +172,24 @@ namespace PRN232_be.Services.Implementations
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 return ApiResponse<ClassDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 
         public async Task<ApiResponse<ClassDto>> EditAsync(ClassSaveDto dto)
         {
+            using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
+                await ProcessNewStudentsAsync(dto);
+                await ProcessNewTeacherAsync(dto);
+                await ProcessNewCourseAsync(dto);
+
                 var validationError = await ValidateAsync(dto, isEdit: true);
                 if (validationError != null)
                 {
+                    await transaction.RollbackAsync();
                     return ApiResponse<ClassDto>.Fail(validationError, StatusCodes.Status400BadRequest);
                 }
 
@@ -174,6 +200,7 @@ namespace PRN232_be.Services.Implementations
 
                 if (existingEntity == null)
                 {
+                    await transaction.RollbackAsync();
                     return ApiResponse<ClassDto>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
@@ -214,6 +241,8 @@ namespace PRN232_be.Services.Implementations
 
                 await _repository.SaveChangesAsync();
 
+                await transaction.CommitAsync();
+
                 // Reload to populate relationships for return value
                 var updatedClass = await _repository.FindAll()
                     .Include(c => c.Course)
@@ -225,6 +254,7 @@ namespace PRN232_be.Services.Implementations
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 return ApiResponse<ClassDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
@@ -312,7 +342,21 @@ namespace PRN232_be.Services.Implementations
                 TeacherAvatar = cs.Teacher?.Avatar,
                 Status = cs.Status,
                 Note = cs.Note
-            }).OrderBy(cs => cs.LessonNo).ToList() ?? new List<ClassScheduleDto>()
+            }).OrderBy(cs => cs.LessonNo).ToList() ?? new List<ClassScheduleDto>(),
+            StudentClasses = entity.StudentClasses?.Select(sc => new ClassStudentDto
+            {
+                Id = sc.Id,
+                StudentId = sc.StudentId,
+                Student = sc.Student != null ? new PRN232_be.DTO.Student.StudentDto
+                {
+                    Id = sc.Student.Id,
+                    Code = sc.Student.Code ?? string.Empty,
+                    Name = sc.Student.Name ?? string.Empty,
+                    Email = sc.Student.Email,
+                    Phone = sc.Student.Phone,
+                    Avatar = sc.Student.Avatar
+                } : null
+            }).ToList() ?? new List<ClassStudentDto>()
         };
 
         // ===================== PRIVATE VALIDATE =====================
@@ -336,9 +380,6 @@ namespace PRN232_be.Services.Implementations
 
             if (!dto.ExpectedLessons.HasValue || dto.ExpectedLessons.Value <= 0)
                 return "ERR_EXPECTED_LESSONS_INVALID";
-
-            if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any())
-                return "ERR_WEEKLY_SCHEDULES_EMPTY";
 
             if (dto.Description != null && dto.Description.Length > 1000)
                 return "ERR_DESC_MAX_LENGTH";
@@ -385,6 +426,121 @@ namespace PRN232_be.Services.Implementations
                     return "ERR_STUDENT_NOT_FOUND";
             }
 
+            // Kiểm tra sức chứa phòng học so với số lượng học sinh
+            int studentCount = dto.StudentIds?.Count ?? 0;
+            if (dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+            {
+                var roomIds = dto.WeeklySchedules
+                    .Where(w => w.RoomId.HasValue)
+                    .Select(w => w.RoomId.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (roomIds.Any())
+                {
+                    var rooms = await _dbContext.Rooms
+                        .Where(r => roomIds.Contains(r.Id))
+                        .ToListAsync();
+
+                    foreach (var room in rooms)
+                    {
+                        if (room.Capacity.HasValue && studentCount > room.Capacity.Value)
+                        {
+                            return $"ERR_ROOM_CAPACITY_EXCEEDED_{room.Name}";
+                        }
+                    }
+                }
+            }
+
+            // Kiểm tra trùng lịch học của học sinh (1 học sinh chỉ được học 1 lớp tại 1 thời điểm)
+            if (dto.StudentIds != null && dto.StudentIds.Any() && dto.StartDate.HasValue && dto.ExpectedLessons.HasValue && dto.ExpectedLessons.Value > 0 && dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+            {
+                var currentDate = dto.StartDate.Value;
+                int lessonNo = 1;
+                var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
+                DateTime? proposedEndDate = null;
+
+                if (!weeklySchedules.Any(w => w.DayOfWeek < 0 || w.DayOfWeek > 6))
+                {
+                    while (lessonNo <= dto.ExpectedLessons.Value)
+                    {
+                        var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                        if (match != null)
+                        {
+                            if (lessonNo == dto.ExpectedLessons.Value)
+                            {
+                                proposedEndDate = currentDate;
+                            }
+                            lessonNo++;
+                        }
+                        currentDate = currentDate.AddDays(1);
+                    }
+
+                    if (proposedEndDate.HasValue)
+                    {
+                        var proposedStartDate = dto.StartDate.Value;
+
+                        var otherStudentClasses = await _dbContext.StudentClasses
+                            .Include(sc => sc.Student)
+                            .Include(sc => sc.Class)
+                            .Where(sc => dto.StudentIds.Contains(sc.StudentId)
+                                      && sc.ClassId != dto.Id
+                                      && sc.Class != null
+                                      && !sc.Class.IsDeleted
+                                      && (sc.Status == (int)StudentClassStatus.Enrolled || sc.Status == (int)StudentClassStatus.Studying))
+                            .ToListAsync();
+
+                        if (otherStudentClasses.Any())
+                        {
+                            var otherClassIds = otherStudentClasses.Select(sc => sc.ClassId).Distinct().ToList();
+
+                            var conflictingSchedules = await _dbContext.ClassSchedules
+                                .Where(cs => cs.ClassId.HasValue
+                                          && otherClassIds.Contains(cs.ClassId.Value)
+                                          && cs.Class != null
+                                          && !cs.Class.IsDeleted
+                                          && cs.ScheduleDate >= proposedStartDate
+                                          && cs.ScheduleDate <= proposedEndDate)
+                                .ToListAsync();
+
+                            if (conflictingSchedules.Any())
+                            {
+                                var conflictingEmails = new List<string>();
+                                foreach (var sc in otherStudentClasses)
+                                {
+                                    var hasConflict = conflictingSchedules.Any(cs => cs.ClassId == sc.ClassId);
+                                    if (hasConflict && sc.Student != null && !string.IsNullOrWhiteSpace(sc.Student.Email))
+                                    {
+                                        conflictingEmails.Add(sc.Student.Email.Trim());
+                                    }
+                                }
+
+                                if (conflictingEmails.Any())
+                                {
+                                    var uniqueEmails = conflictingEmails.Distinct().ToList();
+                                    return $"ERR_STUDENT_CONFLICT_{uniqueEmails.Count}__{string.Join(",", uniqueEmails)}";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Kiểm tra trùng lịch dạy của giáo viên hoặc phòng học
+            var conflictCheck = await _optService.CheckConflictAsync(dto);
+            if (conflictCheck.Success && conflictCheck.Data != null && conflictCheck.Data.HasConflict)
+            {
+                var firstConflict = conflictCheck.Data.Conflicts.First();
+                if (firstConflict.Type == "Teacher")
+                {
+                    return $"ERR_TEACHER_CONFLICT_{firstConflict.ConflictClassCode}";
+                }
+                else
+                {
+                    return $"ERR_ROOM_CONFLICT_{firstConflict.ConflictClassCode}";
+                }
+            }
+ 
             return null;
         }
 
@@ -505,7 +661,7 @@ namespace PRN232_be.Services.Implementations
                     .Include(cs => cs.TimeSlot)
                     .Include(cs => cs.Room)
                     .Include(cs => cs.Class)
-                    .Where(cs => cs.TeacherId == teacher.Id)
+                    .Where(cs => cs.TeacherId == teacher.Id && cs.Class != null && !cs.Class.IsDeleted)
                     .OrderBy(cs => cs.ScheduleDate)
                     .Select(cs => new ClassScheduleDto
                     {
@@ -565,7 +721,7 @@ namespace PRN232_be.Services.Implementations
                     .Include(cs => cs.Room)
                     .Include(cs => cs.Class)
                     .Include(cs => cs.Teacher)
-                    .Where(cs => cs.ClassId.HasValue && classIds.Contains(cs.ClassId.Value))
+                    .Where(cs => cs.ClassId.HasValue && classIds.Contains(cs.ClassId.Value) && cs.Class != null && !cs.Class.IsDeleted)
                     .OrderBy(cs => cs.ScheduleDate)
                     .Select(cs => new ClassScheduleDto
                     {
@@ -594,6 +750,310 @@ namespace PRN232_be.Services.Implementations
             catch (Exception ex)
             {
                 return ApiResponse<List<ClassScheduleDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<ClassScheduleDto>>> GetClassSchedulesAsync()
+        {
+            try
+            {
+                var schedules = await _scheduleRepository.FindAll()
+                    .Include(cs => cs.TimeSlot)
+                    .Include(cs => cs.Room)
+                    .Include(cs => cs.Class)
+                    .Include(cs => cs.Teacher)
+                    .Where(cs => cs.Class != null && !cs.Class.IsDeleted)
+                    .OrderBy(cs => cs.ScheduleDate)
+                    .Select(cs => new ClassScheduleDto
+                    {
+                        Id = cs.Id,
+                        ClassId = cs.ClassId,
+                        ClassCode = cs.Class != null ? cs.Class.Code : null,
+                        ClassName = cs.Class != null ? cs.Class.Name : null,
+                        LessonNo = cs.LessonNo,
+                        ScheduleDate = cs.ScheduleDate,
+                        SlotId = cs.SlotId,
+                        SlotName = cs.TimeSlot != null ? cs.TimeSlot.Name : null,
+                        StartTime = cs.TimeSlot != null ? cs.TimeSlot.StartTime.ToString(@"hh\:mm") : null,
+                        EndTime = cs.TimeSlot != null ? cs.TimeSlot.EndTime.ToString(@"hh\:mm") : null,
+                        RoomId = cs.RoomId,
+                        RoomName = cs.Room != null ? cs.Room.Name : null,
+                        TeacherId = cs.TeacherId,
+                        TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
+                        TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
+                        Status = cs.Status,
+                        Note = cs.Note
+                    })
+                    .ToListAsync();
+
+                return ApiResponse<List<ClassScheduleDto>>.Ok(schedules, "GET_CLASS_SCHEDULES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ClassScheduleDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        private async Task ProcessNewStudentsAsync(ClassSaveDto dto)
+        {
+            if (dto.NewStudents == null || !dto.NewStudents.Any())
+            {
+                return;
+            }
+
+            foreach (var newStudentDto in dto.NewStudents)
+            {
+                if (string.IsNullOrWhiteSpace(newStudentDto.Email))
+                {
+                    continue;
+                }
+
+                var existingStudent = await _studentRepository.FindAll()
+                    .FirstOrDefaultAsync(s => s.Email != null && s.Email.ToLower() == newStudentDto.Email.Trim().ToLower());
+                
+                int studentId;
+                if (existingStudent == null)
+                {
+                    var identityUser = await _userManager.FindByEmailAsync(newStudentDto.Email.Trim());
+                    if (identityUser == null)
+                    {
+                        var studentCode = await GenerateStudentCodeAsync();
+                        
+                        identityUser = new IdentityUser
+                        {
+                            UserName = studentCode,
+                            Email = newStudentDto.Email.Trim(),
+                            PhoneNumber = newStudentDto.Phone?.Trim(),
+                            EmailConfirmed = true
+                        };
+                        
+                        var userResult = await _userManager.CreateAsync(identityUser, "123456");
+                        if (!userResult.Succeeded)
+                        {
+                            var errors = string.Join(", ", userResult.Errors.Select(e => e.Description));
+                            throw new Exception($"Không thể tạo tài khoản cho {newStudentDto.Email}: {errors}");
+                        }
+                        
+                        if (!await _roleManager.RoleExistsAsync("Student"))
+                        {
+                            await _roleManager.CreateAsync(new IdentityRole("Student"));
+                        }
+                        await _userManager.AddToRoleAsync(identityUser, "Student");
+                    }
+                    
+                    var newStudent = new Student
+                    {
+                        Code = identityUser.UserName ?? "HS00001",
+                        Name = newStudentDto.Name.Trim(),
+                        Email = newStudentDto.Email.Trim(),
+                        Phone = newStudentDto.Phone?.Trim(),
+                        Status = 1
+                    };
+                    
+                    await _studentRepository.AddAsync(newStudent);
+                    await _studentRepository.SaveChangesAsync();
+                    studentId = newStudent.Id;
+                }
+                else
+                {
+                    studentId = existingStudent.Id;
+                }
+                
+                if (dto.StudentIds == null)
+                {
+                    dto.StudentIds = new List<int>();
+                }
+                
+                if (!dto.StudentIds.Contains(studentId))
+                {
+                    dto.StudentIds.Add(studentId);
+                }
+            }
+        }
+
+        private async Task<string> GenerateStudentCodeAsync()
+        {
+            var maxStudent = await _studentRepository.FindAll()
+                .Where(s => s.Code != null && s.Code.StartsWith("HS"))
+                .OrderByDescending(s => s.Code)
+                .FirstOrDefaultAsync();
+            
+            if (maxStudent != null && maxStudent.Code.Length > 2)
+            {
+                var numStr = maxStudent.Code.Substring(2);
+                if (int.TryParse(numStr, out int num))
+                {
+                    return $"HS{(num + 1):D5}";
+                }
+            }
+            return "HS00001";
+        }
+
+        private async Task ProcessNewTeacherAsync(ClassSaveDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.NewTeacherEmail) || string.IsNullOrWhiteSpace(dto.NewTeacherName))
+            {
+                return;
+            }
+
+            var existingTeacher = await _teacherRepository.FindAll()
+                .FirstOrDefaultAsync(t => t.Email != null && t.Email.ToLower() == dto.NewTeacherEmail.Trim().ToLower());
+
+            int teacherId;
+            if (existingTeacher == null)
+            {
+                var identityUser = await _userManager.FindByEmailAsync(dto.NewTeacherEmail.Trim());
+                if (identityUser == null)
+                {
+                    var teacherCode = await GenerateTeacherCodeAsync();
+
+                    identityUser = new IdentityUser
+                    {
+                        UserName = teacherCode,
+                        Email = dto.NewTeacherEmail.Trim(),
+                        EmailConfirmed = true
+                    };
+
+                    var userResult = await _userManager.CreateAsync(identityUser, "123456");
+                    if (!userResult.Succeeded)
+                    {
+                        var errors = string.Join(", ", userResult.Errors.Select(e => e.Description));
+                        throw new Exception($"Không thể tạo tài khoản cho giáo viên {dto.NewTeacherEmail}: {errors}");
+                    }
+
+                    if (!await _roleManager.RoleExistsAsync("Teacher"))
+                    {
+                        await _roleManager.CreateAsync(new IdentityRole("Teacher"));
+                    }
+                    await _userManager.AddToRoleAsync(identityUser, "Teacher");
+                }
+
+                var newTeacher = new Teacher
+                {
+                    Code = identityUser.UserName ?? "GV00001",
+                    Name = dto.NewTeacherName.Trim(),
+                    Email = dto.NewTeacherEmail.Trim(),
+                    Status = 1
+                };
+
+                await _teacherRepository.AddAsync(newTeacher);
+                await _teacherRepository.SaveChangesAsync();
+                teacherId = newTeacher.Id;
+            }
+            else
+            {
+                teacherId = existingTeacher.Id;
+            }
+
+            dto.TeacherId = teacherId;
+        }
+
+        private async Task<string> GenerateTeacherCodeAsync()
+        {
+            var maxTeacher = await _teacherRepository.FindAll()
+                .Where(t => t.Code != null && t.Code.StartsWith("GV"))
+                .OrderByDescending(t => t.Code)
+                .FirstOrDefaultAsync();
+
+            if (maxTeacher != null && maxTeacher.Code.Length > 2)
+            {
+                var numStr = maxTeacher.Code.Substring(2);
+                if (int.TryParse(numStr, out int num))
+                {
+                    return $"GV{(num + 1):D5}";
+                }
+            }
+            return "GV00001";
+        }
+
+        private async Task ProcessNewCourseAsync(ClassSaveDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.NewCourseName))
+            {
+                return;
+            }
+
+            var existingCourse = await _courseRepository.FindAll()
+                .FirstOrDefaultAsync(c => c.Name != null && c.Name.ToLower() == dto.NewCourseName.Trim().ToLower());
+
+            int courseId;
+            if (existingCourse == null)
+            {
+                var courseCode = await GenerateCourseCodeAsync();
+
+                var newCourse = new Course
+                {
+                    Code = courseCode,
+                    Name = dto.NewCourseName.Trim(),
+                    Status = 1
+                };
+
+                await _courseRepository.AddAsync(newCourse);
+                await _courseRepository.SaveChangesAsync();
+                courseId = newCourse.Id;
+            }
+            else
+            {
+                courseId = existingCourse.Id;
+            }
+
+            dto.CourseId = courseId;
+        }
+
+        private async Task<string> GenerateCourseCodeAsync()
+        {
+            var maxCourse = await _courseRepository.FindAll()
+                .Where(c => c.Code != null && c.Code.StartsWith("KH"))
+                .OrderByDescending(c => c.Code)
+                .FirstOrDefaultAsync();
+
+            if (maxCourse != null && maxCourse.Code.Length > 2)
+            {
+                var numStr = maxCourse.Code.Substring(2);
+                if (int.TryParse(numStr, out int num))
+                {
+                    return $"KH{(num + 1):D5}";
+                }
+            }
+            return "KH00001";
+        }
+
+        private async Task AutoUpdateClassStatusesAsync()
+        {
+            try
+            {
+                var today = DateTime.Today;
+
+                var planningClasses = await _repository.FindAll(trackChanges: true)
+                    .Where(c => c.Status == (int)ClassStatus.Planning 
+                             && c.StartDate.HasValue 
+                             && today >= c.StartDate.Value.Date)
+                    .ToListAsync();
+
+                foreach (var c in planningClasses)
+                {
+                    c.Status = (int)ClassStatus.Active;
+                }
+
+                var activeClasses = await _repository.FindAll(trackChanges: true)
+                    .Where(c => c.Status == (int)ClassStatus.Active 
+                             && c.EndDate.HasValue 
+                             && today > c.EndDate.Value.Date)
+                    .ToListAsync();
+
+                foreach (var c in activeClasses)
+                {
+                    c.Status = (int)ClassStatus.Completed;
+                }
+
+                if (planningClasses.Any() || activeClasses.Any())
+                {
+                    await _repository.SaveChangesAsync();
+                }
+            }
+            catch (Exception)
+            {
+                // Suppress exception
             }
         }
     }

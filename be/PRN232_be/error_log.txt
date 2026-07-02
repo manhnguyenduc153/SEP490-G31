@@ -3380,9 +3380,6 @@ Details: Query: None | User: Anonymous
 [2026-06-08 00:33:59] [CLIENT ERROR 404] GET /
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
-<<<<<<< HEAD
-[2026-06-14 22:02:23] [CLIENT ERROR 404] GET /
-=======
 [2026-06-15 19:47:50] [CLIENT ERROR 404] GET /
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
@@ -3506,7 +3503,6 @@ Details: Query: None | User: Anonymous
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
 [2026-06-17 04:16:01] [CLIENT ERROR 404] GET /
->>>>>>> 14b7ab0743793cfecb2a49830eb80ba9d2ca389f
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
 [2026-06-25 22:50:26] [CLIENT ERROR 404] GET /

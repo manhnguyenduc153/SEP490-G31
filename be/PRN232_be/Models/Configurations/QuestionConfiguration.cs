@@ -13,6 +13,7 @@ namespace PRN232_be.Models.Configurations
             builder.Property(x => x.Name).IsRequired().HasMaxLength(200);
 
             builder.Property(x => x.Content).IsRequired();
+            builder.Property(x => x.Point).HasColumnType("decimal(18,2)");
 
             builder.HasOne(x => x.QuestionCategory)
                 .WithMany(qc => qc.Questions)
