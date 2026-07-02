@@ -753,6 +753,47 @@ namespace PRN232_be.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<List<ClassScheduleDto>>> GetClassSchedulesAsync()
+        {
+            try
+            {
+                var schedules = await _scheduleRepository.FindAll()
+                    .Include(cs => cs.TimeSlot)
+                    .Include(cs => cs.Room)
+                    .Include(cs => cs.Class)
+                    .Include(cs => cs.Teacher)
+                    .Where(cs => cs.Class != null && !cs.Class.IsDeleted)
+                    .OrderBy(cs => cs.ScheduleDate)
+                    .Select(cs => new ClassScheduleDto
+                    {
+                        Id = cs.Id,
+                        ClassId = cs.ClassId,
+                        ClassCode = cs.Class != null ? cs.Class.Code : null,
+                        ClassName = cs.Class != null ? cs.Class.Name : null,
+                        LessonNo = cs.LessonNo,
+                        ScheduleDate = cs.ScheduleDate,
+                        SlotId = cs.SlotId,
+                        SlotName = cs.TimeSlot != null ? cs.TimeSlot.Name : null,
+                        StartTime = cs.TimeSlot != null ? cs.TimeSlot.StartTime.ToString(@"hh\:mm") : null,
+                        EndTime = cs.TimeSlot != null ? cs.TimeSlot.EndTime.ToString(@"hh\:mm") : null,
+                        RoomId = cs.RoomId,
+                        RoomName = cs.Room != null ? cs.Room.Name : null,
+                        TeacherId = cs.TeacherId,
+                        TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
+                        TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
+                        Status = cs.Status,
+                        Note = cs.Note
+                    })
+                    .ToListAsync();
+
+                return ApiResponse<List<ClassScheduleDto>>.Ok(schedules, "GET_CLASS_SCHEDULES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ClassScheduleDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
         private async Task ProcessNewStudentsAsync(ClassSaveDto dto)
         {
             if (dto.NewStudents == null || !dto.NewStudents.Any())
