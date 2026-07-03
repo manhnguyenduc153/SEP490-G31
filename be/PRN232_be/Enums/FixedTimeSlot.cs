@@ -11,9 +11,9 @@ namespace PRN232_be.Enums
         {
             new FixedTimeSlot(0, "Ca 1 (07:30 - 09:30)", new TimeSpan(7,  30, 0), new TimeSpan(9,  30, 0)),
             new FixedTimeSlot(1, "Ca 2 (10:00 - 12:00)", new TimeSpan(10,  0, 0), new TimeSpan(12,  0, 0)),
-            new FixedTimeSlot(2, "Ca 3 (13:00 - 15:00)", new TimeSpan(13,  0, 0), new TimeSpan(15,  0, 0)),
+            new FixedTimeSlot(2, "Ca 3 (13:30 - 15:30)", new TimeSpan(13, 30, 0), new TimeSpan(15, 30, 0)),
             new FixedTimeSlot(3, "Ca 4 (16:00 - 18:00)", new TimeSpan(16,  0, 0), new TimeSpan(18,  0, 0)),
-            new FixedTimeSlot(4, "Ca 5 (19:00 - 21:00)", new TimeSpan(19,  0, 0), new TimeSpan(21,  0, 0)),
+            new FixedTimeSlot(4, "Ca 5 (18:30 - 20:30)", new TimeSpan(18, 30, 0), new TimeSpan(20, 30, 0)),
         };
 
         /// <summary>

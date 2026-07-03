@@ -216,16 +216,10 @@ namespace PRN232_be.Services.Implementations
                 var rooms = await _dbContext.Rooms
                     .Where(r => r.Status == (int)RoomStatus.Active && !r.IsDeleted)
                     .ToListAsync();
-                var timeSlots = await _dbContext.TimeSlots
-                    .Where(ts => !ts.IsDeleted)
-                    .ToListAsync();
-
                 if (!teachers.Any())
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_TEACHERS", StatusCodes.Status400BadRequest);
                 if (!rooms.Any())
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_ROOMS", StatusCodes.Status400BadRequest);
-                if (!timeSlots.Any())
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_TIMESLOTS", StatusCodes.Status400BadRequest);
 
                 // Check room capacities for each class to be scheduled
                 foreach (var c in classesToSchedule)
@@ -582,7 +576,7 @@ namespace PRN232_be.Services.Implementations
                         if (entity.ClassSchedules?.Any() == true)
                             _dbContext.ClassSchedules.RemoveRange(entity.ClassSchedules);
 
-                        await GenerateClassSchedulesHelperAsync(entity, saveDto, timeSlots);
+                        await GenerateClassSchedulesHelperAsync(entity, saveDto);
                         _dbContext.Classes.Update(entity);
                     }
 
@@ -634,7 +628,7 @@ namespace PRN232_be.Services.Implementations
             public DateTime EndDate { get; set; }
         }
 
-        private async Task GenerateClassSchedulesHelperAsync(Class entity, ClassSaveDto dto, List<TimeSlot> dbTimeSlots)
+        private async Task GenerateClassSchedulesHelperAsync(Class entity, ClassSaveDto dto)
         {
             if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any() || !dto.StartDate.HasValue || !dto.ExpectedLessons.HasValue || dto.ExpectedLessons.Value <= 0)
             {
@@ -652,6 +646,11 @@ namespace PRN232_be.Services.Implementations
             entity.WeeklySchedulesJson = System.Text.Json.JsonSerializer.Serialize(dto.WeeklySchedules, jsonOptions);
             entity.ExpectedLessons = dto.ExpectedLessons;
 
+            // Cache: load existing DB time slots once, keyed by (StartTime, EndTime)
+            var dbTimeSlotCache = await _dbContext.TimeSlots
+                .Where(ts => !ts.IsDeleted)
+                .ToListAsync();
+
             var currentDate = dto.StartDate.Value;
             int lessonNo = 1;
             var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
@@ -662,33 +661,41 @@ namespace PRN232_be.Services.Implementations
                 if (match != null)
                 {
                     var startSpan = TimeSpan.Parse(match.StartTime);
-                    var endSpan = TimeSpan.Parse(match.EndTime);
+                    var endSpan   = TimeSpan.Parse(match.EndTime);
 
-                    var timeSlot = dbTimeSlots.FirstOrDefault(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
+                    // 1. Prefer a matching FixedTimeSlot (hardcoded in code)
+                    var fixedSlot = FixedTimeSlot.FromStartTime(startSpan);
+
+                    // 2. Look up or create a DB TimeSlot row
+                    var timeSlot = dbTimeSlotCache.FirstOrDefault(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
                     if (timeSlot == null)
                     {
+                        var slotName = fixedSlot != null
+                            ? fixedSlot.Name
+                            : $"{match.StartTime} - {match.EndTime}";
+
                         timeSlot = new TimeSlot
                         {
-                            Code = $"TS_{match.StartTime.Replace(":", "")}_{match.EndTime.Replace(":", "")}",
-                            Name = $"{match.StartTime} - {match.EndTime}",
+                            Code      = $"TS_{match.StartTime.Replace(":", "")}_{match.EndTime.Replace(":", "")}",
+                            Name      = slotName,
                             StartTime = startSpan,
-                            EndTime = endSpan
+                            EndTime   = endSpan
                         };
                         _dbContext.TimeSlots.Add(timeSlot);
                         await _dbContext.SaveChangesAsync();
-                        dbTimeSlots.Add(timeSlot); // Add to cache list
+                        dbTimeSlotCache.Add(timeSlot);
                     }
 
                     entity.ClassSchedules.Add(new ClassSchedule
                     {
-                        LessonNo = lessonNo,
+                        LessonNo     = lessonNo,
                         ScheduleDate = currentDate,
-                        SlotId = timeSlot.Id,
-                        RoomId = match.RoomId,
-                        TeacherId = dto.TeacherId,
-                        Status = (int)ClassScheduleStatus.Scheduled,
-                        Code = $"SCH_{entity.Code}_{lessonNo}",
-                        Name = $"Buổi học {lessonNo} - {entity.Name}"
+                        SlotId       = timeSlot.Id,
+                        RoomId       = match.RoomId,
+                        TeacherId    = dto.TeacherId,
+                        Status       = (int)ClassScheduleStatus.Scheduled,
+                        Code         = $"SCH_{entity.Code}_{lessonNo}",
+                        Name         = $"Buổi học {lessonNo} - {entity.Name}"
                     });
                     lessonNo++;
                 }

@@ -3941,3 +3941,114 @@ Details: Query: None | User: Anonymous
 [2026-07-03 05:11:34] [CLIENT ERROR 404] GET /favicon.ico
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-07-03 08:46:39] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:48:04] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:48:04] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:48:04] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:48:04] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:48:04] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:48:04] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:48:04] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:48:04] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:50:04] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:51:02] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:51:47] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:58:12] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:08:30] [CLIENT ERROR 401] POST /api/Class/auto-schedule
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:08:30] [CLIENT ERROR 400] POST /api/Auth/RefreshToken
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:08:43] [CLIENT ERROR 400] POST /api/Class/auto-schedule
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:09:17] [CLIENT ERROR 400] POST /api/Class/auto-schedule
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:10:17] [CLIENT ERROR 400] POST /api/Class/auto-schedule
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:10:23] [CLIENT ERROR 400] POST /api/Class/auto-schedule
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:10:23] [CLIENT ERROR 400] POST /api/Class/auto-schedule
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:10:24] [CLIENT ERROR 400] POST /api/Class/auto-schedule
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:10:24] [CLIENT ERROR 400] POST /api/Class/auto-schedule
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:10:24] [CLIENT ERROR 400] POST /api/Class/auto-schedule
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:10:34] [CLIENT ERROR 400] POST /api/Class/auto-schedule
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:10:48] [CLIENT ERROR 400] POST /api/Class/auto-schedule
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:18:28] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:29:23] [CLIENT ERROR 401] GET /api/Class/Schedules
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:29:23] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:34:41] [CLIENT ERROR 404] GET /api/Class/StudentSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:34:41] [CLIENT ERROR 404] GET /api/Class/StudentSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:34:42] [CLIENT ERROR 404] GET /api/Class/TeacherSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:34:42] [CLIENT ERROR 404] GET /api/Class/TeacherSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:37:55] [CLIENT ERROR 404] GET /api/Class/TeacherSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:37:55] [CLIENT ERROR 404] GET /api/Class/TeacherSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:49:35] [CLIENT ERROR 401] GET /api/User
+Details: Query: ?pageIndex=2&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:52:11] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:53:49] [CLIENT ERROR 400] PUT /api/Class/4
+Details: Query: None | User: admin
+------------------------------------------------------------

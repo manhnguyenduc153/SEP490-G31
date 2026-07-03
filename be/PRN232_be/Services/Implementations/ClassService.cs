@@ -801,6 +801,8 @@ namespace PRN232_be.Services.Implementations
                 return;
             }
 
+            var generatedCodes = new HashSet<string>();
+
             foreach (var newStudentDto in dto.NewStudents)
             {
                 if (string.IsNullOrWhiteSpace(newStudentDto.Email))
@@ -817,7 +819,13 @@ namespace PRN232_be.Services.Implementations
                     var identityUser = await _userManager.FindByEmailAsync(newStudentDto.Email.Trim());
                     if (identityUser == null)
                     {
-                        var studentCode = await GenerateStudentCodeAsync();
+                        string studentCode;
+                        do
+                        {
+                            studentCode = await GenerateStudentCodeAsync();
+                        } while (generatedCodes.Contains(studentCode));
+
+                        generatedCodes.Add(studentCode);
                         
                         identityUser = new IdentityUser
                         {
@@ -873,20 +881,21 @@ namespace PRN232_be.Services.Implementations
 
         private async Task<string> GenerateStudentCodeAsync()
         {
-            var maxStudent = await _studentRepository.FindAll()
-                .Where(s => s.Code != null && s.Code.StartsWith("HS"))
-                .OrderByDescending(s => s.Code)
-                .FirstOrDefaultAsync();
-            
-            if (maxStudent != null && maxStudent.Code.Length > 2)
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            var random = new Random();
+            string code;
+            bool exists;
+            do
             {
-                var numStr = maxStudent.Code.Substring(2);
-                if (int.TryParse(numStr, out int num))
-                {
-                    return $"HS{(num + 1):D5}";
-                }
-            }
-            return "HS00001";
+                var randomString = new string(Enumerable.Repeat(chars, 8)
+                    .Select(s => s[random.Next(s.Length)]).ToArray());
+                code = $"HS{randomString}";
+
+                exists = await _dbContext.Students.IgnoreQueryFilters().AnyAsync(s => s.Code == code) ||
+                         await _userManager.Users.AnyAsync(u => u.UserName == code);
+            } while (exists);
+
+            return code;
         }
 
         private async Task ProcessNewTeacherAsync(ClassSaveDto dto)
