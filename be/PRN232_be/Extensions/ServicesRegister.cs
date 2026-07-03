@@ -27,6 +27,7 @@ namespace PRN232_be.Extensions
             services.AddScoped<IStudentRepository, StudentRepository>();
             services.AddScoped<IHomeworkRepository, HomeworkRepository>();
             services.AddScoped<IHomeworkSubmissionRepository, HomeworkSubmissionRepository>();
+            services.AddScoped<ILearningMaterialRepository, LearningMaterialRepository>();
             
             // Services
             services.AddScoped<IExamService, ExamService>();
@@ -46,6 +47,7 @@ namespace PRN232_be.Extensions
             services.AddScoped<IRoomService, RoomService>();
             services.AddScoped<IHomeworkService, HomeworkService>();
             services.AddScoped<IScheduleOptimizationService, ScheduleOptimizationService>();
+            services.AddScoped<ILearningMaterialService, LearningMaterialService>();
         }
     }
 }

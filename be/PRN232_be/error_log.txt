@@ -3941,3 +3941,111 @@ Details: Query: None | User: Anonymous
 [2026-07-03 05:11:34] [CLIENT ERROR 404] GET /favicon.ico
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-07-03 07:12:39] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 07:33:16] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:06:00] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:06:15] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:06:24] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:06:41] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:06:41] [CLIENT ERROR 401] GET /api/LearningMaterial
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:06:41] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:06:41] [CLIENT ERROR 401] GET /api/LearningMaterial
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:06:41] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:06:41] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:24:51] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:33:14] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:33:24] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:33:24] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:33:24] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:37:13] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:42:36] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:45:21] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:46:38] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:47:57] [CLIENT ERROR 400] POST /api/upload/document
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:51:33] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:53:19] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:53:57] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:53:57] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:53:57] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:53:57] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:53:57] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:53:57] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:53:57] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:14:23] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:14:23] [CLIENT ERROR 401] GET /api/LearningMaterial
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:14:23] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:14:23] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:14:23] [CLIENT ERROR 401] GET /api/LearningMaterial
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:14:23] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
