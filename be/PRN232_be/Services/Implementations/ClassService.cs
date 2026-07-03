@@ -261,6 +261,7 @@ namespace PRN232_be.Services.Implementations
 
         public async Task<ApiResponse<bool>> DeleteAsync(int id)
         {
+            using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
                 var existingEntity = await _repository.GetByIdAsync(id);
@@ -269,13 +270,68 @@ namespace PRN232_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                // 1. Get student IDs enrolled in this class
+                var studentClasses = await _dbContext.StudentClasses
+                    .Where(sc => sc.ClassId == id)
+                    .ToListAsync();
+                var studentIds = studentClasses.Select(sc => sc.StudentId).ToList();
+
+                if (studentIds.Any() && existingEntity.CourseId.HasValue)
+                {
+                    // 2. Find the semester corresponding to this class (based on Class StartDate matching Semester StartDate)
+                    var semester = await _dbContext.Semesters
+                        .FirstOrDefaultAsync(s => !s.IsDeleted && s.StartDate == existingEntity.StartDate);
+
+                    if (semester != null)
+                    {
+                        // 3. Find registrations for these students, for this course, in this semester, that are Scheduled (2)
+                        var regsToReset = await _dbContext.StudentRegistrations
+                            .Where(r => r.SemesterId == semester.Id 
+                                     && r.CourseId == existingEntity.CourseId 
+                                     && r.Status == (int)StudentRegistrationStatus.Scheduled 
+                                     && studentIds.Contains(r.StudentId))
+                            .ToListAsync();
+
+                        foreach (var reg in regsToReset)
+                        {
+                            reg.Status = (int)StudentRegistrationStatus.Pending;
+                            _dbContext.StudentRegistrations.Update(reg);
+                        }
+                    }
+                    else
+                    {
+                        // Fallback: Reset any Scheduled registrations for this course and these students
+                        var regsToReset = await _dbContext.StudentRegistrations
+                            .Where(r => r.CourseId == existingEntity.CourseId 
+                                     && r.Status == (int)StudentRegistrationStatus.Scheduled 
+                                     && studentIds.Contains(r.StudentId))
+                            .ToListAsync();
+
+                        foreach (var reg in regsToReset)
+                        {
+                            reg.Status = (int)StudentRegistrationStatus.Pending;
+                            _dbContext.StudentRegistrations.Update(reg);
+                        }
+                    }
+                }
+
+                // Remove StudentClasses relations to avoid orphans
+                if (studentClasses.Any())
+                {
+                    _dbContext.StudentClasses.RemoveRange(studentClasses);
+                }
+
+                // Delete the class itself
                 await _repository.DeleteAsync(existingEntity);
-                await _repository.SaveChangesAsync();
+                await _dbContext.SaveChangesAsync();
+                
+                await transaction.CommitAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_CLASS_SUCCESS");
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
