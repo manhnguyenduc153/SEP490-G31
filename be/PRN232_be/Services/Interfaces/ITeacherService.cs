@@ -1,3 +1,4 @@
+
 using System.Threading.Tasks;
 using PRN232_be.DTO;
 using PRN232_be.DTO.Teacher;
@@ -12,5 +13,6 @@ namespace PRN232_be.Services.Interfaces
         Task<ApiResponse<TeacherDto>> EditAsync(TeacherSaveDto dto);
         Task<ApiResponse<bool>> DeleteAsync(int id);
         Task<ApiResponse<bool>> DeactiveAsync(int id);
+        Task<ApiResponse<List<TeacherDto>>> ImportAsync(List<TeacherSaveDto> dtos);
     }
 }

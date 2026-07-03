@@ -1,3 +1,4 @@
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Mapster;
@@ -8,16 +9,24 @@ using PRN232_be.Repositories.Interfaces;
 using PRN232_be.Services.Interfaces;
 using PRN232_be.Helpers;
 using PRN232_be.Enums;
+using Microsoft.AspNetCore.Identity;
 
 namespace PRN232_be.Services.Implementations
 {
     public class TeacherService : ITeacherService
     {
         private readonly ITeacherRepository _repository;
+        private readonly UserManager<IdentityUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
 
-        public TeacherService(ITeacherRepository repository)
+        public TeacherService(
+            ITeacherRepository repository,
+            UserManager<IdentityUser> userManager,
+            RoleManager<IdentityRole> roleManager)
         {
             _repository = repository;
+            _userManager = userManager;
+            _roleManager = roleManager;
         }
 
         public async Task<ApiResponse<PagingResponse<TeacherDto>>> GetAllAsync(TeacherSearchDto searchDto)
@@ -116,6 +125,57 @@ namespace PRN232_be.Services.Implementations
             catch (Exception ex)
             {
                 return ApiResponse<TeacherDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<TeacherDto>>> ImportAsync(List<TeacherSaveDto> dtos)
+        {
+            try
+            {
+                var createdTeachers = new List<Teacher>();
+                
+                foreach (var dto in dtos)
+                {
+                    var validationError = await ValidateAsync(dto, isEdit: false);
+                    if (validationError != null)
+                    {
+                        continue; // Skip invalid records
+                    }
+
+                    var entity = dto.Adapt<Teacher>();
+                    entity.Id = 0;
+                    entity.Status = dto.Status != 0 ? dto.Status : 1;
+
+                    // Tự động tạo IdentityUser cho Teacher
+                    var user = new IdentityUser
+                    {
+                        UserName = entity.Email ?? $"teacher_{Guid.NewGuid():N}",
+                        Email = entity.Email,
+                        EmailConfirmed = true
+                    };
+
+                    var result = await _userManager.CreateAsync(user, "123456"); // Mật khẩu mặc định
+                    if (result.Succeeded)
+                    {
+                        var roleExists = await _roleManager.RoleExistsAsync("Teacher");
+                        if (roleExists)
+                        {
+                            await _userManager.AddToRoleAsync(user, "Teacher");
+                        }
+                    }
+
+                    await _repository.AddAsync(entity);
+                    createdTeachers.Add(entity);
+                }
+
+                await _repository.SaveChangesAsync();
+
+                var resultDtos = createdTeachers.Select(MapToDto).ToList();
+                return ApiResponse<List<TeacherDto>>.Created(resultDtos, "IMPORT_TEACHERS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<TeacherDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -218,3 +278,5 @@ namespace PRN232_be.Services.Implementations
         }
     }
 }
+
+

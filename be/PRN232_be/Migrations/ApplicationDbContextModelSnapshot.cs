@@ -887,6 +887,134 @@ namespace PRN232_be.Migrations
                     b.ToTable("exam_students", (string)null);
                 });
 
+            modelBuilder.Entity("PRN232_be.Models.Homework", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.PrimitiveCollection<string>("AttachmentUrls")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ClassId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Skill")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TeacherId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("TotalScore")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClassId");
+
+                    b.HasIndex("TeacherId");
+
+                    b.ToTable("Homeworks");
+                });
+
+            modelBuilder.Entity("PRN232_be.Models.HomeworkSubmission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.PrimitiveCollection<string>("AttachmentUrls")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Content")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("HomeworkId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("Score")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SubmitTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TeacherFeedback")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HomeworkId");
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("HomeworkSubmissions");
+                });
+
             modelBuilder.Entity("PRN232_be.Models.LearningMaterial", b =>
                 {
                     b.Property<int>("Id")
@@ -902,6 +1030,9 @@ namespace PRN232_be.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("CourseId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -960,6 +1091,8 @@ namespace PRN232_be.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ClassId");
+
+                    b.HasIndex("CourseId");
 
                     b.HasIndex("ScheduleId");
 
@@ -2001,11 +2134,54 @@ namespace PRN232_be.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("PRN232_be.Models.Homework", b =>
+                {
+                    b.HasOne("PRN232_be.Models.Class", "Class")
+                        .WithMany()
+                        .HasForeignKey("ClassId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PRN232_be.Models.Teacher", "Teacher")
+                        .WithMany()
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Class");
+
+                    b.Navigation("Teacher");
+                });
+
+            modelBuilder.Entity("PRN232_be.Models.HomeworkSubmission", b =>
+                {
+                    b.HasOne("PRN232_be.Models.Homework", "Homework")
+                        .WithMany("HomeworkSubmissions")
+                        .HasForeignKey("HomeworkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PRN232_be.Models.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Homework");
+
+                    b.Navigation("Student");
+                });
+
             modelBuilder.Entity("PRN232_be.Models.LearningMaterial", b =>
                 {
                     b.HasOne("PRN232_be.Models.Class", "Class")
                         .WithMany("LearningMaterials")
                         .HasForeignKey("ClassId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PRN232_be.Models.Course", "Course")
+                        .WithMany("LearningMaterials")
+                        .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PRN232_be.Models.ClassSchedule", "ClassSchedule")
@@ -2021,6 +2197,8 @@ namespace PRN232_be.Migrations
                     b.Navigation("Class");
 
                     b.Navigation("ClassSchedule");
+
+                    b.Navigation("Course");
 
                     b.Navigation("Teacher");
                 });
@@ -2140,6 +2318,8 @@ namespace PRN232_be.Migrations
             modelBuilder.Entity("PRN232_be.Models.Course", b =>
                 {
                     b.Navigation("Classes");
+
+                    b.Navigation("LearningMaterials");
                 });
 
             modelBuilder.Entity("PRN232_be.Models.Exam", b =>
@@ -2161,6 +2341,11 @@ namespace PRN232_be.Migrations
             modelBuilder.Entity("PRN232_be.Models.ExamSchedule", b =>
                 {
                     b.Navigation("ExamStudents");
+                });
+
+            modelBuilder.Entity("PRN232_be.Models.Homework", b =>
+                {
+                    b.Navigation("HomeworkSubmissions");
                 });
 
             modelBuilder.Entity("PRN232_be.Models.Question", b =>

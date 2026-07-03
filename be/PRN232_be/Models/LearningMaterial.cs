@@ -8,6 +8,7 @@ namespace PRN232_be.Models
         public int? ClassId { get; set; }
         public int? ScheduleId { get; set; }
         public int? UploadedBy { get; set; }
+        public int? CourseId { get; set; }
         public string? Title { get; set; }
         public string? Description { get; set; }
         public string? FileUrl { get; set; }
@@ -17,5 +18,6 @@ namespace PRN232_be.Models
         public virtual Class? Class { get; set; }
         public virtual ClassSchedule? ClassSchedule { get; set; }
         public virtual Teacher? Teacher { get; set; }
+        public virtual Course? Course { get; set; }
     }
 }
