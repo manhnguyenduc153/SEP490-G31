@@ -30,6 +30,11 @@ namespace PRN232_be.Models.Configurations
                 .HasForeignKey(x => x.TeacherId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            builder.HasOne(x => x.Semester)
+                .WithMany()
+                .HasForeignKey(x => x.SemesterId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Soft-delete global filter
             builder.HasQueryFilter(x => !x.IsDeleted);
         }

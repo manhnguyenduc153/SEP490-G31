@@ -50,6 +50,7 @@ namespace PRN232_be.Extensions
             services.AddScoped<IHomeworkService, HomeworkService>();
             services.AddScoped<IScheduleOptimizationService, ScheduleOptimizationService>();
             services.AddScoped<ILearningMaterialService, LearningMaterialService>();
+            services.AddScoped<ISemesterService, SemesterService>();
         }
     }
 }
