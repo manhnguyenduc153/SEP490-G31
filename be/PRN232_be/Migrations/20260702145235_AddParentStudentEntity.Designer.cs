@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PRN232_be.Models;
 
@@ -11,9 +12,11 @@ using PRN232_be.Models;
 namespace PRN232_be.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260702145235_AddParentStudentEntity")]
+    partial class AddParentStudentEntity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -342,9 +345,6 @@ namespace PRN232_be.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<int?>("SemesterId")
-                        .HasColumnType("int");
-
                     b.Property<DateTime?>("StartDate")
                         .HasColumnType("date");
 
@@ -369,8 +369,6 @@ namespace PRN232_be.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CourseId");
-
-                    b.HasIndex("SemesterId");
 
                     b.HasIndex("TeacherId");
 
@@ -892,134 +890,6 @@ namespace PRN232_be.Migrations
                     b.ToTable("exam_students", (string)null);
                 });
 
-            modelBuilder.Entity("PRN232_be.Models.Homework", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.PrimitiveCollection<string>("AttachmentUrls")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("ClassId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("DueDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Skill")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TeacherId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("TotalScore")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClassId");
-
-                    b.HasIndex("TeacherId");
-
-                    b.ToTable("Homeworks");
-                });
-
-            modelBuilder.Entity("PRN232_be.Models.HomeworkSubmission", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.PrimitiveCollection<string>("AttachmentUrls")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Content")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("HomeworkId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<decimal?>("Score")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int>("StudentId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("SubmitTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("TeacherFeedback")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("HomeworkId");
-
-                    b.HasIndex("StudentId");
-
-                    b.ToTable("HomeworkSubmissions");
-                });
-
             modelBuilder.Entity("PRN232_be.Models.LearningMaterial", b =>
                 {
                     b.Property<int>("Id")
@@ -1035,9 +905,6 @@ namespace PRN232_be.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
-
-                    b.Property<int?>("CourseId")
-                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -1096,8 +963,6 @@ namespace PRN232_be.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ClassId");
-
-                    b.HasIndex("CourseId");
 
                     b.HasIndex("ScheduleId");
 
@@ -1599,62 +1464,6 @@ namespace PRN232_be.Migrations
                     b.ToTable("rooms", (string)null);
                 });
 
-            modelBuilder.Entity("PRN232_be.Models.Semester", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("EndDate")
-                        .HasColumnType("date");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTime>("StartDate")
-                        .HasColumnType("date");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TextSearch")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("semesters", (string)null);
-                });
-
             modelBuilder.Entity("PRN232_be.Models.Student", b =>
                 {
                     b.Property<int>("Id")
@@ -1813,41 +1622,6 @@ namespace PRN232_be.Migrations
                     b.ToTable("student_grades", (string)null);
                 });
 
-            modelBuilder.Entity("PRN232_be.Models.StudentRegistration", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CourseId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PreferredSlotsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("SemesterId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int>("StudentId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CourseId");
-
-                    b.HasIndex("SemesterId");
-
-                    b.HasIndex("StudentId");
-
-                    b.ToTable("student_registrations", (string)null);
-                });
-
             modelBuilder.Entity("PRN232_be.Models.Teacher", b =>
                 {
                     b.Property<int>("Id")
@@ -1928,35 +1702,6 @@ namespace PRN232_be.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("teachers", (string)null);
-                });
-
-            modelBuilder.Entity("PRN232_be.Models.TeacherAvailability", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("DayOfWeek")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SemesterId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SlotIndex")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TeacherId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SemesterId");
-
-                    b.HasIndex("TeacherId");
-
-                    b.ToTable("teacher_availabilities", (string)null);
                 });
 
             modelBuilder.Entity("PRN232_be.Models.TimeSlot", b =>
@@ -2087,19 +1832,12 @@ namespace PRN232_be.Migrations
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("PRN232_be.Models.Semester", "Semester")
-                        .WithMany()
-                        .HasForeignKey("SemesterId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("PRN232_be.Models.Teacher", "Teacher")
                         .WithMany()
                         .HasForeignKey("TeacherId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Course");
-
-                    b.Navigation("Semester");
 
                     b.Navigation("Teacher");
                 });
@@ -2266,54 +2004,11 @@ namespace PRN232_be.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("PRN232_be.Models.Homework", b =>
-                {
-                    b.HasOne("PRN232_be.Models.Class", "Class")
-                        .WithMany()
-                        .HasForeignKey("ClassId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PRN232_be.Models.Teacher", "Teacher")
-                        .WithMany()
-                        .HasForeignKey("TeacherId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Class");
-
-                    b.Navigation("Teacher");
-                });
-
-            modelBuilder.Entity("PRN232_be.Models.HomeworkSubmission", b =>
-                {
-                    b.HasOne("PRN232_be.Models.Homework", "Homework")
-                        .WithMany("HomeworkSubmissions")
-                        .HasForeignKey("HomeworkId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PRN232_be.Models.Student", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Homework");
-
-                    b.Navigation("Student");
-                });
-
             modelBuilder.Entity("PRN232_be.Models.LearningMaterial", b =>
                 {
                     b.HasOne("PRN232_be.Models.Class", "Class")
                         .WithMany("LearningMaterials")
                         .HasForeignKey("ClassId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("PRN232_be.Models.Course", "Course")
-                        .WithMany("LearningMaterials")
-                        .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PRN232_be.Models.ClassSchedule", "ClassSchedule")
@@ -2329,8 +2024,6 @@ namespace PRN232_be.Migrations
                     b.Navigation("Class");
 
                     b.Navigation("ClassSchedule");
-
-                    b.Navigation("Course");
 
                     b.Navigation("Teacher");
                 });
@@ -2425,52 +2118,6 @@ namespace PRN232_be.Migrations
                     b.Navigation("StudentClass");
                 });
 
-            modelBuilder.Entity("PRN232_be.Models.StudentRegistration", b =>
-                {
-                    b.HasOne("PRN232_be.Models.Course", "Course")
-                        .WithMany()
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PRN232_be.Models.Semester", "Semester")
-                        .WithMany("StudentRegistrations")
-                        .HasForeignKey("SemesterId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PRN232_be.Models.Student", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Course");
-
-                    b.Navigation("Semester");
-
-                    b.Navigation("Student");
-                });
-
-            modelBuilder.Entity("PRN232_be.Models.TeacherAvailability", b =>
-                {
-                    b.HasOne("PRN232_be.Models.Semester", "Semester")
-                        .WithMany("TeacherAvailabilities")
-                        .HasForeignKey("SemesterId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PRN232_be.Models.Teacher", "Teacher")
-                        .WithMany()
-                        .HasForeignKey("TeacherId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Semester");
-
-                    b.Navigation("Teacher");
-                });
-
             modelBuilder.Entity("PRN232_be.Models.Class", b =>
                 {
                     b.Navigation("ClassSchedules");
@@ -2496,8 +2143,6 @@ namespace PRN232_be.Migrations
             modelBuilder.Entity("PRN232_be.Models.Course", b =>
                 {
                     b.Navigation("Classes");
-
-                    b.Navigation("LearningMaterials");
                 });
 
             modelBuilder.Entity("PRN232_be.Models.Exam", b =>
@@ -2521,11 +2166,6 @@ namespace PRN232_be.Migrations
                     b.Navigation("ExamStudents");
                 });
 
-            modelBuilder.Entity("PRN232_be.Models.Homework", b =>
-                {
-                    b.Navigation("HomeworkSubmissions");
-                });
-
             modelBuilder.Entity("PRN232_be.Models.Question", b =>
                 {
                     b.Navigation("ExamAnswers");
@@ -2545,13 +2185,6 @@ namespace PRN232_be.Migrations
                     b.Navigation("ClassSchedules");
 
                     b.Navigation("ExamSchedules");
-                });
-
-            modelBuilder.Entity("PRN232_be.Models.Semester", b =>
-                {
-                    b.Navigation("StudentRegistrations");
-
-                    b.Navigation("TeacherAvailabilities");
                 });
 
             modelBuilder.Entity("PRN232_be.Models.Student", b =>
