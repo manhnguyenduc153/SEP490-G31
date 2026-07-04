@@ -4316,3 +4316,15 @@ Details: Query: None | User: Anonymous
 [2026-07-03 09:53:49] [CLIENT ERROR 400] PUT /api/Class/4
 Details: Query: None | User: admin
 ------------------------------------------------------------
+[2026-07-03 11:28:25] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 16:57:49] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 16:58:22] [CLIENT ERROR 401] GET /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 16:58:22] [CLIENT ERROR 401] GET /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10 | User: Anonymous
+------------------------------------------------------------
