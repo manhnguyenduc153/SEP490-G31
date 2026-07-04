@@ -940,42 +940,17 @@ namespace PRN232_be.Services.Implementations
                 int studentId;
                 if (existingStudent == null)
                 {
-                    var identityUser = await _userManager.FindByEmailAsync(newStudentDto.Email.Trim());
-                    if (identityUser == null)
+                    string studentCode;
+                    do
                     {
-                        string studentCode;
-                        do
-                        {
-                            studentCode = await GenerateStudentCodeAsync();
-                        } while (generatedCodes.Contains(studentCode));
+                        studentCode = await GenerateStudentCodeAsync();
+                    } while (generatedCodes.Contains(studentCode));
 
-                        generatedCodes.Add(studentCode);
-                        
-                        identityUser = new IdentityUser
-                        {
-                            UserName = studentCode,
-                            Email = newStudentDto.Email.Trim(),
-                            PhoneNumber = newStudentDto.Phone?.Trim(),
-                            EmailConfirmed = true
-                        };
-                        
-                        var userResult = await _userManager.CreateAsync(identityUser, "123456");
-                        if (!userResult.Succeeded)
-                        {
-                            var errors = string.Join(", ", userResult.Errors.Select(e => e.Description));
-                            throw new Exception($"Không thể tạo tài khoản cho {newStudentDto.Email}: {errors}");
-                        }
-                        
-                        if (!await _roleManager.RoleExistsAsync("Student"))
-                        {
-                            await _roleManager.CreateAsync(new IdentityRole("Student"));
-                        }
-                        await _userManager.AddToRoleAsync(identityUser, "Student");
-                    }
-                    
+                    generatedCodes.Add(studentCode);
+
                     var newStudent = new Student
                     {
-                        Code = identityUser.UserName ?? "HS00001",
+                        Code = studentCode,
                         Name = newStudentDto.Name.Trim(),
                         Email = newStudentDto.Email.Trim(),
                         Phone = newStudentDto.Phone?.Trim(),
@@ -1035,35 +1010,11 @@ namespace PRN232_be.Services.Implementations
             int teacherId;
             if (existingTeacher == null)
             {
-                var identityUser = await _userManager.FindByEmailAsync(dto.NewTeacherEmail.Trim());
-                if (identityUser == null)
-                {
-                    var teacherCode = await GenerateTeacherCodeAsync();
-
-                    identityUser = new IdentityUser
-                    {
-                        UserName = teacherCode,
-                        Email = dto.NewTeacherEmail.Trim(),
-                        EmailConfirmed = true
-                    };
-
-                    var userResult = await _userManager.CreateAsync(identityUser, "123456");
-                    if (!userResult.Succeeded)
-                    {
-                        var errors = string.Join(", ", userResult.Errors.Select(e => e.Description));
-                        throw new Exception($"Không thể tạo tài khoản cho giáo viên {dto.NewTeacherEmail}: {errors}");
-                    }
-
-                    if (!await _roleManager.RoleExistsAsync("Teacher"))
-                    {
-                        await _roleManager.CreateAsync(new IdentityRole("Teacher"));
-                    }
-                    await _userManager.AddToRoleAsync(identityUser, "Teacher");
-                }
+                var teacherCode = await GenerateTeacherCodeAsync();
 
                 var newTeacher = new Teacher
                 {
-                    Code = identityUser.UserName ?? "GV00001",
+                    Code = teacherCode,
                     Name = dto.NewTeacherName.Trim(),
                     Email = dto.NewTeacherEmail.Trim(),
                     Status = 1

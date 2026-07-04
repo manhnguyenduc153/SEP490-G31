@@ -43,7 +43,20 @@ namespace PRN232_be.Services.Implementations
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(searchDto);
 
-                var dtos = entities.Select(MapToDto);
+                var dtos = entities.Select(MapToDto).ToList();
+                
+                // Populate HasAccount in bulk
+                var emails = dtos.Select(d => d.Email).Where(email => !string.IsNullOrEmpty(email)).ToList();
+                var existingAccountEmails = await _userManager.Users
+                    .Where(u => emails.Contains(u.Email))
+                    .Select(u => u.Email)
+                    .ToListAsync();
+
+                foreach (var dto in dtos)
+                {
+                    dto.HasAccount = dto.Email != null && existingAccountEmails.Contains(dto.Email);
+                }
+
                 var pagingResponse = dtos.ToPagingResponse(totalRecords, searchDto);
 
                 return ApiResponse<PagingResponse<TeacherDto>>.Ok(pagingResponse, "GET_TEACHER_LIST_SUCCESS");
@@ -64,7 +77,13 @@ namespace PRN232_be.Services.Implementations
                     return ApiResponse<TeacherDto>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                return ApiResponse<TeacherDto>.Ok(MapToDto(entity), "GET_TEACHER_DETAIL_SUCCESS");
+                var dto = MapToDto(entity);
+                if (!string.IsNullOrEmpty(dto.Email))
+                {
+                    dto.HasAccount = await _userManager.Users.AnyAsync(u => u.Email == dto.Email);
+                }
+
+                return ApiResponse<TeacherDto>.Ok(dto, "GET_TEACHER_DETAIL_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -91,7 +110,13 @@ namespace PRN232_be.Services.Implementations
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
 
-                return ApiResponse<TeacherDto>.Created(MapToDto(entity), "CREATE_TEACHER_SUCCESS");
+                var resultDto = MapToDto(entity);
+                if (!string.IsNullOrEmpty(resultDto.Email))
+                {
+                    resultDto.HasAccount = await _userManager.Users.AnyAsync(u => u.Email == resultDto.Email);
+                }
+
+                return ApiResponse<TeacherDto>.Created(resultDto, "CREATE_TEACHER_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -115,12 +140,54 @@ namespace PRN232_be.Services.Implementations
                     return ApiResponse<TeacherDto>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                var oldEmail = existingEntity.Email;
                 dto.Adapt(existingEntity);
 
                 await _repository.UpdateAsync(existingEntity);
                 await _repository.SaveChangesAsync();
 
-                return ApiResponse<TeacherDto>.Ok(MapToDto(existingEntity), "UPDATE_TEACHER_SUCCESS");
+                // If profile is active, make sure user is not locked out
+                if (existingEntity.Status == (int)TeacherStatus.Active && !string.IsNullOrEmpty(existingEntity.Email))
+                {
+                    var user = await _userManager.FindByEmailAsync(existingEntity.Email.Trim());
+                    if (user != null && await _userManager.IsLockedOutAsync(user))
+                    {
+                        await _userManager.SetLockoutEndDateAsync(user, null);
+                    }
+                }
+
+                // Sync email change to IdentityUser if it exists
+                if (!string.Equals(oldEmail, existingEntity.Email, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(oldEmail))
+                {
+                    var user = await _userManager.FindByEmailAsync(oldEmail.Trim());
+                    if (user != null)
+                    {
+                        var newEmail = existingEntity.Email!.Trim();
+                        user.Email = newEmail;
+                        user.NormalizedEmail = _userManager.NormalizeEmail(newEmail);
+
+                        var prefix = newEmail.Split('@')[0];
+                        var finalUsername = prefix;
+                        int suffix = 1;
+                        while (await _userManager.FindByNameAsync(finalUsername) != null)
+                        {
+                            finalUsername = $"{prefix}{suffix++}";
+                        }
+
+                        user.UserName = finalUsername;
+                        user.NormalizedUserName = _userManager.NormalizeName(finalUsername);
+
+                        await _userManager.UpdateAsync(user);
+                    }
+                }
+
+                var resultDto = MapToDto(existingEntity);
+                if (!string.IsNullOrEmpty(resultDto.Email))
+                {
+                    resultDto.HasAccount = await _userManager.Users.AnyAsync(u => u.Email == resultDto.Email);
+                }
+
+                return ApiResponse<TeacherDto>.Ok(resultDto, "UPDATE_TEACHER_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -146,24 +213,6 @@ namespace PRN232_be.Services.Implementations
                     entity.Id = 0;
                     entity.Status = dto.Status != 0 ? dto.Status : 1;
 
-                    // Tự động tạo IdentityUser cho Teacher
-                    var user = new IdentityUser
-                    {
-                        UserName = entity.Email ?? $"teacher_{Guid.NewGuid():N}",
-                        Email = entity.Email,
-                        EmailConfirmed = true
-                    };
-
-                    var result = await _userManager.CreateAsync(user, "123456"); // Mật khẩu mặc định
-                    if (result.Succeeded)
-                    {
-                        var roleExists = await _roleManager.RoleExistsAsync("Teacher");
-                        if (roleExists)
-                        {
-                            await _userManager.AddToRoleAsync(user, "Teacher");
-                        }
-                    }
-
                     await _repository.AddAsync(entity);
                     createdTeachers.Add(entity);
                 }
@@ -171,6 +220,18 @@ namespace PRN232_be.Services.Implementations
                 await _repository.SaveChangesAsync();
 
                 var resultDtos = createdTeachers.Select(MapToDto).ToList();
+                // Populate HasAccount
+                var emails = resultDtos.Select(d => d.Email).Where(email => !string.IsNullOrEmpty(email)).ToList();
+                var existingAccountEmails = await _userManager.Users
+                    .Where(u => emails.Contains(u.Email))
+                    .Select(u => u.Email)
+                    .ToListAsync();
+
+                foreach (var dto in resultDtos)
+                {
+                    dto.HasAccount = dto.Email != null && existingAccountEmails.Contains(dto.Email);
+                }
+
                 return ApiResponse<List<TeacherDto>>.Created(resultDtos, "IMPORT_TEACHERS_SUCCESS");
             }
             catch (Exception ex)
@@ -187,6 +248,16 @@ namespace PRN232_be.Services.Implementations
                 if (existingEntity == null)
                 {
                     return ApiResponse<bool>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                // Delete IdentityUser if it exists
+                if (!string.IsNullOrEmpty(existingEntity.Email))
+                {
+                    var user = await _userManager.FindByEmailAsync(existingEntity.Email.Trim());
+                    if (user != null)
+                    {
+                        await _userManager.DeleteAsync(user);
+                    }
                 }
 
                 await _repository.DeleteAsync(existingEntity);
@@ -208,6 +279,16 @@ namespace PRN232_be.Services.Implementations
                 if (existingEntity == null)
                 {
                     return ApiResponse<bool>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                // Lockout IdentityUser if it exists
+                if (!string.IsNullOrEmpty(existingEntity.Email))
+                {
+                    var user = await _userManager.FindByEmailAsync(existingEntity.Email.Trim());
+                    if (user != null)
+                    {
+                        await _userManager.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue);
+                    }
                 }
 
                 await _repository.DeactiveAsync(existingEntity);
@@ -238,6 +319,105 @@ namespace PRN232_be.Services.Implementations
             Avatar = entity.Avatar,
             Certificate = entity.Certificate
         };
+
+        public async Task<ApiResponse<bool>> BulkProvisionAccountsAsync(List<int> teacherIds)
+        {
+            try
+            {
+                if (teacherIds == null || !teacherIds.Any())
+                {
+                    return ApiResponse<bool>.Fail("ERR_NO_TEACHERS_SELECTED", StatusCodes.Status400BadRequest);
+                }
+
+                var teachers = await _repository.FindAll()
+                    .Where(t => teacherIds.Contains(t.Id) && !t.IsDeleted)
+                    .ToListAsync();
+
+                if (!teachers.Any())
+                {
+                    return ApiResponse<bool>.Fail("ERR_TEACHERS_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (!await _roleManager.RoleExistsAsync("Teacher"))
+                {
+                    await _roleManager.CreateAsync(new IdentityRole("Teacher"));
+                }
+
+                var errors = new List<string>();
+                int successCount = 0;
+
+                foreach (var teacher in teachers)
+                {
+                    if (string.IsNullOrWhiteSpace(teacher.Email))
+                    {
+                        errors.Add($"Giáo viên '{teacher.Name}' (Mã: {teacher.Code}) không có email.");
+                        continue;
+                    }
+
+                    var emailTrimmed = teacher.Email.Trim();
+
+                    // Check if account already exists for this email
+                    var existingUser = await _userManager.FindByEmailAsync(emailTrimmed);
+                    if (existingUser != null)
+                    {
+                        // Account already exists, check role
+                        if (!await _userManager.IsInRoleAsync(existingUser, "Teacher"))
+                        {
+                            await _userManager.AddToRoleAsync(existingUser, "Teacher");
+                        }
+                        successCount++;
+                        continue;
+                    }
+
+                    // Extract prefix from email to use as UserName
+                    var prefix = emailTrimmed.Split('@')[0];
+                    var finalUsername = prefix;
+                    int suffix = 1;
+
+                    // Ensure unique username
+                    while (await _userManager.FindByNameAsync(finalUsername) != null)
+                    {
+                        finalUsername = $"{prefix}{suffix++}";
+                    }
+
+                    var identityUser = new IdentityUser
+                    {
+                        UserName = finalUsername,
+                        Email = emailTrimmed,
+                        PhoneNumber = teacher.Phone?.Trim(),
+                        EmailConfirmed = true
+                    };
+
+                    var userResult = await _userManager.CreateAsync(identityUser, "123456");
+                    if (userResult.Succeeded)
+                    {
+                        await _userManager.AddToRoleAsync(identityUser, "Teacher");
+                        successCount++;
+                    }
+                    else
+                    {
+                        var errMsgs = string.Join(", ", userResult.Errors.Select(e => e.Description));
+                        errors.Add($"Giáo viên '{teacher.Name}' (Email: {emailTrimmed}) lỗi: {errMsgs}");
+                    }
+                }
+
+                if (errors.Any())
+                {
+                    var combinedMessage = string.Join("; ", errors);
+                    if (successCount > 0)
+                    {
+                        return ApiResponse<bool>.Fail($"Cấp tài khoản không hoàn tất: Đã cấp thành công {successCount} tài khoản. Lỗi: {combinedMessage}", StatusCodes.Status400BadRequest);
+                    }
+                    return ApiResponse<bool>.Fail($"Cấp tài khoản thất bại: {combinedMessage}", StatusCodes.Status400BadRequest);
+                }
+
+                return ApiResponse<bool>.Ok(true, "PROVISION_ACCOUNTS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
 
         private async Task<string?> ValidateAsync(TeacherSaveDto dto, bool isEdit)
         {

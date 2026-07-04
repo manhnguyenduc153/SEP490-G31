@@ -82,5 +82,14 @@ namespace PRN232_be.Controllers
             var response = await _service.DeactiveAsync(id);
             return StatusCode(response.StatusCode, response);
         }
+
+        // POST: api/Teacher/provision-accounts
+        [HttpPost("provision-accounts")]
+        [HasPermission(Permissions.Teacher.Teacher_Create)]
+        public async Task<IActionResult> ProvisionAccounts([FromBody] List<int> teacherIds)
+        {
+            var response = await _service.BulkProvisionAccountsAsync(teacherIds);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }

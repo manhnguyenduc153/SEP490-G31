@@ -91,5 +91,14 @@ namespace PRN232_be.Controllers
             var response = await _service.ImportAsync(dtos);
             return StatusCode(response.StatusCode, response);
         }
+
+        // POST: api/Student/provision-accounts
+        [HttpPost("provision-accounts")]
+        [HasPermission(Permissions.Student.Student_Create)]
+        public async Task<IActionResult> ProvisionAccounts([FromBody] List<int> studentIds)
+        {
+            var response = await _service.BulkProvisionAccountsAsync(studentIds);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }

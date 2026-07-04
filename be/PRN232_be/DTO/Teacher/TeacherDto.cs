@@ -19,5 +19,6 @@ namespace PRN232_be.DTO.Teacher
         public string? GradeLevelName { get; set; }
         public string? Avatar { get; set; }
         public string? Certificate { get; set; }
+        public bool HasAccount { get; set; }
     }
 }
