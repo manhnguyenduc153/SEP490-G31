@@ -3380,6 +3380,80 @@ Details: Query: None | User: Anonymous
 [2026-06-08 00:33:59] [CLIENT ERROR 404] GET /
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-06-15 19:47:50] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-15 19:52:11] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-16 02:57:19] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-16 13:34:49] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-16 13:37:15] [CLIENT ERROR 401] POST /api/Course
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-16 13:37:16] [CLIENT ERROR 401] POST /api/Course
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-16 13:39:35] [CLIENT ERROR 400] POST /api/Course
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-06-16 14:52:38] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-16 16:45:50] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-16 16:45:54] [SERVER ERROR 500] GET /swagger/v1/swagger.json
+Details: Query: None | User: Anonymous
+Exception Message: Failed to generate Operation for action - PRN232_be.Controllers.CourseController.GetAll (PRN232_be). See inner exception
+StackTrace:    at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GenerateOperation(ApiDescription apiDescription, SchemaRepository schemaRepository)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GenerateOperations(IEnumerable`1 apiDescriptions, SchemaRepository schemaRepository)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GeneratePaths(IEnumerable`1 apiDescriptions, SchemaRepository schemaRepository)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GetSwaggerDocumentWithoutFilters(String documentName, String host, String basePath)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GetSwaggerAsync(String documentName, String host, String basePath)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in E:\StudioProjects\lixi_tracker\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in E:\StudioProjects\lixi_tracker\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-06-16 16:46:23] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-16 16:46:28] [SERVER ERROR 500] GET /swagger/v1/swagger.json
+Details: Query: None | User: Anonymous
+Exception Message: Failed to generate Operation for action - PRN232_be.Controllers.CourseController.GetAll (PRN232_be). See inner exception
+StackTrace:    at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GenerateOperation(ApiDescription apiDescription, SchemaRepository schemaRepository)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GenerateOperations(IEnumerable`1 apiDescriptions, SchemaRepository schemaRepository)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GeneratePaths(IEnumerable`1 apiDescriptions, SchemaRepository schemaRepository)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GetSwaggerDocumentWithoutFilters(String documentName, String host, String basePath)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GetSwaggerAsync(String documentName, String host, String basePath)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in E:\StudioProjects\lixi_tracker\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in E:\StudioProjects\lixi_tracker\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-06-16 16:46:32] [CLIENT ERROR 404] GET /.well-known/appspecific/com.chrome.devtools.json
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-16 16:46:35] [CLIENT ERROR 404] GET /.well-known/appspecific/com.chrome.devtools.json
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-16 16:46:36] [SERVER ERROR 500] GET /swagger/v1/swagger.json
+Details: Query: None | User: Anonymous
+Exception Message: Failed to generate Operation for action - PRN232_be.Controllers.CourseController.GetAll (PRN232_be). See inner exception
+StackTrace:    at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GenerateOperation(ApiDescription apiDescription, SchemaRepository schemaRepository)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GenerateOperations(IEnumerable`1 apiDescriptions, SchemaRepository schemaRepository)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GeneratePaths(IEnumerable`1 apiDescriptions, SchemaRepository schemaRepository)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GetSwaggerDocumentWithoutFilters(String documentName, String host, String basePath)
+   at Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenerator.GetSwaggerAsync(String documentName, String host, String basePath)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in E:\StudioProjects\lixi_tracker\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in E:\StudioProjects\lixi_tracker\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-06-16 16:51:35] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
 [2026-06-14 21:58:06] [CLIENT ERROR 404] GET /
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
@@ -3422,6 +3496,99 @@ Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
 [2026-06-14 23:53:53] [CLIENT ERROR 401] GET /api/Teacher
 Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
 ------------------------------------------------------------
+[2026-06-17 04:08:27] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-17 04:10:07] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-17 04:16:01] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-25 22:50:26] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-25 23:57:00] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-26 00:01:40] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-26 00:18:03] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-26 18:54:17] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-27 03:58:12] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-27 04:03:06] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-06-27 04:10:50] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-27 04:21:20] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-27 04:22:06] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-06-27 04:22:12] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-06-27 04:22:21] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-06-27 04:37:51] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-27 04:38:43] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-06-28 21:12:48] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-28 21:14:05] [CLIENT ERROR 400] POST /api/Auth/Logout
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-28 21:32:00] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-06-28 21:34:16] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-01 22:31:35] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-01 22:31:52] [CLIENT ERROR 400] POST /api/Auth/Logout
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-01 22:33:07] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-01 22:33:29] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-01 22:33:30] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-01 22:33:39] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-02 22:03:32] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 22:05:10] [SERVER ERROR 500] GET /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10&studentId=0 | User: admin
+Exception Message: Unable to resolve service for type 'PRN232_be.Services.Interfaces.IParentStudentService' while attempting to activate 'PRN232_be.Controllers.ParentStudentController'.
+StackTrace:    at Microsoft.Extensions.DependencyInjection.ActivatorUtilities.ThrowHelperUnableToResolveService(Type type, Type requiredBy)
+   at lambda_method497(Closure, IServiceProvider, Object[])
+   at Microsoft.AspNetCore.Mvc.Controllers.ControllerFactoryProvider.<>c__DisplayClass6_0.<CreateControllerFactory>g__CreateController|0(ControllerContext controllerContext)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.InvokeInnerFilterAsync()
+--- End of stack trace from previous location ---
 [2026-06-16 14:59:09] [CLIENT ERROR 404] GET /
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
@@ -3723,6 +3890,18 @@ StackTrace:    at Microsoft.Data.SqlClient.SqlTransaction.ZombieCheck()
    at Microsoft.AspNetCore.RateLimiting.RateLimitingMiddleware.InvokeInternal(HttpContext context, EnableRateLimitingAttribute enableRateLimitingAttribute)
    at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
    at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in D:\Đồ_Án\Code\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in D:\Đồ_Án\Code\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-07-02 22:05:10] [SERVER ERROR 500] GET /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10&studentId=0 | User: admin
+Exception Message: Unable to resolve service for type 'PRN232_be.Services.Interfaces.IParentStudentService' while attempting to activate 'PRN232_be.Controllers.ParentStudentController'.
+StackTrace:    at Microsoft.Extensions.DependencyInjection.ActivatorUtilities.ThrowHelperUnableToResolveService(Type type, Type requiredBy)
+   at lambda_method497(Closure, IServiceProvider, Object[])
+   at Microsoft.AspNetCore.Mvc.Controllers.ControllerFactoryProvider.<>c__DisplayClass6_0.<CreateControllerFactory>g__CreateController|0(ControllerContext controllerContext)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.InvokeInnerFilterAsync()
+--- End of stack trace from previous location ---
    at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
    at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
 ------------------------------------------------------------
@@ -3787,6 +3966,18 @@ StackTrace:    at Microsoft.EntityFrameworkCore.Update.AffectedCountModification
    at Microsoft.AspNetCore.RateLimiting.RateLimitingMiddleware.InvokeInternal(HttpContext context, EnableRateLimitingAttribute enableRateLimitingAttribute)
    at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
    at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in D:\Đồ_Án\Code\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in D:\Đồ_Án\Code\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-07-02 22:06:07] [SERVER ERROR 500] POST /api/parent-student
+Details: Query: None | User: admin
+Exception Message: Unable to resolve service for type 'PRN232_be.Services.Interfaces.IParentStudentService' while attempting to activate 'PRN232_be.Controllers.ParentStudentController'.
+StackTrace:    at Microsoft.Extensions.DependencyInjection.ActivatorUtilities.ThrowHelperUnableToResolveService(Type type, Type requiredBy)
+   at lambda_method505(Closure, IServiceProvider, Object[])
+   at Microsoft.AspNetCore.Mvc.Controllers.ControllerFactoryProvider.<>c__DisplayClass6_0.<CreateControllerFactory>g__CreateController|0(ControllerContext controllerContext)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
+   at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.InvokeInnerFilterAsync()
+--- End of stack trace from previous location ---
    at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
    at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
 ------------------------------------------------------------
@@ -3824,6 +4015,79 @@ StackTrace:    at Microsoft.EntityFrameworkCore.Update.AffectedCountModification
    at Microsoft.AspNetCore.RateLimiting.RateLimitingMiddleware.InvokeInternal(HttpContext context, EnableRateLimitingAttribute enableRateLimitingAttribute)
    at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
    at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in D:\Đồ_Án\Code\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
+   at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in D:\Đồ_Án\Code\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
+------------------------------------------------------------
+[2026-07-02 22:08:10] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 22:08:20] [CLIENT ERROR 400] POST /api/parent-student
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-02 22:10:33] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-02 22:28:19] [CLIENT ERROR 405] OPTIONS /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10&studentId=0 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:16:38] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:17:57] [CLIENT ERROR 400] POST /api/parent-student
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:18:51] [CLIENT ERROR 400] POST /api/Student
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:19:15] [CLIENT ERROR 400] POST /api/parent-student
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 09:27:51] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:43:07] [CLIENT ERROR 401] GET /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:43:07] [CLIENT ERROR 401] GET /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 09:43:24] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 10:15:50] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 10:15:52] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 10:16:01] [CLIENT ERROR 401] GET /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 10:16:01] [CLIENT ERROR 401] GET /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 10:16:29] [CLIENT ERROR 400] POST /api/parent-student
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 10:21:33] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 10:23:18] [CLIENT ERROR 400] POST /api/Student
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 10:23:26] [CLIENT ERROR 400] POST /api/Student
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 11:23:21] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 11:23:21] [CLIENT ERROR 401] GET /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 11:23:21] [CLIENT ERROR 401] GET /api/parent-student
+Details: Query: ?pageIndex=1&pageSize=10 | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 11:23:39] [CLIENT ERROR 400] POST /api/parent-student
    at PRN232_be.Middlewares.ResponseLoggingMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\ResponseLoggingMiddleware.cs:line 18
    at PRN232_be.Middlewares.GlobalExceptionMiddleware.InvokeAsync(HttpContext context) in C:\Users\Hoang\Do-an\SEP490-G31\be\PRN232_be\Middlewares\GlobalExceptionMiddleware.cs:line 22
 ------------------------------------------------------------
