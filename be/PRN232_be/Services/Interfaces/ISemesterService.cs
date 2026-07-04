@@ -21,6 +21,8 @@ namespace PRN232_be.Services.Interfaces
 
         // Student Registration APIs
         Task<ApiResponse<List<StudentRegistrationDto>>> GetStudentRegistrationsAsync(int semesterId);
+        Task<ApiResponse<PagingResponse<StudentRegistrationDto>>> GetStudentRegistrationsPagedAsync(
+            int semesterId, string? keyword, int? courseId, int? status, int pageIndex, int pageSize);
         Task<ApiResponse<List<StudentRegistrationDto>>> ImportStudentRegistrationsAsync(List<StudentRegistrationSaveDto> dtos);
     }
 }

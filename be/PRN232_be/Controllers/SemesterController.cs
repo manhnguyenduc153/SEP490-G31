@@ -90,9 +90,15 @@ namespace PRN232_be.Controllers
         // GET: api/Semester/5/registrations
         [HttpGet("{semesterId}/registrations")]
         [HasPermission(Permissions.Class.Class_View)]
-        public async Task<IActionResult> GetStudentRegistrations(int semesterId)
+        public async Task<IActionResult> GetStudentRegistrations(
+            int semesterId,
+            [FromQuery] string? keyword,
+            [FromQuery] int? courseId,
+            [FromQuery] int? status,
+            [FromQuery] int pageIndex = 1,
+            [FromQuery] int pageSize = 10)
         {
-            var response = await _service.GetStudentRegistrationsAsync(semesterId);
+            var response = await _service.GetStudentRegistrationsPagedAsync(semesterId, keyword, courseId, status, pageIndex, pageSize);
             return StatusCode(response.StatusCode, response);
         }
 

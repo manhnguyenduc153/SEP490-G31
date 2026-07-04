@@ -37,9 +37,9 @@ namespace PRN232_be.Services.Implementations
                 var dtos = entities.Select(MapToDto).ToList();
                 return ApiResponse<List<SemesterDto>>.Ok(dtos, "GET_SEMESTER_LIST_SUCCESS");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return ApiResponse<List<SemesterDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+                return ApiResponse<List<SemesterDto>>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -55,9 +55,9 @@ namespace PRN232_be.Services.Implementations
 
                 return ApiResponse<SemesterDto>.Ok(MapToDto(entity), "GET_SEMESTER_DETAIL_SUCCESS");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return ApiResponse<SemesterDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+                return ApiResponse<SemesterDto>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -92,9 +92,9 @@ namespace PRN232_be.Services.Implementations
 
                 return ApiResponse<SemesterDto>.Created(MapToDto(entity), "CREATE_SEMESTER_SUCCESS");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return ApiResponse<SemesterDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+                return ApiResponse<SemesterDto>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -120,9 +120,9 @@ namespace PRN232_be.Services.Implementations
 
                 return ApiResponse<SemesterDto>.Ok(MapToDto(entity), "UPDATE_SEMESTER_SUCCESS");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return ApiResponse<SemesterDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+                return ApiResponse<SemesterDto>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -142,9 +142,9 @@ namespace PRN232_be.Services.Implementations
 
                 return ApiResponse<bool>.Ok(true, "DELETE_SEMESTER_SUCCESS");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+                return ApiResponse<bool>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -175,9 +175,9 @@ namespace PRN232_be.Services.Implementations
 
                 return ApiResponse<List<TeacherAvailabilityDto>>.Ok(dtos, "GET_TEACHER_AVAILABILITY_SUCCESS");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return ApiResponse<List<TeacherAvailabilityDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+                return ApiResponse<List<TeacherAvailabilityDto>>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -219,10 +219,10 @@ namespace PRN232_be.Services.Implementations
 
                 return ApiResponse<bool>.Ok(true, "SAVE_TEACHER_AVAILABILITY_SUCCESS");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 await transaction.RollbackAsync();
-                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+                return ApiResponse<bool>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -242,9 +242,56 @@ namespace PRN232_be.Services.Implementations
                 var dtos = list.Select(MapRegistrationToDto).ToList();
                 return ApiResponse<List<StudentRegistrationDto>>.Ok(dtos, "GET_STUDENT_REGISTRATION_SUCCESS");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return ApiResponse<List<StudentRegistrationDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+                return ApiResponse<List<StudentRegistrationDto>>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<PagingResponse<StudentRegistrationDto>>> GetStudentRegistrationsPagedAsync(
+            int semesterId, string? keyword, int? courseId, int? status, int pageIndex, int pageSize)
+        {
+            try
+            {
+                var query = _dbContext.StudentRegistrations
+                    .Include(sr => sr.Student)
+                    .Include(sr => sr.Course)
+                    .Include(sr => sr.Semester)
+                    .Where(sr => sr.SemesterId == semesterId);
+
+                if (!string.IsNullOrWhiteSpace(keyword))
+                {
+                    var keywordLower = keyword.ToLower();
+                    query = query.Where(sr =>
+                        (sr.Student != null && sr.Student.Name != null && sr.Student.Name.ToLower().Contains(keywordLower)) ||
+                        (sr.Student != null && sr.Student.Code != null && sr.Student.Code.ToLower().Contains(keywordLower)) ||
+                        (sr.Student != null && sr.Student.Email != null && sr.Student.Email.ToLower().Contains(keywordLower)) ||
+                        (sr.Student != null && sr.Student.Phone != null && sr.Student.Phone.ToLower().Contains(keywordLower)) ||
+                        (sr.Course != null && sr.Course.Name != null && sr.Course.Name.ToLower().Contains(keywordLower))
+                    );
+                }
+
+                if (courseId.HasValue && courseId.Value > 0)
+                {
+                    query = query.Where(sr => sr.CourseId == courseId.Value);
+                }
+
+                if (status.HasValue)
+                {
+                    query = query.Where(sr => sr.Status == status.Value);
+                }
+
+                var totalRecords = await query.CountAsync();
+                var entities = await query.ApplyPagingAsync(pageIndex, pageSize);
+
+                var dtos = entities.Select(MapRegistrationToDto).ToList();
+                var pagingResponse = dtos.ToPagingResponse(totalRecords, pageIndex, pageSize);
+
+                return ApiResponse<PagingResponse<StudentRegistrationDto>>.Ok(pagingResponse, "GET_STUDENT_REGISTRATION_SUCCESS");
+            }
+            catch (Exception)
+            {
+                return ApiResponse<PagingResponse<StudentRegistrationDto>>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -262,7 +309,7 @@ namespace PRN232_be.Services.Implementations
                     {
                         if (dto.SemesterId == 0 || string.IsNullOrWhiteSpace(dto.StudentEmail))
                         {
-                            errors.Add($"Học sinh '{dto.StudentName}' bị thiếu thông tin kỳ học hoặc email.");
+                            errors.Add("ERR_REGISTRATION_MISSING_SEMESTER_OR_EMAIL");
                             continue;
                         }
 
@@ -271,7 +318,7 @@ namespace PRN232_be.Services.Implementations
                         {
                             if (string.IsNullOrWhiteSpace(dto.CourseName))
                             {
-                                errors.Add($"Học sinh '{dto.StudentName}': Thiếu thông tin khóa học (CourseId = 0 và CourseName rỗng).");
+                                errors.Add("ERR_REGISTRATION_MISSING_COURSE");
                                 continue;
                             }
 
@@ -368,9 +415,9 @@ namespace PRN232_be.Services.Implementations
                             if (reloaded != null) resultDtos.Add(MapRegistrationToDto(reloaded));
                         }
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        errors.Add($"Học sinh '{dto.StudentName}' (Email: {dto.StudentEmail}) lỗi: {ex.Message}");
+                        errors.Add("ERR_REGISTRATION_ROW_ERROR");
                     }
                 }
 
@@ -385,10 +432,10 @@ namespace PRN232_be.Services.Implementations
 
                 return ApiResponse<List<StudentRegistrationDto>>.Ok(resultDtos, "IMPORT_STUDENT_REGISTRATION_SUCCESS");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 await transaction.RollbackAsync();
-                return ApiResponse<List<StudentRegistrationDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+                return ApiResponse<List<StudentRegistrationDto>>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
             }
         }
 
