@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace PRN232_be.Migrations
 {
     /// <inheritdoc />
-    public partial class init : Migration
+    public partial class initProject : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -150,6 +150,31 @@ namespace PRN232_be.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_rooms", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "semesters",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    StartDate = table.Column<DateTime>(type: "date", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "date", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DeletedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    TextSearch = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_semesters", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -415,10 +440,21 @@ namespace PRN232_be.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     StudentId = table.Column<int>(type: "int", nullable: false),
-                    ParentName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     ParentPhone = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    Email = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
+                    UserId = table.Column<string>(type: "nvarchar(450)", maxLength: 450, nullable: true),
                     Relationship = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    Status = table.Column<int>(type: "int", nullable: false)
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DeletedBy = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    TextSearch = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -429,6 +465,41 @@ namespace PRN232_be.Migrations
                         principalTable: "students",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "student_registrations",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    StudentId = table.Column<int>(type: "int", nullable: false),
+                    CourseId = table.Column<int>(type: "int", nullable: false),
+                    SemesterId = table.Column<int>(type: "int", nullable: false),
+                    PreferredSlotsJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_student_registrations", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_student_registrations_courses_CourseId",
+                        column: x => x.CourseId,
+                        principalTable: "courses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_student_registrations_semesters_SemesterId",
+                        column: x => x.SemesterId,
+                        principalTable: "semesters",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_student_registrations_students_StudentId",
+                        column: x => x.StudentId,
+                        principalTable: "students",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -443,6 +514,7 @@ namespace PRN232_be.Migrations
                     EndDate = table.Column<DateTime>(type: "date", nullable: true),
                     CourseId = table.Column<int>(type: "int", nullable: true),
                     TeacherId = table.Column<int>(type: "int", nullable: true),
+                    SemesterId = table.Column<int>(type: "int", nullable: true),
                     ScheduleDisplay = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     ExpectedLessons = table.Column<int>(type: "int", nullable: true),
                     WeeklySchedulesJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -468,11 +540,45 @@ namespace PRN232_be.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
+                        name: "FK_classes_semesters_SemesterId",
+                        column: x => x.SemesterId,
+                        principalTable: "semesters",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
                         name: "FK_classes_teachers_TeacherId",
                         column: x => x.TeacherId,
                         principalTable: "teachers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "teacher_availabilities",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TeacherId = table.Column<int>(type: "int", nullable: false),
+                    SemesterId = table.Column<int>(type: "int", nullable: false),
+                    DayOfWeek = table.Column<int>(type: "int", nullable: false),
+                    SlotIndex = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_teacher_availabilities", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_teacher_availabilities_semesters_SemesterId",
+                        column: x => x.SemesterId,
+                        principalTable: "semesters",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_teacher_availabilities_teachers_TeacherId",
+                        column: x => x.TeacherId,
+                        principalTable: "teachers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -1147,6 +1253,11 @@ namespace PRN232_be.Migrations
                 column: "CourseId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_classes_SemesterId",
+                table: "classes",
+                column: "SemesterId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_classes_TeacherId",
                 table: "classes",
                 column: "TeacherId");
@@ -1310,6 +1421,31 @@ namespace PRN232_be.Migrations
                 name: "IX_student_grades_StudentClassId",
                 table: "student_grades",
                 column: "StudentClassId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_student_registrations_CourseId",
+                table: "student_registrations",
+                column: "CourseId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_student_registrations_SemesterId",
+                table: "student_registrations",
+                column: "SemesterId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_student_registrations_StudentId",
+                table: "student_registrations",
+                column: "StudentId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_teacher_availabilities_SemesterId",
+                table: "teacher_availabilities",
+                column: "SemesterId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_teacher_availabilities_TeacherId",
+                table: "teacher_availabilities",
+                column: "TeacherId");
         }
 
         /// <inheritdoc />
@@ -1367,6 +1503,12 @@ namespace PRN232_be.Migrations
                 name: "student_grades");
 
             migrationBuilder.DropTable(
+                name: "student_registrations");
+
+            migrationBuilder.DropTable(
+                name: "teacher_availabilities");
+
+            migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
@@ -1410,6 +1552,9 @@ namespace PRN232_be.Migrations
 
             migrationBuilder.DropTable(
                 name: "courses");
+
+            migrationBuilder.DropTable(
+                name: "semesters");
 
             migrationBuilder.DropTable(
                 name: "teachers");

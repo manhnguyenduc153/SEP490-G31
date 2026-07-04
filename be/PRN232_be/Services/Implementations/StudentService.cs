@@ -130,6 +130,47 @@ namespace PRN232_be.Services.Implementations
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
 
+                // Automatically provision user account
+                if (!string.IsNullOrWhiteSpace(entity.Email))
+                {
+                    var emailTrimmed = entity.Email.Trim();
+                    
+                    if (!await _roleManager.RoleExistsAsync("Student"))
+                    {
+                        await _roleManager.CreateAsync(new IdentityRole("Student"));
+                    }
+
+                    var existingUser = await _userManager.FindByEmailAsync(emailTrimmed);
+                    if (existingUser == null)
+                    {
+                        var identityUser = new IdentityUser
+                        {
+                            UserName = emailTrimmed,
+                            Email = emailTrimmed,
+                            PhoneNumber = entity.Phone?.Trim(),
+                            EmailConfirmed = true
+                        };
+
+                        var userResult = await _userManager.CreateAsync(identityUser, "123456");
+                        if (userResult.Succeeded)
+                        {
+                            await _userManager.AddToRoleAsync(identityUser, "Student");
+                        }
+                        else
+                        {
+                            var errMsgs = string.Join(", ", userResult.Errors.Select(e => e.Description));
+                            return ApiResponse<StudentDto>.Fail($"ERR_ACCOUNT_CREATION_FAILED: {errMsgs}", StatusCodes.Status400BadRequest);
+                        }
+                    }
+                    else
+                    {
+                        if (!await _userManager.IsInRoleAsync(existingUser, "Student"))
+                        {
+                            await _userManager.AddToRoleAsync(existingUser, "Student");
+                        }
+                    }
+                }
+
                 var resultDto = MapToDto(entity);
                 if (!string.IsNullOrEmpty(resultDto.Email))
                 {
