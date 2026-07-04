@@ -58,6 +58,7 @@ namespace PRN232_be.Services.Implementations
                 var query = _repository.FindAll()
                     .Include(c => c.Course)
                     .Include(c => c.Teacher)
+                    .Include(c => c.Semester)
                     .Include(c => c.StudentClasses)
                     .AsQueryable();
 
@@ -98,6 +99,7 @@ namespace PRN232_be.Services.Implementations
                 var entity = await _repository.FindAll()
                     .Include(c => c.Course)
                     .Include(c => c.Teacher)
+                    .Include(c => c.Semester)
                     .Include(c => c.StudentClasses)
                         .ThenInclude(sc => sc.Student)
                     .Include(c => c.ClassSchedules)
@@ -165,6 +167,7 @@ namespace PRN232_be.Services.Implementations
                 var createdClass = await _repository.FindAll()
                     .Include(c => c.Course)
                     .Include(c => c.Teacher)
+                    .Include(c => c.Semester)
                     .Include(c => c.StudentClasses)
                     .FirstOrDefaultAsync(c => c.Id == entity.Id);
 
@@ -247,6 +250,7 @@ namespace PRN232_be.Services.Implementations
                 var updatedClass = await _repository.FindAll()
                     .Include(c => c.Course)
                     .Include(c => c.Teacher)
+                    .Include(c => c.Semester)
                     .Include(c => c.StudentClasses)
                     .FirstOrDefaultAsync(c => c.Id == existingEntity.Id);
 
@@ -261,6 +265,7 @@ namespace PRN232_be.Services.Implementations
 
         public async Task<ApiResponse<bool>> DeleteAsync(int id)
         {
+            using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
                 var existingEntity = await _repository.GetByIdAsync(id);
@@ -269,13 +274,68 @@ namespace PRN232_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                // 1. Get student IDs enrolled in this class
+                var studentClasses = await _dbContext.StudentClasses
+                    .Where(sc => sc.ClassId == id)
+                    .ToListAsync();
+                var studentIds = studentClasses.Select(sc => sc.StudentId).ToList();
+
+                if (studentIds.Any() && existingEntity.CourseId.HasValue)
+                {
+                    // 2. Find the semester corresponding to this class (based on Class StartDate matching Semester StartDate)
+                    var semester = await _dbContext.Semesters
+                        .FirstOrDefaultAsync(s => !s.IsDeleted && s.StartDate == existingEntity.StartDate);
+
+                    if (semester != null)
+                    {
+                        // 3. Find registrations for these students, for this course, in this semester, that are Scheduled (2)
+                        var regsToReset = await _dbContext.StudentRegistrations
+                            .Where(r => r.SemesterId == semester.Id 
+                                     && r.CourseId == existingEntity.CourseId 
+                                     && r.Status == (int)StudentRegistrationStatus.Scheduled 
+                                     && studentIds.Contains(r.StudentId))
+                            .ToListAsync();
+
+                        foreach (var reg in regsToReset)
+                        {
+                            reg.Status = (int)StudentRegistrationStatus.Pending;
+                            _dbContext.StudentRegistrations.Update(reg);
+                        }
+                    }
+                    else
+                    {
+                        // Fallback: Reset any Scheduled registrations for this course and these students
+                        var regsToReset = await _dbContext.StudentRegistrations
+                            .Where(r => r.CourseId == existingEntity.CourseId 
+                                     && r.Status == (int)StudentRegistrationStatus.Scheduled 
+                                     && studentIds.Contains(r.StudentId))
+                            .ToListAsync();
+
+                        foreach (var reg in regsToReset)
+                        {
+                            reg.Status = (int)StudentRegistrationStatus.Pending;
+                            _dbContext.StudentRegistrations.Update(reg);
+                        }
+                    }
+                }
+
+                // Remove StudentClasses relations to avoid orphans
+                if (studentClasses.Any())
+                {
+                    _dbContext.StudentClasses.RemoveRange(studentClasses);
+                }
+
+                // Delete the class itself
                 await _repository.DeleteAsync(existingEntity);
-                await _repository.SaveChangesAsync();
+                await _dbContext.SaveChangesAsync();
+                
+                await transaction.CommitAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_CLASS_SUCCESS");
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
@@ -323,6 +383,8 @@ namespace PRN232_be.Services.Implementations
             ExpectedLessons = entity.ExpectedLessons,
             WeeklySchedulesJson = entity.WeeklySchedulesJson,
             AutoRefund = entity.AutoRefund,
+            SemesterId = entity.SemesterId,
+            SemesterName = entity.Semester?.Name,
             Schedules = entity.ClassSchedules?.Select(cs => new ClassScheduleDto
             {
                 Id = cs.Id,
@@ -378,7 +440,7 @@ namespace PRN232_be.Services.Implementations
             if (!dto.StartDate.HasValue)
                 return "ERR_START_DATE_EMPTY";
 
-            if (!dto.ExpectedLessons.HasValue || dto.ExpectedLessons.Value <= 0)
+            if ((!dto.SemesterId.HasValue || dto.SemesterId.Value <= 0) && (!dto.ExpectedLessons.HasValue || dto.ExpectedLessons.Value <= 0))
                 return "ERR_EXPECTED_LESSONS_INVALID";
 
             if (dto.Description != null && dto.Description.Length > 1000)
@@ -561,7 +623,7 @@ namespace PRN232_be.Services.Implementations
 
         private async Task GenerateSchedulesAsync(Class entity, ClassSaveDto dto)
         {
-            if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any() || !dto.StartDate.HasValue || !dto.ExpectedLessons.HasValue || dto.ExpectedLessons.Value <= 0)
+            if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any() || !dto.StartDate.HasValue)
             {
                 return;
             }
@@ -577,14 +639,15 @@ namespace PRN232_be.Services.Implementations
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
             };
             entity.WeeklySchedulesJson = System.Text.Json.JsonSerializer.Serialize(dto.WeeklySchedules, jsonOptions);
-            entity.ExpectedLessons = dto.ExpectedLessons;
             entity.AutoRefund = dto.AutoRefund;
+            entity.SemesterId = dto.SemesterId;
 
             // Clear the existing navigation collection
             entity.ClassSchedules.Clear();
 
             // Generate dates
             var currentDate = dto.StartDate.Value;
+            var endDate = dto.EndDate;
             int lessonNo = 1;
             var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
 
@@ -594,49 +657,110 @@ namespace PRN232_be.Services.Implementations
                 return;
             }
 
-            while (lessonNo <= dto.ExpectedLessons.Value)
+            if (dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
             {
-                var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
-                if (match != null)
+                var sem = await _dbContext.Semesters.FindAsync(dto.SemesterId.Value);
+                if (sem != null && !sem.IsDeleted)
                 {
-                    var startSpan = TimeSpan.Parse(match.StartTime);
-                    var endSpan = TimeSpan.Parse(match.EndTime);
-
-                    var timeSlot = await _timeSlotRepository.FindAll()
-                        .FirstOrDefaultAsync(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
-                    if (timeSlot == null)
-                    {
-                        timeSlot = new TimeSlot
-                        {
-                            Code = $"TS_{match.StartTime.Replace(":", "")}_{match.EndTime.Replace(":", "")}",
-                            Name = $"{match.StartTime} - {match.EndTime}",
-                            StartTime = startSpan,
-                            EndTime = endSpan
-                        };
-                        await _timeSlotRepository.AddAsync(timeSlot);
-                        await _timeSlotRepository.SaveChangesAsync();
-                    }
-
-                    entity.ClassSchedules.Add(new ClassSchedule
-                    {
-                        LessonNo = lessonNo,
-                        ScheduleDate = currentDate,
-                        SlotId = timeSlot.Id,
-                        RoomId = match.RoomId,
-                        TeacherId = dto.TeacherId,
-                        Status = 0, // Scheduled
-                        Code = $"SCH_{entity.Code}_{lessonNo}",
-                        Name = $"Buổi học {lessonNo} - {entity.Name}"
-                    });
-                    lessonNo++;
+                    currentDate = sem.StartDate;
+                    endDate = sem.EndDate;
+                    entity.StartDate = sem.StartDate;
+                    entity.EndDate = sem.EndDate;
+                    dto.StartDate = sem.StartDate;
+                    dto.EndDate = sem.EndDate;
                 }
-                currentDate = currentDate.AddDays(1);
             }
 
-            // Calculate EndDate
-            if (entity.ClassSchedules.Any())
+            if (endDate.HasValue)
             {
-                entity.EndDate = entity.ClassSchedules.Last().ScheduleDate;
+                // Dynamic ExpectedLessons based on Semester date range
+                while (currentDate <= endDate.Value)
+                {
+                    var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                    if (match != null)
+                    {
+                        var startSpan = TimeSpan.Parse(match.StartTime);
+                        var endSpan = TimeSpan.Parse(match.EndTime);
+
+                        var timeSlot = await _timeSlotRepository.FindAll()
+                            .FirstOrDefaultAsync(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
+                        if (timeSlot == null)
+                        {
+                            timeSlot = new TimeSlot
+                            {
+                                Code = $"TS_{match.StartTime.Replace(":", "")}_{match.EndTime.Replace(":", "")}",
+                                Name = $"{match.StartTime} - {match.EndTime}",
+                                StartTime = startSpan,
+                                EndTime = endSpan
+                            };
+                            await _timeSlotRepository.AddAsync(timeSlot);
+                            await _timeSlotRepository.SaveChangesAsync();
+                        }
+
+                        entity.ClassSchedules.Add(new ClassSchedule
+                        {
+                            LessonNo = lessonNo,
+                            ScheduleDate = currentDate,
+                            SlotId = timeSlot.Id,
+                            RoomId = match.RoomId,
+                            TeacherId = dto.TeacherId,
+                            Status = 0, // Scheduled
+                            Code = $"SCH_{entity.Code}_{lessonNo}",
+                            Name = $"Buổi học {lessonNo} - {entity.Name}"
+                        });
+                        lessonNo++;
+                    }
+                    currentDate = currentDate.AddDays(1);
+                }
+                entity.ExpectedLessons = lessonNo - 1;
+            }
+            else
+            {
+                // Old fallback if no semester is bound
+                int maxLessons = dto.ExpectedLessons.GetValueOrDefault(30);
+                while (lessonNo <= maxLessons)
+                {
+                    var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                    if (match != null)
+                    {
+                        var startSpan = TimeSpan.Parse(match.StartTime);
+                        var endSpan = TimeSpan.Parse(match.EndTime);
+
+                        var timeSlot = await _timeSlotRepository.FindAll()
+                            .FirstOrDefaultAsync(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
+                        if (timeSlot == null)
+                        {
+                            timeSlot = new TimeSlot
+                            {
+                                Code = $"TS_{match.StartTime.Replace(":", "")}_{match.EndTime.Replace(":", "")}",
+                                Name = $"{match.StartTime} - {match.EndTime}",
+                                StartTime = startSpan,
+                                EndTime = endSpan
+                            };
+                            await _timeSlotRepository.AddAsync(timeSlot);
+                            await _timeSlotRepository.SaveChangesAsync();
+                        }
+
+                        entity.ClassSchedules.Add(new ClassSchedule
+                        {
+                            LessonNo = lessonNo,
+                            ScheduleDate = currentDate,
+                            SlotId = timeSlot.Id,
+                            RoomId = match.RoomId,
+                            TeacherId = dto.TeacherId,
+                            Status = 0, // Scheduled
+                            Code = $"SCH_{entity.Code}_{lessonNo}",
+                            Name = $"Buổi học {lessonNo} - {entity.Name}"
+                        });
+                        lessonNo++;
+                    }
+                    currentDate = currentDate.AddDays(1);
+                }
+                entity.ExpectedLessons = maxLessons;
+                if (entity.ClassSchedules.Any())
+                {
+                    entity.EndDate = entity.ClassSchedules.Last().ScheduleDate;
+                }
             }
         }
 
@@ -816,42 +940,17 @@ namespace PRN232_be.Services.Implementations
                 int studentId;
                 if (existingStudent == null)
                 {
-                    var identityUser = await _userManager.FindByEmailAsync(newStudentDto.Email.Trim());
-                    if (identityUser == null)
+                    string studentCode;
+                    do
                     {
-                        string studentCode;
-                        do
-                        {
-                            studentCode = await GenerateStudentCodeAsync();
-                        } while (generatedCodes.Contains(studentCode));
+                        studentCode = await GenerateStudentCodeAsync();
+                    } while (generatedCodes.Contains(studentCode));
 
-                        generatedCodes.Add(studentCode);
-                        
-                        identityUser = new IdentityUser
-                        {
-                            UserName = studentCode,
-                            Email = newStudentDto.Email.Trim(),
-                            PhoneNumber = newStudentDto.Phone?.Trim(),
-                            EmailConfirmed = true
-                        };
-                        
-                        var userResult = await _userManager.CreateAsync(identityUser, "123456");
-                        if (!userResult.Succeeded)
-                        {
-                            var errors = string.Join(", ", userResult.Errors.Select(e => e.Description));
-                            throw new Exception($"Không thể tạo tài khoản cho {newStudentDto.Email}: {errors}");
-                        }
-                        
-                        if (!await _roleManager.RoleExistsAsync("Student"))
-                        {
-                            await _roleManager.CreateAsync(new IdentityRole("Student"));
-                        }
-                        await _userManager.AddToRoleAsync(identityUser, "Student");
-                    }
-                    
+                    generatedCodes.Add(studentCode);
+
                     var newStudent = new Student
                     {
-                        Code = identityUser.UserName ?? "HS00001",
+                        Code = studentCode,
                         Name = newStudentDto.Name.Trim(),
                         Email = newStudentDto.Email.Trim(),
                         Phone = newStudentDto.Phone?.Trim(),
@@ -911,35 +1010,11 @@ namespace PRN232_be.Services.Implementations
             int teacherId;
             if (existingTeacher == null)
             {
-                var identityUser = await _userManager.FindByEmailAsync(dto.NewTeacherEmail.Trim());
-                if (identityUser == null)
-                {
-                    var teacherCode = await GenerateTeacherCodeAsync();
-
-                    identityUser = new IdentityUser
-                    {
-                        UserName = teacherCode,
-                        Email = dto.NewTeacherEmail.Trim(),
-                        EmailConfirmed = true
-                    };
-
-                    var userResult = await _userManager.CreateAsync(identityUser, "123456");
-                    if (!userResult.Succeeded)
-                    {
-                        var errors = string.Join(", ", userResult.Errors.Select(e => e.Description));
-                        throw new Exception($"Không thể tạo tài khoản cho giáo viên {dto.NewTeacherEmail}: {errors}");
-                    }
-
-                    if (!await _roleManager.RoleExistsAsync("Teacher"))
-                    {
-                        await _roleManager.CreateAsync(new IdentityRole("Teacher"));
-                    }
-                    await _userManager.AddToRoleAsync(identityUser, "Teacher");
-                }
+                var teacherCode = await GenerateTeacherCodeAsync();
 
                 var newTeacher = new Teacher
                 {
-                    Code = identityUser.UserName ?? "GV00001",
+                    Code = teacherCode,
                     Name = dto.NewTeacherName.Trim(),
                     Email = dto.NewTeacherEmail.Trim(),
                     Status = 1
