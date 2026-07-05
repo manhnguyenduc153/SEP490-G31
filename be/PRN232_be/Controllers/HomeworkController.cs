@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PRN232_be.DTO;
+using PRN232_be.DTO.Common;
 using PRN232_be.DTO.Homework;
 using PRN232_be.Helpers;
+using PRN232_be.Helpers.Authorization;
 using PRN232_be.Models;
 using PRN232_be.Services.Interfaces;
 using System.Linq;
@@ -27,6 +29,7 @@ namespace PRN232_be.Controllers
         }
 
         [HttpGet("class/{classId}")]
+        [HasPermission(Permissions.Homework.Homework_View)]
         public async Task<IActionResult> GetHomeworkByClass(int classId)
         {
             var result = await _homeworkService.GetHomeworkByClassAsync(classId);
@@ -34,6 +37,7 @@ namespace PRN232_be.Controllers
         }
 
         [HttpPost]
+        [HasPermission(Permissions.Homework.Homework_Create)]
         public async Task<IActionResult> CreateHomework([FromBody] HomeworkSaveDto dto)
         {
             if (!ModelState.IsValid)
@@ -46,6 +50,7 @@ namespace PRN232_be.Controllers
         }
 
         [HttpPut("{id}")]
+        [HasPermission(Permissions.Homework.Homework_Edit)]
         public async Task<IActionResult> UpdateHomework(int id, [FromBody] HomeworkSaveDto dto)
         {
             if (!ModelState.IsValid)
@@ -58,6 +63,7 @@ namespace PRN232_be.Controllers
         }
 
         [HttpDelete("{id}")]
+        [HasPermission(Permissions.Homework.Homework_Delete)]
         public async Task<IActionResult> DeleteHomework(int id)
         {
             var result = await _homeworkService.DeleteHomeworkAsync(id);
@@ -65,6 +71,7 @@ namespace PRN232_be.Controllers
         }
 
         [HttpGet("{id}/submissions")]
+        [HasPermission(Permissions.Homework.Homework_View)]
         public async Task<IActionResult> GetSubmissions(int id)
         {
             var result = await _homeworkService.GetSubmissionsByHomeworkAsync(id);
@@ -72,6 +79,7 @@ namespace PRN232_be.Controllers
         }
 
         [HttpGet("{id}/my-submission")]
+        [HasPermission(Permissions.Homework.Homework_View)]
         public async Task<IActionResult> GetMySubmission(int id)
         {
             var student = await ResolveCurrentStudentAsync();
@@ -106,6 +114,7 @@ namespace PRN232_be.Controllers
         }
 
         [HttpPost("submissions/{submissionId}/grade")]
+        [HasPermission(Permissions.Homework.Homework_Edit)]
         public async Task<IActionResult> GradeSubmission(int submissionId, [FromBody] HomeworkSubmissionGradeDto dto)
         {
             var result = await _homeworkService.GradeSubmissionAsync(submissionId, dto);
@@ -113,6 +122,7 @@ namespace PRN232_be.Controllers
         }
 
         [HttpPost("submit")]
+        [HasPermission(Permissions.Homework.Homework_Create)]
         public async Task<IActionResult> SubmitHomework([FromBody] HomeworkSubmissionSaveDto dto)
         {
             var student = await ResolveCurrentStudentAsync();
