@@ -20,5 +20,6 @@ namespace PRN232_be.DTO.Student
         public string? ParentName { get; set; }
         public string? ParentPhone { get; set; }
         public string? Avatar { get; set; }
+        public bool HasAccount { get; set; }
     }
 }

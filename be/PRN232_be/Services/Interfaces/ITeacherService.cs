@@ -14,5 +14,6 @@ namespace PRN232_be.Services.Interfaces
         Task<ApiResponse<bool>> DeleteAsync(int id);
         Task<ApiResponse<bool>> DeactiveAsync(int id);
         Task<ApiResponse<List<TeacherDto>>> ImportAsync(List<TeacherSaveDto> dtos);
+        Task<ApiResponse<bool>> BulkProvisionAccountsAsync(List<int> teacherIds);
     }
 }

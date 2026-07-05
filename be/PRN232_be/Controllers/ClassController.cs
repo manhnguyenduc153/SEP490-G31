@@ -142,5 +142,14 @@ namespace PRN232_be.Controllers
             });
             return Ok(new { success = true, data = slots });
         }
+
+        // POST: api/Class/auto-schedule-semester
+        [HttpPost("auto-schedule-semester")]
+        [HasPermission(Permissions.Class.Class_Edit)]
+        public async Task<IActionResult> AutoScheduleSemester([FromBody] AutoScheduleSemesterRequestDto request)
+        {
+            var response = await _optService.AutoScheduleSemesterAsync(request);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }

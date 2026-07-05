@@ -342,6 +342,9 @@ namespace PRN232_be.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int?>("SemesterId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("StartDate")
                         .HasColumnType("date");
 
@@ -366,6 +369,8 @@ namespace PRN232_be.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CourseId");
+
+                    b.HasIndex("SemesterId");
 
                     b.HasIndex("TeacherId");
 
@@ -1184,7 +1189,32 @@ namespace PRN232_be.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("ParentName")
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
@@ -1201,6 +1231,20 @@ namespace PRN232_be.Migrations
 
                     b.Property<int>("StudentId")
                         .HasColumnType("int");
+
+                    b.Property<string>("TextSearch")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
 
@@ -1555,6 +1599,62 @@ namespace PRN232_be.Migrations
                     b.ToTable("rooms", (string)null);
                 });
 
+            modelBuilder.Entity("PRN232_be.Models.Semester", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TextSearch")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("semesters", (string)null);
+                });
+
             modelBuilder.Entity("PRN232_be.Models.Student", b =>
                 {
                     b.Property<int>("Id")
@@ -1713,6 +1813,41 @@ namespace PRN232_be.Migrations
                     b.ToTable("student_grades", (string)null);
                 });
 
+            modelBuilder.Entity("PRN232_be.Models.StudentRegistration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PreferredSlotsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SemesterId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("SemesterId");
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("student_registrations", (string)null);
+                });
+
             modelBuilder.Entity("PRN232_be.Models.Teacher", b =>
                 {
                     b.Property<int>("Id")
@@ -1793,6 +1928,35 @@ namespace PRN232_be.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("teachers", (string)null);
+                });
+
+            modelBuilder.Entity("PRN232_be.Models.TeacherAvailability", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SemesterId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SlotIndex")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TeacherId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemesterId");
+
+                    b.HasIndex("TeacherId");
+
+                    b.ToTable("teacher_availabilities", (string)null);
                 });
 
             modelBuilder.Entity("PRN232_be.Models.TimeSlot", b =>
@@ -1923,12 +2087,19 @@ namespace PRN232_be.Migrations
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("PRN232_be.Models.Semester", "Semester")
+                        .WithMany()
+                        .HasForeignKey("SemesterId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PRN232_be.Models.Teacher", "Teacher")
                         .WithMany()
                         .HasForeignKey("TeacherId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Course");
+
+                    b.Navigation("Semester");
 
                     b.Navigation("Teacher");
                 });
@@ -2254,6 +2425,52 @@ namespace PRN232_be.Migrations
                     b.Navigation("StudentClass");
                 });
 
+            modelBuilder.Entity("PRN232_be.Models.StudentRegistration", b =>
+                {
+                    b.HasOne("PRN232_be.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PRN232_be.Models.Semester", "Semester")
+                        .WithMany("StudentRegistrations")
+                        .HasForeignKey("SemesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PRN232_be.Models.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Semester");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("PRN232_be.Models.TeacherAvailability", b =>
+                {
+                    b.HasOne("PRN232_be.Models.Semester", "Semester")
+                        .WithMany("TeacherAvailabilities")
+                        .HasForeignKey("SemesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PRN232_be.Models.Teacher", "Teacher")
+                        .WithMany()
+                        .HasForeignKey("TeacherId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Semester");
+
+                    b.Navigation("Teacher");
+                });
+
             modelBuilder.Entity("PRN232_be.Models.Class", b =>
                 {
                     b.Navigation("ClassSchedules");
@@ -2328,6 +2545,13 @@ namespace PRN232_be.Migrations
                     b.Navigation("ClassSchedules");
 
                     b.Navigation("ExamSchedules");
+                });
+
+            modelBuilder.Entity("PRN232_be.Models.Semester", b =>
+                {
+                    b.Navigation("StudentRegistrations");
+
+                    b.Navigation("TeacherAvailabilities");
                 });
 
             modelBuilder.Entity("PRN232_be.Models.Student", b =>

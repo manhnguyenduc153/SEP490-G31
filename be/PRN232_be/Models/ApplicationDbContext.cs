@@ -44,6 +44,9 @@ namespace PRN232_be.Models
         public DbSet<StudentGrade> StudentGrades { get; set; }
         public DbSet<Homework> Homeworks { get; set; }
         public DbSet<HomeworkSubmission> HomeworkSubmissions { get; set; }
+        public DbSet<Semester> Semesters { get; set; }
+        public DbSet<TeacherAvailability> TeacherAvailabilities { get; set; }
+        public DbSet<StudentRegistration> StudentRegistrations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

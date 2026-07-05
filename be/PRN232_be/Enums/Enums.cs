@@ -217,4 +217,24 @@ namespace PRN232_be.Enums
         [StringValue("IELTS 6.5+")]
         Ielts65Plus = 6
     }
+
+    public enum SemesterStatus
+    {
+        [StringValue("Active/Registering")]
+        Active = 1,
+        [StringValue("Ongoing")]
+        Ongoing = 2,
+        [StringValue("Completed")]
+        Completed = 3
+    }
+
+    public enum StudentRegistrationStatus
+    {
+        [StringValue("Pending")]
+        Pending = 0,
+        [StringValue("Scheduled")]
+        Scheduled = 1,
+        [StringValue("Cancelled")]
+        Cancelled = 2
+    }
 }

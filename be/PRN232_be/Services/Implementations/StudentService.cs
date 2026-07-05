@@ -67,6 +67,19 @@ namespace PRN232_be.Services.Implementations
                 var entities = await query.ApplyPagingAsync(searchDto);
 
                 var dtos = entities.Select(MapToDto).ToList();
+                
+                // Populate HasAccount in bulk
+                var emails = dtos.Select(d => d.Email).Where(email => !string.IsNullOrEmpty(email)).ToList();
+                var existingAccountEmails = await _userManager.Users
+                    .Where(u => emails.Contains(u.Email))
+                    .Select(u => u.Email)
+                    .ToListAsync();
+
+                foreach (var dto in dtos)
+                {
+                    dto.HasAccount = dto.Email != null && existingAccountEmails.Contains(dto.Email);
+                }
+
                 var pagingResponse = dtos.ToPagingResponse(totalRecords, searchDto);
 
                 return ApiResponse<PagingResponse<StudentDto>>.Ok(pagingResponse, "GET_STUDENT_LIST_SUCCESS");
@@ -87,7 +100,13 @@ namespace PRN232_be.Services.Implementations
                     return ApiResponse<StudentDto>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                return ApiResponse<StudentDto>.Ok(MapToDto(entity), "GET_STUDENT_DETAIL_SUCCESS");
+                var dto = MapToDto(entity);
+                if (!string.IsNullOrEmpty(dto.Email))
+                {
+                    dto.HasAccount = await _userManager.Users.AnyAsync(u => u.Email == dto.Email);
+                }
+
+                return ApiResponse<StudentDto>.Ok(dto, "GET_STUDENT_DETAIL_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -105,36 +124,60 @@ namespace PRN232_be.Services.Implementations
                     return ApiResponse<StudentDto>.Fail(validationError, StatusCodes.Status400BadRequest);
                 }
 
-                // Tạo tài khoản IdentityUser cho học sinh
-                var emailTrimmed = dto.Email!.Trim();
-                var identityUser = new IdentityUser
-                {
-                    UserName = emailTrimmed, // username là email
-                    Email = emailTrimmed,
-                    PhoneNumber = dto.Phone?.Trim(),
-                    EmailConfirmed = true
-                };
-
-                var userResult = await _userManager.CreateAsync(identityUser, "123456");
-                if (!userResult.Succeeded)
-                {
-                    var errors = string.Join(", ", userResult.Errors.Select(e => e.Description));
-                    return ApiResponse<StudentDto>.Fail($"ERR_CREATE_USER_FAILED: {errors}", StatusCodes.Status400BadRequest);
-                }
-
-                if (!await _roleManager.RoleExistsAsync("Student"))
-                {
-                    await _roleManager.CreateAsync(new IdentityRole("Student"));
-                }
-                await _userManager.AddToRoleAsync(identityUser, "Student");
-
                 var entity = dto.Adapt<Student>();
                 entity.Id = 0;
 
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
 
-                return ApiResponse<StudentDto>.Created(MapToDto(entity), "CREATE_STUDENT_SUCCESS");
+                // Automatically provision user account
+                if (!string.IsNullOrWhiteSpace(entity.Email))
+                {
+                    var emailTrimmed = entity.Email.Trim();
+                    
+                    if (!await _roleManager.RoleExistsAsync("Student"))
+                    {
+                        await _roleManager.CreateAsync(new IdentityRole("Student"));
+                    }
+
+                    var existingUser = await _userManager.FindByEmailAsync(emailTrimmed);
+                    if (existingUser == null)
+                    {
+                        var identityUser = new IdentityUser
+                        {
+                            UserName = emailTrimmed,
+                            Email = emailTrimmed,
+                            PhoneNumber = entity.Phone?.Trim(),
+                            EmailConfirmed = true
+                        };
+
+                        var userResult = await _userManager.CreateAsync(identityUser, "123456");
+                        if (userResult.Succeeded)
+                        {
+                            await _userManager.AddToRoleAsync(identityUser, "Student");
+                        }
+                        else
+                        {
+                            var errMsgs = string.Join(", ", userResult.Errors.Select(e => e.Description));
+                            return ApiResponse<StudentDto>.Fail($"ERR_ACCOUNT_CREATION_FAILED: {errMsgs}", StatusCodes.Status400BadRequest);
+                        }
+                    }
+                    else
+                    {
+                        if (!await _userManager.IsInRoleAsync(existingUser, "Student"))
+                        {
+                            await _userManager.AddToRoleAsync(existingUser, "Student");
+                        }
+                    }
+                }
+
+                var resultDto = MapToDto(entity);
+                if (!string.IsNullOrEmpty(resultDto.Email))
+                {
+                    resultDto.HasAccount = await _userManager.Users.AnyAsync(u => u.Email == resultDto.Email);
+                }
+
+                return ApiResponse<StudentDto>.Created(resultDto, "CREATE_STUDENT_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -158,12 +201,54 @@ namespace PRN232_be.Services.Implementations
                     return ApiResponse<StudentDto>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                var oldEmail = existingEntity.Email;
                 dto.Adapt(existingEntity);
 
                 await _repository.UpdateAsync(existingEntity);
                 await _repository.SaveChangesAsync();
 
-                return ApiResponse<StudentDto>.Ok(MapToDto(existingEntity), "UPDATE_STUDENT_SUCCESS");
+                // If profile is active, make sure user is not locked out
+                if (existingEntity.Status == (int)StudentStatus.Active && !string.IsNullOrEmpty(existingEntity.Email))
+                {
+                    var user = await _userManager.FindByEmailAsync(existingEntity.Email.Trim());
+                    if (user != null && await _userManager.IsLockedOutAsync(user))
+                    {
+                        await _userManager.SetLockoutEndDateAsync(user, null);
+                    }
+                }
+
+                // Sync email change to IdentityUser if it exists
+                if (!string.Equals(oldEmail, existingEntity.Email, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(oldEmail))
+                {
+                    var user = await _userManager.FindByEmailAsync(oldEmail.Trim());
+                    if (user != null)
+                    {
+                        var newEmail = existingEntity.Email!.Trim();
+                        user.Email = newEmail;
+                        user.NormalizedEmail = _userManager.NormalizeEmail(newEmail);
+
+                        var prefix = newEmail.Split('@')[0];
+                        var finalUsername = prefix;
+                        int suffix = 1;
+                        while (await _userManager.FindByNameAsync(finalUsername) != null)
+                        {
+                            finalUsername = $"{prefix}{suffix++}";
+                        }
+
+                        user.UserName = finalUsername;
+                        user.NormalizedUserName = _userManager.NormalizeName(finalUsername);
+
+                        await _userManager.UpdateAsync(user);
+                    }
+                }
+
+                var resultDto = MapToDto(existingEntity);
+                if (!string.IsNullOrEmpty(resultDto.Email))
+                {
+                    resultDto.HasAccount = await _userManager.Users.AnyAsync(u => u.Email == resultDto.Email);
+                }
+
+                return ApiResponse<StudentDto>.Ok(resultDto, "UPDATE_STUDENT_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -179,6 +264,16 @@ namespace PRN232_be.Services.Implementations
                 if (existingEntity == null)
                 {
                     return ApiResponse<bool>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                // Delete IdentityUser if it exists
+                if (!string.IsNullOrEmpty(existingEntity.Email))
+                {
+                    var user = await _userManager.FindByEmailAsync(existingEntity.Email.Trim());
+                    if (user != null)
+                    {
+                        await _userManager.DeleteAsync(user);
+                    }
                 }
 
                 await _repository.DeleteAsync(existingEntity);
@@ -200,6 +295,16 @@ namespace PRN232_be.Services.Implementations
                 if (existingEntity == null)
                 {
                     return ApiResponse<bool>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                // Lockout IdentityUser if it exists
+                if (!string.IsNullOrEmpty(existingEntity.Email))
+                {
+                    var user = await _userManager.FindByEmailAsync(existingEntity.Email.Trim());
+                    if (user != null)
+                    {
+                        await _userManager.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue);
+                    }
                 }
 
                 await _repository.DeactiveAsync(existingEntity);
@@ -313,6 +418,105 @@ namespace PRN232_be.Services.Implementations
             }
 
             return ApiResponse<List<StudentDto>>.Ok(results, "IMPORT_STUDENT_SUCCESS");
+        }
+
+        public async Task<ApiResponse<bool>> BulkProvisionAccountsAsync(List<int> studentIds)
+        {
+            try
+            {
+                if (studentIds == null || !studentIds.Any())
+                {
+                    return ApiResponse<bool>.Fail("ERR_NO_STUDENTS_SELECTED", StatusCodes.Status400BadRequest);
+                }
+
+                var students = await _repository.FindAll()
+                    .Where(s => studentIds.Contains(s.Id) && !s.IsDeleted)
+                    .ToListAsync();
+
+                if (!students.Any())
+                {
+                    return ApiResponse<bool>.Fail("ERR_STUDENTS_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (!await _roleManager.RoleExistsAsync("Student"))
+                {
+                    await _roleManager.CreateAsync(new IdentityRole("Student"));
+                }
+
+                var errors = new List<string>();
+                int successCount = 0;
+
+                foreach (var student in students)
+                {
+                    if (string.IsNullOrWhiteSpace(student.Email))
+                    {
+                        errors.Add($"Học sinh '{student.Name}' (Mã: {student.Code}) không có email.");
+                        continue;
+                    }
+
+                    var emailTrimmed = student.Email.Trim();
+
+                    // Check if account already exists for this email
+                    var existingUser = await _userManager.FindByEmailAsync(emailTrimmed);
+                    if (existingUser != null)
+                    {
+                        // Account already exists, check role
+                        if (!await _userManager.IsInRoleAsync(existingUser, "Student"))
+                        {
+                            await _userManager.AddToRoleAsync(existingUser, "Student");
+                        }
+                        successCount++;
+                        continue;
+                    }
+
+                    // Extract prefix from email to use as UserName
+                    var prefix = emailTrimmed.Split('@')[0];
+                    var finalUsername = prefix;
+                    int suffix = 1;
+
+                    // Ensure unique username
+                    while (await _userManager.FindByNameAsync(finalUsername) != null)
+                    {
+                        finalUsername = $"{prefix}{suffix++}";
+                    }
+
+                    var identityUser = new IdentityUser
+                    {
+                        UserName = finalUsername,
+                        Email = emailTrimmed,
+                        PhoneNumber = student.Phone?.Trim(),
+                        EmailConfirmed = true
+                    };
+
+                    var userResult = await _userManager.CreateAsync(identityUser, "123456");
+                    if (userResult.Succeeded)
+                    {
+                        await _userManager.AddToRoleAsync(identityUser, "Student");
+                        successCount++;
+                    }
+                    else
+                    {
+                        var errMsgs = string.Join(", ", userResult.Errors.Select(e => e.Description));
+                        errors.Add($"Học sinh '{student.Name}' (Email: {emailTrimmed}) lỗi: {errMsgs}");
+                    }
+                }
+
+                if (errors.Any())
+                {
+                    var combinedMessage = string.Join("; ", errors);
+                    if (successCount > 0)
+                    {
+                        return ApiResponse<bool>.Fail($"Cấp tài khoản không hoàn tất: Đã cấp thành công {successCount} tài khoản. Lỗi: {combinedMessage}", StatusCodes.Status400BadRequest);
+                    }
+                    return ApiResponse<bool>.Fail($"Cấp tài khoản thất bại: {combinedMessage}", StatusCodes.Status400BadRequest);
+                }
+
+                return ApiResponse<bool>.Ok(true, "PROVISION_ACCOUNTS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
         }
 
         // ===================== PRIVATE VALIDATE =====================

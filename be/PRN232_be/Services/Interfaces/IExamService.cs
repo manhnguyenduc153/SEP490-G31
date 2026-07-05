@@ -13,5 +13,9 @@ namespace PRN232_be.Services.Interfaces
         Task<ApiResponse<ExamDto>> EditAsync(ExamSaveDto dto);
         Task<ApiResponse<bool>> DeleteAsync(int id);
         Task<ApiResponse<ExamDto>> CopyAsync(int id);
+        Task<ApiResponse<List<ExamAttemptDto>>> GetStudentAttemptsAsync(int examId, string userEmailOrCode);
+        Task<ApiResponse<List<ExamDto>>> GetStudentExamsAsync(string userEmailOrCode);
+        Task<ApiResponse<ExamAttemptDto>> StartAttemptAsync(int examId, string userEmailOrCode);
+        Task<ApiResponse<ExamAttemptDto>> SubmitAttemptAsync(int examId, ExamSubmitDto submitDto, string userEmailOrCode);
     }
 }
