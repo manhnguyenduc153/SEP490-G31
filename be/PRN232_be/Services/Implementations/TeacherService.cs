@@ -37,7 +37,23 @@ namespace PRN232_be.Services.Implementations
 
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
                 {
-                    query = query.Where(c => c.TextSearch != null && c.TextSearch.Contains(searchDto.Keyword));
+                    var keyword = searchDto.Keyword.Trim();
+                    query = query.Where(c => c.TextSearch != null && c.TextSearch.Contains(keyword));
+                }
+
+                if (searchDto.TeacherStatus.HasValue)
+                {
+                    query = query.Where(c => c.Status == searchDto.TeacherStatus.Value);
+                }
+
+                if (searchDto.GradeLevel.HasValue)
+                {
+                    query = query.Where(c => c.GradeLevel == searchDto.GradeLevel.Value);
+                }
+
+                if (searchDto.Gender.HasValue)
+                {
+                    query = query.Where(c => c.Gender == searchDto.Gender.Value);
                 }
 
                 var totalRecords = await query.CountAsync();
@@ -87,6 +103,7 @@ namespace PRN232_be.Services.Implementations
                 
                 // Mặc định Status khi mới tạo là 1
                 entity.Status = dto.Status != 0 ? dto.Status : 1;
+                entity.TextSearch = dto.TextSearch;
 
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
@@ -116,6 +133,7 @@ namespace PRN232_be.Services.Implementations
                 }
 
                 dto.Adapt(existingEntity);
+                existingEntity.TextSearch = dto.TextSearch;
 
                 await _repository.UpdateAsync(existingEntity);
                 await _repository.SaveChangesAsync();
@@ -145,6 +163,7 @@ namespace PRN232_be.Services.Implementations
                     var entity = dto.Adapt<Teacher>();
                     entity.Id = 0;
                     entity.Status = dto.Status != 0 ? dto.Status : 1;
+                    entity.TextSearch = dto.TextSearch;
 
                     // Tự động tạo IdentityUser cho Teacher
                     var user = new IdentityUser

@@ -3941,3 +3941,45 @@ Details: Query: None | User: Anonymous
 [2026-07-03 05:11:34] [CLIENT ERROR 404] GET /favicon.ico
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-07-03 08:18:51] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:22:12] [CLIENT ERROR 400] POST /api/Teacher
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-03 08:32:22] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-03 08:48:01] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-04 22:33:11] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-04 22:36:18] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-04 22:36:18] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 16:50:39] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 16:53:12] [CLIENT ERROR 404] GET /uploads/documents/0e93deab-2342-4c22-88a2-be278a1ad4aa_snaptik.vn_7655315153193405714.mp4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 16:55:15] [CLIENT ERROR 404] GET /uploads/documents/2a41e8c5-d0e4-41d0-847d-bd7cec1a575b_64c96388-9a01-4c5f-9515-62931db88ef8.png
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 16:55:15] [CLIENT ERROR 404] GET /uploads/documents/36d1dca4-4219-438b-96d5-3cb7880813a4_9a7c12cd-b438-4983-adb5-54c391dfbc44.png
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 16:55:25] [CLIENT ERROR 404] GET /uploads/documents/2a41e8c5-d0e4-41d0-847d-bd7cec1a575b_64c96388-9a01-4c5f-9515-62931db88ef8.png
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 17:00:17] [CLIENT ERROR 400] POST /api/Homework
+Details: Query: None | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
+[2026-07-05 17:00:24] [CLIENT ERROR 400] POST /api/Homework
+Details: Query: None | User: hoangnguyenehee@gmail.com
+------------------------------------------------------------
