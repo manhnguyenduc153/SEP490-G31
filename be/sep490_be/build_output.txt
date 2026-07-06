@@ -1,0 +1,22 @@
+﻿  Determining projects to restore...
+  All projects are up-to-date for restore.
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Repositories\Implementations\AddressRepository.cs(22,37): warning CS0108: 'AddressRepository.GetByIdAsync(int)' hides inherited member 'BaseRepository<Address, CloneEbayDbContext>.GetByIdAsync(int)'. Use the new keyword if hiding was intended. [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Repositories\Implementations\AddressRepository.cs(27,27): warning CS0108: 'AddressRepository.AddAsync(Address)' hides inherited member 'BaseRepository<Address, CloneEbayDbContext>.AddAsync(Address)'. Use the new keyword if hiding was intended. [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Repositories\Implementations\AddressRepository.cs(43,27): warning CS0108: 'AddressRepository.DeleteAsync(Address)' hides inherited member 'BaseRepository<Address, CloneEbayDbContext>.DeleteAsync(Address)'. Use the new keyword if hiding was intended. [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Migrations\20260204154507_edit-column-return-request.cs(8,26): warning CS8981: The type name 'editcolumnreturnrequest' only contains lower-cased ascii characters. Such names may become reserved for the language. [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Migrations\20260204154507_edit-column-return-request.Designer.cs(16,19): warning CS8981: The type name 'editcolumnreturnrequest' only contains lower-cased ascii characters. Such names may become reserved for the language. [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Repositories\Implementations\AuctionRepository.cs(50,46): error CS0115: 'AuctionRepository.GetByIdAsync(params object[])': no suitable method found to override [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+
+Build FAILED.
+
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Repositories\Implementations\AddressRepository.cs(22,37): warning CS0108: 'AddressRepository.GetByIdAsync(int)' hides inherited member 'BaseRepository<Address, CloneEbayDbContext>.GetByIdAsync(int)'. Use the new keyword if hiding was intended. [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Repositories\Implementations\AddressRepository.cs(27,27): warning CS0108: 'AddressRepository.AddAsync(Address)' hides inherited member 'BaseRepository<Address, CloneEbayDbContext>.AddAsync(Address)'. Use the new keyword if hiding was intended. [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Repositories\Implementations\AddressRepository.cs(43,27): warning CS0108: 'AddressRepository.DeleteAsync(Address)' hides inherited member 'BaseRepository<Address, CloneEbayDbContext>.DeleteAsync(Address)'. Use the new keyword if hiding was intended. [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Migrations\20260204154507_edit-column-return-request.cs(8,26): warning CS8981: The type name 'editcolumnreturnrequest' only contains lower-cased ascii characters. Such names may become reserved for the language. [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Migrations\20260204154507_edit-column-return-request.Designer.cs(16,19): warning CS8981: The type name 'editcolumnreturnrequest' only contains lower-cased ascii characters. Such names may become reserved for the language. [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Repositories\Implementations\AuctionRepository.cs(50,46): error CS0115: 'AuctionRepository.GetByIdAsync(params object[])': no suitable method found to override [C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\sep490_be.csproj]
+    5 Warning(s)
+    1 Error(s)
+
+Time Elapsed 00:00:01.50
+
