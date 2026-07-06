@@ -229,6 +229,15 @@ namespace sep490_be.DTO.Common
             public const string StudentGrade_Delete = "StudentGrade.Delete";
         }
 
+        public static class Homework
+        {
+            public const string HomeworkPage = "Homework";
+            public const string Homework_View = "Homework.View";
+            public const string Homework_Create = "Homework.Create";
+            public const string Homework_Edit = "Homework.Edit";
+            public const string Homework_Delete = "Homework.Delete";
+        }
+
         public static List<string> GetAllPermissions()
         {
             var permissions = new List<string>();
