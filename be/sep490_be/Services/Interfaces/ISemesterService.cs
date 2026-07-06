@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using sep490_be.DTO;
 using sep490_be.DTO.Semester;
@@ -24,6 +24,9 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<PagingResponse<StudentRegistrationDto>>> GetStudentRegistrationsPagedAsync(
             int semesterId, string? keyword, int? courseId, int? status, int pageIndex, int pageSize);
         Task<ApiResponse<List<StudentRegistrationDto>>> ImportStudentRegistrationsAsync(List<StudentRegistrationSaveDto> dtos);
+        Task<ApiResponse<StudentRegistrationDto>> CreateStudentRegistrationAsync(StudentRegistrationSaveDto dto);
+        Task<ApiResponse<StudentRegistrationDto>> EditStudentRegistrationAsync(int id, StudentRegistrationSaveDto dto);
+        Task<ApiResponse<bool>> DeleteStudentRegistrationAsync(int id);
     }
 }
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -237,6 +237,7 @@ namespace sep490_be.Services.Implementations
                     .Include(sr => sr.Course)
                     .Include(sr => sr.Semester)
                     .Where(sr => sr.SemesterId == semesterId)
+                    .OrderByDescending(sr => sr.Id)
                     .ToListAsync();
 
                 var dtos = list.Select(MapRegistrationToDto).ToList();
@@ -280,6 +281,8 @@ namespace sep490_be.Services.Implementations
                 {
                     query = query.Where(sr => sr.Status == status.Value);
                 }
+
+                query = query.OrderByDescending(sr => sr.Id);
 
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(pageIndex, pageSize);
@@ -436,6 +439,150 @@ namespace sep490_be.Services.Implementations
             {
                 await transaction.RollbackAsync();
                 return ApiResponse<List<StudentRegistrationDto>>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<StudentRegistrationDto>> CreateStudentRegistrationAsync(StudentRegistrationSaveDto dto)
+        {
+            try
+            {
+                if (dto.SemesterId == 0 || string.IsNullOrWhiteSpace(dto.StudentEmail))
+                {
+                    return ApiResponse<StudentRegistrationDto>.Fail("ERR_REGISTRATION_MISSING_SEMESTER_OR_EMAIL", StatusCodes.Status400BadRequest);
+                }
+
+                if (dto.CourseId == 0)
+                {
+                    return ApiResponse<StudentRegistrationDto>.Fail("ERR_REGISTRATION_MISSING_COURSE", StatusCodes.Status400BadRequest);
+                }
+
+                // 1. Find or create Student
+                var student = await _dbContext.Students
+                    .FirstOrDefaultAsync(s => s.Email == dto.StudentEmail && !s.IsDeleted);
+                
+                if (student == null)
+                {
+                    var studentCode = !string.IsNullOrWhiteSpace(dto.StudentCode) 
+                        ? dto.StudentCode 
+                        : $"ST_{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}";
+
+                    student = new Student
+                    {
+                        Code = studentCode,
+                        Name = dto.StudentName,
+                        Email = dto.StudentEmail,
+                        Phone = dto.StudentPhone,
+                        Status = (int)StudentStatus.Active,
+                        TextSearch = StringHelper.GenerateTextSearch(studentCode, dto.StudentName, dto.StudentEmail)
+                    };
+
+                    _dbContext.Students.Add(student);
+                    await _dbContext.SaveChangesAsync();
+                }
+
+                // 2. Check existing registration for this student/semester/course
+                var existing = await _dbContext.StudentRegistrations
+                    .FirstOrDefaultAsync(sr => sr.SemesterId == dto.SemesterId 
+                                            && sr.StudentId == student.Id 
+                                            && sr.CourseId == dto.CourseId);
+
+                if (existing != null)
+                {
+                    return ApiResponse<StudentRegistrationDto>.Fail("ERR_STUDENT_ALREADY_REGISTERED_FOR_THIS_COURSE", StatusCodes.Status400BadRequest);
+                }
+
+                // 3. Create new StudentRegistration
+                var reg = new StudentRegistration
+                {
+                    StudentId = student.Id,
+                    CourseId = dto.CourseId,
+                    SemesterId = dto.SemesterId,
+                    PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>()),
+                    Status = dto.Status
+                };
+
+                _dbContext.StudentRegistrations.Add(reg);
+                await _dbContext.SaveChangesAsync();
+
+                var reloaded = await _dbContext.StudentRegistrations
+                    .Include(sr => sr.Student)
+                    .Include(sr => sr.Course)
+                    .Include(sr => sr.Semester)
+                    .FirstOrDefaultAsync(sr => sr.Id == reg.Id);
+
+                return ApiResponse<StudentRegistrationDto>.Created(MapRegistrationToDto(reloaded!), "CREATE_REGISTRATION_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<StudentRegistrationDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<StudentRegistrationDto>> EditStudentRegistrationAsync(int id, StudentRegistrationSaveDto dto)
+        {
+            try
+            {
+                var existing = await _dbContext.StudentRegistrations
+                    .FirstOrDefaultAsync(sr => sr.Id == id);
+
+                if (existing == null)
+                {
+                    return ApiResponse<StudentRegistrationDto>.Fail("ERR_REGISTRATION_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (existing.Status == 1) // 1 = Scheduled
+                {
+                    return ApiResponse<StudentRegistrationDto>.Fail("ERR_REGISTRATION_ALREADY_SCHEDULED_CANNOT_MODIFY", StatusCodes.Status400BadRequest);
+                }
+
+                // Update details
+                existing.CourseId = dto.CourseId;
+                existing.SemesterId = dto.SemesterId;
+                existing.PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>());
+                existing.Status = dto.Status;
+
+                _dbContext.StudentRegistrations.Update(existing);
+                await _dbContext.SaveChangesAsync();
+
+                var reloaded = await _dbContext.StudentRegistrations
+                    .Include(sr => sr.Student)
+                    .Include(sr => sr.Course)
+                    .Include(sr => sr.Semester)
+                    .FirstOrDefaultAsync(sr => sr.Id == existing.Id);
+
+                return ApiResponse<StudentRegistrationDto>.Ok(MapRegistrationToDto(reloaded!), "UPDATE_REGISTRATION_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<StudentRegistrationDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<bool>> DeleteStudentRegistrationAsync(int id)
+        {
+            try
+            {
+                var existing = await _dbContext.StudentRegistrations
+                    .FirstOrDefaultAsync(sr => sr.Id == id);
+
+                if (existing == null)
+                {
+                    return ApiResponse<bool>.Fail("ERR_REGISTRATION_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (existing.Status == 1) // 1 = Scheduled
+                {
+                    return ApiResponse<bool>.Fail("ERR_REGISTRATION_ALREADY_SCHEDULED_CANNOT_DELETE", StatusCodes.Status400BadRequest);
+                }
+
+                _dbContext.StudentRegistrations.Remove(existing);
+                await _dbContext.SaveChangesAsync();
+
+                return ApiResponse<bool>.Ok(true, "DELETE_REGISTRATION_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 

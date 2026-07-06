@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using FluentAssertions;
 using sep490_be.DTO.Semester;
+using sep490_be.DTO.Student;
 using sep490_be.Models;
 using sep490_be.Services.Implementations;
 using Xunit;
@@ -123,6 +124,163 @@ namespace sep490_be.Tests.Services
                 response.StatusCode.Should().Be(StatusCodes.Status201Created); // 201 Created
                 response.Data.Should().NotBeNull();
                 response.Data!.Code.Should().Be("AUTUMN2026");
+            }
+        }
+
+        [Fact]
+        public async Task Normal_CreateStudentRegistrationAsync_WithValidDto_ShouldCreateRegistration()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttpAccessor = GetMockHttpContextAccessor();
+            int semId;
+            int courseId;
+
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var semester = new Semester { Code = "FALL2026", Name = "Kỳ học Thu 2026", StartDate = DateTime.Now, EndDate = DateTime.Now.AddMonths(3) };
+                var course = new Course { Code = "IELTS75", Name = "IELTS Advanced 7.5", Status = 1 };
+                context.Semesters.Add(semester);
+                context.Courses.Add(course);
+                await context.SaveChangesAsync();
+
+                semId = semester.Id;
+                courseId = course.Id;
+            }
+
+            var dto = new StudentRegistrationSaveDto
+            {
+                SemesterId = semId,
+                CourseId = courseId,
+                StudentEmail = "student@test.com",
+                StudentName = "Nguyen Van Student",
+                StudentPhone = "0900000000",
+                PreferredSlots = new List<string> { "Morning", "Evening" },
+                Status = 0
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.CreateStudentRegistrationAsync(dto);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
+                response.Data.Should().NotBeNull();
+                response.Data!.StudentEmail.Should().Be("student@test.com");
+                response.Data.PreferredSlots.Should().Contain("Morning");
+            }
+        }
+
+        [Fact]
+        public async Task Normal_EditStudentRegistrationAsync_WithValidDto_ShouldUpdateRegistration()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttpAccessor = GetMockHttpContextAccessor();
+            int semId;
+            int courseId;
+            int studentId;
+            int regId;
+
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var semester = new Semester { Code = "FALL2026", Name = "Kỳ học Thu 2026", StartDate = DateTime.Now, EndDate = DateTime.Now.AddMonths(3) };
+                var course = new Course { Code = "IELTS75", Name = "IELTS Advanced 7.5", Status = 1 };
+                var student = new Student { Code = "ST001", Name = "Nguyen Student", Email = "student@test.com", Status = 1 };
+                context.Semesters.Add(semester);
+                context.Courses.Add(course);
+                context.Students.Add(student);
+                await context.SaveChangesAsync();
+
+                semId = semester.Id;
+                courseId = course.Id;
+                studentId = student.Id;
+
+                var reg = new StudentRegistration
+                {
+                    SemesterId = semId,
+                    CourseId = courseId,
+                    StudentId = studentId,
+                    PreferredSlotsJson = "[\"Morning\"]",
+                    Status = 0
+                };
+                context.StudentRegistrations.Add(reg);
+                await context.SaveChangesAsync();
+                regId = reg.Id;
+            }
+
+            var updateDto = new StudentRegistrationSaveDto
+            {
+                SemesterId = semId,
+                CourseId = courseId,
+                StudentEmail = "student@test.com",
+                StudentName = "Nguyen Student",
+                PreferredSlots = new List<string> { "Afternoon" }, // updated
+                Status = 1 // Scheduled
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.EditStudentRegistrationAsync(regId, updateDto);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
+                response.Data.Should().NotBeNull();
+                response.Data!.PreferredSlots.Should().Contain("Afternoon");
+                response.Data.Status.Should().Be(1);
+            }
+        }
+
+        [Fact]
+        public async Task Normal_DeleteStudentRegistrationAsync_WithValidId_ShouldRemoveRegistration()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttpAccessor = GetMockHttpContextAccessor();
+            int regId;
+
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var semester = new Semester { Code = "FALL2026", Name = "Kỳ học Thu 2026", StartDate = DateTime.Now, EndDate = DateTime.Now.AddMonths(3) };
+                var course = new Course { Code = "IELTS75", Name = "IELTS Advanced 7.5", Status = 1 };
+                var student = new Student { Code = "ST001", Name = "Nguyen Student", Email = "student@test.com", Status = 1 };
+                context.Semesters.Add(semester);
+                context.Courses.Add(course);
+                context.Students.Add(student);
+                await context.SaveChangesAsync();
+
+                var reg = new StudentRegistration
+                {
+                    SemesterId = semester.Id,
+                    CourseId = course.Id,
+                    StudentId = student.Id,
+                    PreferredSlotsJson = "[\"Morning\"]",
+                    Status = 0
+                };
+                context.StudentRegistrations.Add(reg);
+                await context.SaveChangesAsync();
+                regId = reg.Id;
+            }
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.DeleteStudentRegistrationAsync(regId);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
+                response.Data.Should().BeTrue();
+
+                var exists = await context.StudentRegistrations.AnyAsync(r => r.Id == regId);
+                exists.Should().BeFalse();
             }
         }
 
@@ -282,6 +440,216 @@ namespace sep490_be.Tests.Services
                 response.Success.Should().BeFalse();
                 response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
                 response.Message.Should().Be("ERR_SEMESTER_CODE_EXISTS");
+            }
+        }
+
+        [Fact]
+        public async Task Abnormal_CreateStudentRegistrationAsync_WhenAlreadyRegistered_ShouldReturnBadRequest()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttpAccessor = GetMockHttpContextAccessor();
+            int semId;
+            int courseId;
+
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var semester = new Semester { Code = "FALL2026", Name = "Kỳ học Thu 2026", StartDate = DateTime.Now, EndDate = DateTime.Now.AddMonths(3) };
+                var course = new Course { Code = "IELTS75", Name = "IELTS Advanced 7.5", Status = 1 };
+                var student = new Student { Code = "ST001", Name = "Nguyen Student", Email = "student@test.com", Status = 1 };
+                context.Semesters.Add(semester);
+                context.Courses.Add(course);
+                context.Students.Add(student);
+                await context.SaveChangesAsync();
+
+                semId = semester.Id;
+                courseId = course.Id;
+
+                var reg = new StudentRegistration
+                {
+                    SemesterId = semId,
+                    CourseId = courseId,
+                    StudentId = student.Id,
+                    PreferredSlotsJson = "[\"Morning\"]",
+                    Status = 0
+                };
+                context.StudentRegistrations.Add(reg);
+                await context.SaveChangesAsync();
+            }
+
+            var duplicateDto = new StudentRegistrationSaveDto
+            {
+                SemesterId = semId,
+                CourseId = courseId,
+                StudentEmail = "student@test.com",
+                StudentName = "Nguyen Student",
+                PreferredSlots = new List<string> { "Evening" },
+                Status = 0
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.CreateStudentRegistrationAsync(duplicateDto);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeFalse();
+                response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+                response.Message.Should().Be("ERR_STUDENT_ALREADY_REGISTERED_FOR_THIS_COURSE");
+            }
+        }
+
+        [Fact]
+        public async Task Abnormal_EditStudentRegistrationAsync_WhenNotFound_ShouldReturnNotFound()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttpAccessor = GetMockHttpContextAccessor();
+
+            var dto = new StudentRegistrationSaveDto
+            {
+                SemesterId = 1,
+                CourseId = 1,
+                StudentEmail = "test@test.com",
+                StudentName = "Test",
+                PreferredSlots = new List<string> { "Morning" },
+                Status = 0
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.EditStudentRegistrationAsync(9999, dto); // ID không tồn tại
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeFalse();
+                response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+                response.Message.Should().Be("ERR_REGISTRATION_NOT_FOUND");
+            }
+        }
+
+        [Fact]
+        public async Task Abnormal_DeleteStudentRegistrationAsync_WhenNotFound_ShouldReturnNotFound()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttpAccessor = GetMockHttpContextAccessor();
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.DeleteStudentRegistrationAsync(9999); // ID không tồn tại
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeFalse();
+                response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+                response.Message.Should().Be("ERR_REGISTRATION_NOT_FOUND");
+            }
+        }
+
+        [Fact]
+        public async Task Abnormal_EditStudentRegistrationAsync_WhenAlreadyScheduled_ShouldReturnBadRequest()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttpAccessor = GetMockHttpContextAccessor();
+            int regId;
+
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var semester = new Semester { Code = "FALL2026", Name = "Kỳ học Thu 2026", StartDate = DateTime.Now, EndDate = DateTime.Now.AddMonths(3) };
+                var course = new Course { Code = "IELTS75", Name = "IELTS Advanced 7.5", Status = 1 };
+                var student = new Student { Code = "ST001", Name = "Nguyen Student", Email = "student@test.com", Status = 1 };
+                context.Semesters.Add(semester);
+                context.Courses.Add(course);
+                context.Students.Add(student);
+                await context.SaveChangesAsync();
+
+                var reg = new StudentRegistration
+                {
+                    SemesterId = semester.Id,
+                    CourseId = course.Id,
+                    StudentId = student.Id,
+                    PreferredSlotsJson = "[\"Morning\"]",
+                    Status = 1 // Already Scheduled!
+                };
+                context.StudentRegistrations.Add(reg);
+                await context.SaveChangesAsync();
+                regId = reg.Id;
+            }
+
+            var dto = new StudentRegistrationSaveDto
+            {
+                SemesterId = 1,
+                CourseId = 1,
+                StudentEmail = "student@test.com",
+                StudentName = "Nguyen Student",
+                PreferredSlots = new List<string> { "Afternoon" },
+                Status = 1
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.EditStudentRegistrationAsync(regId, dto);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeFalse();
+                response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+                response.Message.Should().Be("ERR_REGISTRATION_ALREADY_SCHEDULED_CANNOT_MODIFY");
+            }
+        }
+
+        [Fact]
+        public async Task Abnormal_DeleteStudentRegistrationAsync_WhenAlreadyScheduled_ShouldReturnBadRequest()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttpAccessor = GetMockHttpContextAccessor();
+            int regId;
+
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var semester = new Semester { Code = "FALL2026", Name = "Kỳ học Thu 2026", StartDate = DateTime.Now, EndDate = DateTime.Now.AddMonths(3) };
+                var course = new Course { Code = "IELTS75", Name = "IELTS Advanced 7.5", Status = 1 };
+                var student = new Student { Code = "ST001", Name = "Nguyen Student", Email = "student@test.com", Status = 1 };
+                context.Semesters.Add(semester);
+                context.Courses.Add(course);
+                context.Students.Add(student);
+                await context.SaveChangesAsync();
+
+                var reg = new StudentRegistration
+                {
+                    SemesterId = semester.Id,
+                    CourseId = course.Id,
+                    StudentId = student.Id,
+                    PreferredSlotsJson = "[\"Morning\"]",
+                    Status = 1 // Already Scheduled!
+                };
+                context.StudentRegistrations.Add(reg);
+                await context.SaveChangesAsync();
+                regId = reg.Id;
+            }
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttpAccessor.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.DeleteStudentRegistrationAsync(regId);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeFalse();
+                response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+                response.Message.Should().Be("ERR_REGISTRATION_ALREADY_SCHEDULED_CANNOT_DELETE");
             }
         }
 
