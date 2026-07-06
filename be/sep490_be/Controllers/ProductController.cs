@@ -1,0 +1,80 @@
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using sep490_be.DTO.Product;
+using sep490_be.DTO.Common;
+using sep490_be.Services.Interfaces;
+using sep490_be.Helpers.Authorization;
+
+namespace sep490_be.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    [Authorize]
+    public class ProductController : ControllerBase
+    {
+        private readonly IProductService _productService;
+        private readonly IAuthorizationService _authorizationService;
+
+        public ProductController(IProductService productService, IAuthorizationService authorizationService)
+        {
+            _productService = productService;
+            _authorizationService = authorizationService;
+        }
+
+        // GET: api/Product
+        [HttpGet]
+        [HasPermission(Permissions.Product.Product_View)]
+        public async Task<IActionResult> GetAllProducts([FromQuery] ProductSearchDto searchDto)
+        {
+            var response = await _productService.GetAllProductsAsync(searchDto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Product/5
+        [HttpGet("{id}")]
+        [HasPermission(Permissions.Product.Product_View)]
+        public async Task<IActionResult> GetProductById(int id)
+        {
+            var response = await _productService.GetProductByIdAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Product
+        [HttpPost]
+        [HasPermission(Permissions.Product.Product_Create)]
+        public async Task<IActionResult> CreateProduct([FromBody] ProductSaveDto productDto)
+        {
+            var response = await _productService.CreateProductAsync(productDto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // PUT: api/Product/{id}
+        [HttpPut("{id}")]
+        [HasPermission(Permissions.Product.Product_Edit)]
+        public async Task<IActionResult> EditProduct(int id, [FromBody] ProductSaveDto productDto)
+        {
+            productDto.Id = id;
+            var response = await _productService.EditProductAsync(productDto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // DELETE: api/Product/5
+        [HttpDelete("{id}")]
+        [HasPermission(Permissions.Product.Product_Delete)]
+        public async Task<IActionResult> DeleteProduct(int id)
+        {
+            var response = await _productService.DeleteProductAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Product/{id}/deactive
+        [HttpPost("{id}/deactive")]
+        [HasPermission(Permissions.Product.Product_Delete)]
+        public async Task<IActionResult> DeactiveProduct(int id)
+        {
+            var response = await _productService.DeactiveProductAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
+    }
+}
+

@@ -1,4 +1,4 @@
-# Hướng Dẫn Phát Triển Chức Năng CRUD - Backend (ASP.NET Core)
+﻿# Hướng Dẫn Phát Triển Chức Năng CRUD - Backend (ASP.NET Core)
 
 Tài liệu này hướng dẫn chi tiết quy trình xây dựng phần Backend cho một luồng chức năng CRUD (Thêm, Đọc, Sửa, Vô hiệu hóa/Xóa) áp dụng mô hình **N-Tier/Clean Architecture** rút gọn, sử dụng **Repository Pattern** và **Unit of Work** kết hợp xác thực quyền hạn (Permission-based) và Bản địa hóa (Localization).
 
@@ -6,12 +6,12 @@ Dữ liệu mẫu đối chiếu trực tiếp với chức năng **Danh mục c
 
 ---
 
-## I. Tổng Quan Cấu Trúc Backend (`DoAn/be/PRN232_be`)
+## I. Tổng Quan Cấu Trúc Backend (`DoAn/be/sep490_be`)
 
 Thư mục Backend tổ chức các thành phần xử lý nghiệp vụ theo sơ đồ phân tách trách nhiệm sau:
 
 ```
-PRN232_be/
+sep490_be/
 ├── Controllers/                  # API Controllers tiếp nhận HTTP Request & phân quyền
 │   └── QuestionCategoryController.cs
 ├── DTO/                          # Data Transfer Objects (chứa data validation & text search helper)
@@ -57,7 +57,7 @@ PRN232_be/
 
 1. **Tạo Entity Class**:
    Khai báo trong thư mục `Models/`. Đối với các bảng chuẩn có Code và Name, hãy kế thừa từ `StandardEntity<TKey>` (đã kế thừa sẵn Id từ `BaseEntity` và các trường audit từ `AuditableEntity`).
-   *Ví dụ: [QuestionCategory.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/Models/QuestionCategory.cs)*
+   *Ví dụ: [QuestionCategory.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/Models/QuestionCategory.cs)*
    ```csharp
    public class QuestionCategory : StandardEntity<int>
    {
@@ -68,7 +68,7 @@ PRN232_be/
 
 2. **Cấu hình Fluent API (Configuration Class)**:
    Tạo file cấu hình trong `Models/Configurations/` để thiết lập ánh xạ cơ sở dữ liệu. Cấu hình này chứa bộ lọc toàn cục tự động loại trừ các bản ghi bị xóa mềm (`IsDeleted == true`).
-   *Ví dụ: [QuestionCategoryConfiguration.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/Models/Configurations/QuestionCategoryConfiguration.cs)*
+   *Ví dụ: [QuestionCategoryConfiguration.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/Models/Configurations/QuestionCategoryConfiguration.cs)*
    ```csharp
    public class QuestionCategoryConfiguration : IEntityTypeConfiguration<QuestionCategory>
    {
@@ -87,7 +87,7 @@ PRN232_be/
    ```
 
 3. **Khai báo DbSet trong DbContext**:
-   Khai báo thuộc tính `DbSet<QuestionCategory>` trong [ApplicationDbContext.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/Models/ApplicationDbContext.cs). `ApplicationDbContext` sử dụng cơ chế nạp tự động qua `ApplyConfigurationsFromAssembly` và xử lý Soft Delete tự động qua ghi đè `SaveChanges`/`SaveChangesAsync` để chuyển trạng thái EntityState.Deleted sang EntityState.Modified kèm thuộc tính `IsDeleted = true`.
+   Khai báo thuộc tính `DbSet<QuestionCategory>` trong [ApplicationDbContext.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/Models/ApplicationDbContext.cs). `ApplicationDbContext` sử dụng cơ chế nạp tự động qua `ApplyConfigurationsFromAssembly` và xử lý Soft Delete tự động qua ghi đè `SaveChanges`/`SaveChangesAsync` để chuyển trạng thái EntityState.Deleted sang EntityState.Modified kèm thuộc tính `IsDeleted = true`.
 
 ---
 
@@ -97,7 +97,7 @@ Tạo thư mục DTO riêng cho entity (ví dụ: `DTO/QuestionCategory/`).
 * **`QuestionCategoryDto`**: Chứa dữ liệu phản hồi trả về cho client.
 * **`QuestionCategorySaveDto`**: Dùng cho hành động tạo mới (Create) và cập nhật (Edit).
   * *Lưu ý*: Có thuộc tính `TextSearch` tự động tính toán từ các trường khác (thông qua `StringHelper.GenerateTextSearch`) để hỗ trợ tìm kiếm nhanh/không dấu.
-  * *Ví dụ: [QuestionCategorySaveDto.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/DTO/QuestionCategory/QuestionCategorySaveDto.cs)*:
+  * *Ví dụ: [QuestionCategorySaveDto.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/DTO/QuestionCategory/QuestionCategorySaveDto.cs)*:
     ```csharp
     public class QuestionCategorySaveDto
     {
@@ -115,13 +115,13 @@ Tạo thư mục DTO riêng cho entity (ví dụ: `DTO/QuestionCategory/`).
 ### BƯỚC 3: Tạo Repository Interface & Implementation
 
 Kế thừa từ cơ chế repository chung của dự án để tái sử dụng toàn bộ hàm CRUD cơ bản (Add, Update, Delete, FindAll, FindByCondition, Deactive).
-* **Interface**: *[IQuestionCategoryRepository.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/Repositories/Interfaces/IQuestionCategoryRepository.cs)*
+* **Interface**: *[IQuestionCategoryRepository.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/Repositories/Interfaces/IQuestionCategoryRepository.cs)*
   ```csharp
   public interface IQuestionCategoryRepository : IBaseRepository<QuestionCategory, ApplicationDbContext>
   {
   }
   ```
-* **Implementation**: *[QuestionCategoryRepository.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/Repositories/Implementations/QuestionCategoryRepository.cs)*
+* **Implementation**: *[QuestionCategoryRepository.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/Repositories/Implementations/QuestionCategoryRepository.cs)*
   ```csharp
   public class QuestionCategoryRepository : BaseRepository<QuestionCategory, ApplicationDbContext>, IQuestionCategoryRepository
   {
@@ -136,8 +136,8 @@ Kế thừa từ cơ chế repository chung của dự án để tái sử dụn
 ### BƯỚC 4: Tạo Service Interface & Service Implementation
 
 Tầng service chịu trách nhiệm xử lý logic nghiệp vụ, thực hiện xác thực (validation) dữ liệu và chuyển đổi (mapping) giữa Entity và DTO.
-* **Interface**: *[IQuestionCategoryService.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/Services/Interfaces/IQuestionCategoryService.cs)* định nghĩa các phương thức nghiệp vụ: `GetAllAsync`, `GetByIdAsync`, `CreateAsync`, `EditAsync`, `DeleteAsync`, `DeactiveAsync`.
-* **Implementation**: *[QuestionCategoryService.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/Services/Implementations/QuestionCategoryService.cs)*
+* **Interface**: *[IQuestionCategoryService.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/Services/Interfaces/IQuestionCategoryService.cs)* định nghĩa các phương thức nghiệp vụ: `GetAllAsync`, `GetByIdAsync`, `CreateAsync`, `EditAsync`, `DeleteAsync`, `DeactiveAsync`.
+* **Implementation**: *[QuestionCategoryService.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/Services/Implementations/QuestionCategoryService.cs)*
   * **Xử lý Validation**: Thực hiện các quy tắc kiểm tra rỗng, kiểm tra độ dài chuỗi và kiểm tra trùng lặp mã/tên trong database. Trả về mã lỗi chuẩn (ví dụ: `ERR_CODE_DUPLICATE`).
   * **Sử dụng Mapster**: Gọi `dto.Adapt<QuestionCategory>()` để map nhanh từ DTO sang Entity.
   * **Manual Mapping**: Định nghĩa hàm `MapToDto` thủ công để kiểm soát dữ liệu trả về cho client.
@@ -147,7 +147,7 @@ Tầng service chịu trách nhiệm xử lý logic nghiệp vụ, thực hiện
 
 ### BƯỚC 5: Đăng ký Service & Repository vào DI Container
 
-Mở file *[ServicesRegister.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/Extensions/ServicesRegister.cs)* và thêm các dòng đăng ký kiểu `Scoped`:
+Mở file *[ServicesRegister.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/Extensions/ServicesRegister.cs)* và thêm các dòng đăng ký kiểu `Scoped`:
 ```csharp
 // Repositories
 services.AddScoped<IQuestionCategoryRepository, QuestionCategoryRepository>();
@@ -160,7 +160,7 @@ services.AddScoped<IQuestionCategoryService, QuestionCategoryService>();
 
 ### BƯỚC 6: Khai báo Quyền Hạn (Permissions)
 
-Mở file *[Permissions.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/DTO/Common/Permissions.cs)* và tạo nhóm quyền tương ứng với thực thể mới để thực hiện phân quyền cấp API:
+Mở file *[Permissions.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/DTO/Common/Permissions.cs)* và tạo nhóm quyền tương ứng với thực thể mới để thực hiện phân quyền cấp API:
 ```csharp
 public static class QuestionCategory
 {
@@ -180,7 +180,7 @@ Tạo Controller trong thư mục `Controllers/`.
 * Kế thừa `ControllerBase` và gắn các thuộc tính `[ApiController]`, `[Route("api/[controller]")]`, `[Authorize]`.
 * Sử dụng attribute phân quyền tùy biến `[HasPermission(...)]` để giới hạn quyền truy cập cho từng Endpoint.
 * Gọi qua Service Layer và trả về kết quả định dạng `StatusCode(response.StatusCode, response)`.
-* *Ví dụ: [QuestionCategoryController.cs](file:///d:/SEP490-G31/DoAn/be/PRN232_be/Controllers/QuestionCategoryController.cs)*
+* *Ví dụ: [QuestionCategoryController.cs](file:///d:/SEP490-G31/DoAn/be/sep490_be/Controllers/QuestionCategoryController.cs)*
 
 ---
 
@@ -198,3 +198,4 @@ Backend **không dịch trực tiếp** văn bản thông báo sang Tiếng Anh 
 * **Dependency Injection (DI)**: Đăng ký dịch vụ lỏng lẻo qua `ServicesRegister.cs`.
 * **Soft Delete (Global Query Filter)**: EF Core tự động loại trừ các bản ghi có `IsDeleted == true`.
 * **Interceptor (Audit Logs)**: Tự ghi nhận `CreatedAt`, `CreatedBy`, `UpdatedAt`, `UpdatedBy` trong DbContext mà không cần gán thủ công tại tầng Service.
+

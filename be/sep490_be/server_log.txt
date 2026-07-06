@@ -1,0 +1,75 @@
+﻿Using launch settings from C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be\Properties\launchSettings.json...
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: https://localhost:49547
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:49548
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: C:\Users\ADMIN\Documents\GitHub\sep490_be\sep490_be\sep490_be
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (135ms) [Parameters=[@__expirationTime_0='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT [o].[id], [o].[addressId], [o].[buyerId], [o].[method], [o].[orderDate], [o].[status], [o].[totalPrice], [o0].[id], [o0].[orderId], [o0].[productId], [o0].[quantity], [o0].[unitPrice]
+      FROM [OrderTable] AS [o]
+      LEFT JOIN [OrderItem] AS [o0] ON [o].[id] = [o0].[orderId]
+      WHERE [o].[status] = N'PENDING' AND [o].[orderDate] <= @__expirationTime_0
+      ORDER BY [o].[id]
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (16ms) [Parameters=[@p1='?' (DbType = Int32), @p0='?' (Size = 20)], CommandType='Text', CommandTimeout='30']
+      SET IMPLICIT_TRANSACTIONS OFF;
+      SET NOCOUNT ON;
+      UPDATE [OrderTable] SET [status] = @p0
+      OUTPUT 1
+      WHERE [id] = @p1;
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (20ms) [Parameters=[@__expirationTime_0='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT [o].[id], [o].[addressId], [o].[buyerId], [o].[method], [o].[orderDate], [o].[status], [o].[totalPrice], [o0].[id], [o0].[orderId], [o0].[productId], [o0].[quantity], [o0].[unitPrice]
+      FROM [OrderTable] AS [o]
+      LEFT JOIN [OrderItem] AS [o0] ON [o].[id] = [o0].[orderId]
+      WHERE [o].[status] = N'PENDING' AND [o].[orderDate] <= @__expirationTime_0
+      ORDER BY [o].[id]
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (17ms) [Parameters=[@__expirationTime_0='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT [o].[id], [o].[addressId], [o].[buyerId], [o].[method], [o].[orderDate], [o].[status], [o].[totalPrice], [o0].[id], [o0].[orderId], [o0].[productId], [o0].[quantity], [o0].[unitPrice]
+      FROM [OrderTable] AS [o]
+      LEFT JOIN [OrderItem] AS [o0] ON [o].[id] = [o0].[orderId]
+      WHERE [o].[status] = N'PENDING' AND [o].[orderDate] <= @__expirationTime_0
+      ORDER BY [o].[id]
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (26ms) [Parameters=[@__expirationTime_0='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT [o].[id], [o].[addressId], [o].[buyerId], [o].[method], [o].[orderDate], [o].[status], [o].[totalPrice], [o0].[id], [o0].[orderId], [o0].[productId], [o0].[quantity], [o0].[unitPrice]
+      FROM [OrderTable] AS [o]
+      LEFT JOIN [OrderItem] AS [o0] ON [o].[id] = [o0].[orderId]
+      WHERE [o].[status] = N'PENDING' AND [o].[orderDate] <= @__expirationTime_0
+      ORDER BY [o].[id]
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (22ms) [Parameters=[@__expirationTime_0='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT [o].[id], [o].[addressId], [o].[buyerId], [o].[method], [o].[orderDate], [o].[status], [o].[totalPrice], [o0].[id], [o0].[orderId], [o0].[productId], [o0].[quantity], [o0].[unitPrice]
+      FROM [OrderTable] AS [o]
+      LEFT JOIN [OrderItem] AS [o0] ON [o].[id] = [o0].[orderId]
+      WHERE [o].[status] = N'PENDING' AND [o].[orderDate] <= @__expirationTime_0
+      ORDER BY [o].[id]
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (21ms) [Parameters=[@__expirationTime_0='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT [o].[id], [o].[addressId], [o].[buyerId], [o].[method], [o].[orderDate], [o].[status], [o].[totalPrice], [o0].[id], [o0].[orderId], [o0].[productId], [o0].[quantity], [o0].[unitPrice]
+      FROM [OrderTable] AS [o]
+      LEFT JOIN [OrderItem] AS [o0] ON [o].[id] = [o0].[orderId]
+      WHERE [o].[status] = N'PENDING' AND [o].[orderDate] <= @__expirationTime_0
+      ORDER BY [o].[id]
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (22ms) [Parameters=[@__expirationTime_0='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT [o].[id], [o].[addressId], [o].[buyerId], [o].[method], [o].[orderDate], [o].[status], [o].[totalPrice], [o0].[id], [o0].[orderId], [o0].[productId], [o0].[quantity], [o0].[unitPrice]
+      FROM [OrderTable] AS [o]
+      LEFT JOIN [OrderItem] AS [o0] ON [o].[id] = [o0].[orderId]
+      WHERE [o].[status] = N'PENDING' AND [o].[orderDate] <= @__expirationTime_0
+      ORDER BY [o].[id]
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+      Executed DbCommand (15ms) [Parameters=[@__expirationTime_0='?' (DbType = DateTime)], CommandType='Text', CommandTimeout='30']
+      SELECT [o].[id], [o].[addressId], [o].[buyerId], [o].[method], [o].[orderDate], [o].[status], [o].[totalPrice], [o0].[id], [o0].[orderId], [o0].[productId], [o0].[quantity], [o0].[unitPrice]
+      FROM [OrderTable] AS [o]
+      LEFT JOIN [OrderItem] AS [o0] ON [o].[id] = [o0].[orderId]
+      WHERE [o].[status] = N'PENDING' AND [o].[orderDate] <= @__expirationTime_0
+      ORDER BY [o].[id]
+
