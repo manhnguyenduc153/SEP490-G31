@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -108,6 +108,33 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> ImportStudentRegistrations([FromBody] List<StudentRegistrationSaveDto> dtos)
         {
             var response = await _service.ImportStudentRegistrationsAsync(dtos);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Semester/registrations
+        [HttpPost("registrations")]
+        [HasPermission(Permissions.Class.Class_Edit)]
+        public async Task<IActionResult> CreateStudentRegistration([FromBody] StudentRegistrationSaveDto dto)
+        {
+            var response = await _service.CreateStudentRegistrationAsync(dto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // PUT: api/Semester/registrations/5
+        [HttpPut("registrations/{id}")]
+        [HasPermission(Permissions.Class.Class_Edit)]
+        public async Task<IActionResult> EditStudentRegistration(int id, [FromBody] StudentRegistrationSaveDto dto)
+        {
+            var response = await _service.EditStudentRegistrationAsync(id, dto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // DELETE: api/Semester/registrations/5
+        [HttpDelete("registrations/{id}")]
+        [HasPermission(Permissions.Class.Class_Edit)]
+        public async Task<IActionResult> DeleteStudentRegistration(int id)
+        {
+            var response = await _service.DeleteStudentRegistrationAsync(id);
             return StatusCode(response.StatusCode, response);
         }
     }
