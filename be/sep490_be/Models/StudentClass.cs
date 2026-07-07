@@ -16,6 +16,7 @@ namespace sep490_be.Models
         public virtual Student Student { get; set; } = null!;
         public virtual Class Class { get; set; } = null!;
         public virtual ICollection<StudentGrade> StudentGrades { get; set; } = new List<StudentGrade>();
+        public virtual ICollection<StudentGradeOverride> StudentGradeOverrides { get; set; } = new List<StudentGradeOverride>();
     }
 }
 

@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using sep490_be.Models;
+using PRN232_be.Models;
 
 #nullable disable
 
-namespace sep490_be.Migrations
+namespace PRN232_be.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260706082846_AddStudentGradeSettings")]
+    partial class AddStudentGradeSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -220,7 +223,7 @@ namespace sep490_be.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Attendance", b =>
+            modelBuilder.Entity("PRN232_be.Models.Attendance", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -287,7 +290,7 @@ namespace sep490_be.Migrations
                     b.ToTable("attendances", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Class", b =>
+            modelBuilder.Entity("PRN232_be.Models.Class", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -377,7 +380,7 @@ namespace sep490_be.Migrations
                     b.ToTable("classes", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ClassSchedule", b =>
+            modelBuilder.Entity("PRN232_be.Models.ClassSchedule", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -457,7 +460,7 @@ namespace sep490_be.Migrations
                     b.ToTable("class_schedules", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Course", b =>
+            modelBuilder.Entity("PRN232_be.Models.Course", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -517,7 +520,7 @@ namespace sep490_be.Migrations
                     b.ToTable("courses", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Exam", b =>
+            modelBuilder.Entity("PRN232_be.Models.Exam", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -615,7 +618,7 @@ namespace sep490_be.Migrations
                     b.ToTable("exams", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamAnswer", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamAnswer", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -694,7 +697,7 @@ namespace sep490_be.Migrations
                     b.ToTable("exam_answers", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamAttempt", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamAttempt", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -763,7 +766,7 @@ namespace sep490_be.Migrations
                     b.ToTable("exam_attempts", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamQuestion", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamQuestion", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -789,7 +792,7 @@ namespace sep490_be.Migrations
                     b.ToTable("exam_questions", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamSchedule", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamSchedule", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -866,7 +869,7 @@ namespace sep490_be.Migrations
                     b.ToTable("exam_schedules", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamStudent", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamStudent", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1017,7 +1020,7 @@ namespace sep490_be.Migrations
                     b.ToTable("Homeworks");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.HomeworkSubmission", b =>
+            modelBuilder.Entity("PRN232_be.Models.HomeworkSubmission", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1079,7 +1082,7 @@ namespace sep490_be.Migrations
                     b.ToTable("HomeworkSubmissions");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.LearningMaterial", b =>
+            modelBuilder.Entity("PRN232_be.Models.LearningMaterial", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1165,7 +1168,7 @@ namespace sep490_be.Migrations
                     b.ToTable("learning_materials", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Notification", b =>
+            modelBuilder.Entity("PRN232_be.Models.Notification", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1240,7 +1243,7 @@ namespace sep490_be.Migrations
                     b.ToTable("notifications", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ParentStudent", b =>
+            modelBuilder.Entity("PRN232_be.Models.ParentStudent", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1312,7 +1315,7 @@ namespace sep490_be.Migrations
                     b.ToTable("parent_students", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Product", b =>
+            modelBuilder.Entity("PRN232_be.Models.Product", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1369,7 +1372,7 @@ namespace sep490_be.Migrations
                     b.ToTable("Products", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Question", b =>
+            modelBuilder.Entity("PRN232_be.Models.Question", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1440,7 +1443,7 @@ namespace sep490_be.Migrations
                     b.ToTable("questions", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.QuestionAnswer", b =>
+            modelBuilder.Entity("PRN232_be.Models.QuestionAnswer", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1499,7 +1502,7 @@ namespace sep490_be.Migrations
                     b.ToTable("question_answers", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.QuestionCategory", b =>
+            modelBuilder.Entity("PRN232_be.Models.QuestionCategory", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1550,7 +1553,7 @@ namespace sep490_be.Migrations
                     b.ToTable("question_categories", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.RefreshToken", b =>
+            modelBuilder.Entity("PRN232_be.Models.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1589,7 +1592,7 @@ namespace sep490_be.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Room", b =>
+            modelBuilder.Entity("PRN232_be.Models.Room", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1658,7 +1661,7 @@ namespace sep490_be.Migrations
                     b.ToTable("rooms", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Semester", b =>
+            modelBuilder.Entity("PRN232_be.Models.Semester", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1714,7 +1717,7 @@ namespace sep490_be.Migrations
                     b.ToTable("semesters", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Student", b =>
+            modelBuilder.Entity("PRN232_be.Models.Student", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1803,7 +1806,7 @@ namespace sep490_be.Migrations
                     b.ToTable("students", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.StudentClass", b =>
+            modelBuilder.Entity("PRN232_be.Models.StudentClass", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1839,7 +1842,7 @@ namespace sep490_be.Migrations
                     b.ToTable("student_classes", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.StudentGrade", b =>
+            modelBuilder.Entity("PRN232_be.Models.StudentGrade", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1955,7 +1958,7 @@ namespace sep490_be.Migrations
                     b.ToTable("student_registrations", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Teacher", b =>
+            modelBuilder.Entity("PRN232_be.Models.Teacher", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -2037,7 +2040,7 @@ namespace sep490_be.Migrations
                     b.ToTable("teachers", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.TeacherAvailability", b =>
+            modelBuilder.Entity("PRN232_be.Models.TeacherAvailability", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -2066,7 +2069,7 @@ namespace sep490_be.Migrations
                     b.ToTable("teacher_availabilities", (string)null);
                 });
 
-            modelBuilder.Entity("sep490_be.Models.TimeSlot", b =>
+            modelBuilder.Entity("PRN232_be.Models.TimeSlot", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -2170,14 +2173,14 @@ namespace sep490_be.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Attendance", b =>
+            modelBuilder.Entity("PRN232_be.Models.Attendance", b =>
                 {
-                    b.HasOne("sep490_be.Models.ClassSchedule", "ClassSchedule")
+                    b.HasOne("PRN232_be.Models.ClassSchedule", "ClassSchedule")
                         .WithMany("Attendances")
                         .HasForeignKey("ScheduleId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.Student", "Student")
+                    b.HasOne("PRN232_be.Models.Student", "Student")
                         .WithMany("Attendances")
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2187,19 +2190,19 @@ namespace sep490_be.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Class", b =>
+            modelBuilder.Entity("PRN232_be.Models.Class", b =>
                 {
-                    b.HasOne("sep490_be.Models.Course", "Course")
+                    b.HasOne("PRN232_be.Models.Course", "Course")
                         .WithMany("Classes")
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.Semester", "Semester")
+                    b.HasOne("PRN232_be.Models.Semester", "Semester")
                         .WithMany()
                         .HasForeignKey("SemesterId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.Teacher", "Teacher")
+                    b.HasOne("PRN232_be.Models.Teacher", "Teacher")
                         .WithMany()
                         .HasForeignKey("TeacherId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2211,24 +2214,24 @@ namespace sep490_be.Migrations
                     b.Navigation("Teacher");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ClassSchedule", b =>
+            modelBuilder.Entity("PRN232_be.Models.ClassSchedule", b =>
                 {
-                    b.HasOne("sep490_be.Models.Class", "Class")
+                    b.HasOne("PRN232_be.Models.Class", "Class")
                         .WithMany("ClassSchedules")
                         .HasForeignKey("ClassId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.Room", "Room")
+                    b.HasOne("PRN232_be.Models.Room", "Room")
                         .WithMany("ClassSchedules")
                         .HasForeignKey("RoomId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.TimeSlot", "TimeSlot")
+                    b.HasOne("PRN232_be.Models.TimeSlot", "TimeSlot")
                         .WithMany("ClassSchedules")
                         .HasForeignKey("SlotId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.Teacher", "Teacher")
+                    b.HasOne("PRN232_be.Models.Teacher", "Teacher")
                         .WithMany("ClassSchedules")
                         .HasForeignKey("TeacherId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2242,14 +2245,14 @@ namespace sep490_be.Migrations
                     b.Navigation("TimeSlot");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Exam", b =>
+            modelBuilder.Entity("PRN232_be.Models.Exam", b =>
                 {
-                    b.HasOne("sep490_be.Models.Class", "Class")
+                    b.HasOne("PRN232_be.Models.Class", "Class")
                         .WithMany("Exams")
                         .HasForeignKey("ClassId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.ClassSchedule", "ClassSchedule")
+                    b.HasOne("PRN232_be.Models.ClassSchedule", "ClassSchedule")
                         .WithMany("Exams")
                         .HasForeignKey("ScheduleId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2259,20 +2262,20 @@ namespace sep490_be.Migrations
                     b.Navigation("ClassSchedule");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamAnswer", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamAnswer", b =>
                 {
-                    b.HasOne("sep490_be.Models.ExamAttempt", "ExamAttempt")
+                    b.HasOne("PRN232_be.Models.ExamAttempt", "ExamAttempt")
                         .WithMany("ExamAnswers")
                         .HasForeignKey("ExamAttemptId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.Teacher", "Teacher")
+                    b.HasOne("PRN232_be.Models.Teacher", "Teacher")
                         .WithMany("ExamAnswers")
                         .HasForeignKey("GradedBy")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.Question", "Question")
+                    b.HasOne("PRN232_be.Models.Question", "Question")
                         .WithMany("ExamAnswers")
                         .HasForeignKey("QuestionId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2285,15 +2288,15 @@ namespace sep490_be.Migrations
                     b.Navigation("Teacher");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamAttempt", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamAttempt", b =>
                 {
-                    b.HasOne("sep490_be.Models.Exam", "Exam")
+                    b.HasOne("PRN232_be.Models.Exam", "Exam")
                         .WithMany("ExamAttempts")
                         .HasForeignKey("ExamId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.Student", "Student")
+                    b.HasOne("PRN232_be.Models.Student", "Student")
                         .WithMany("ExamAttempts")
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2304,15 +2307,15 @@ namespace sep490_be.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamQuestion", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamQuestion", b =>
                 {
-                    b.HasOne("sep490_be.Models.Exam", "Exam")
+                    b.HasOne("PRN232_be.Models.Exam", "Exam")
                         .WithMany("ExamQuestions")
                         .HasForeignKey("ExamId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.Question", "Question")
+                    b.HasOne("PRN232_be.Models.Question", "Question")
                         .WithMany("ExamQuestions")
                         .HasForeignKey("QuestionId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2323,24 +2326,24 @@ namespace sep490_be.Migrations
                     b.Navigation("Question");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamSchedule", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamSchedule", b =>
                 {
-                    b.HasOne("sep490_be.Models.Exam", "Exam")
+                    b.HasOne("PRN232_be.Models.Exam", "Exam")
                         .WithMany("ExamSchedules")
                         .HasForeignKey("ExamId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.Room", "Room")
+                    b.HasOne("PRN232_be.Models.Room", "Room")
                         .WithMany("ExamSchedules")
                         .HasForeignKey("RoomId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.TimeSlot", "TimeSlot")
+                    b.HasOne("PRN232_be.Models.TimeSlot", "TimeSlot")
                         .WithMany("ExamSchedules")
                         .HasForeignKey("SlotId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.Teacher", "Supervisor")
+                    b.HasOne("PRN232_be.Models.Teacher", "Supervisor")
                         .WithMany("ExamSchedules")
                         .HasForeignKey("SupervisorId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2354,15 +2357,15 @@ namespace sep490_be.Migrations
                     b.Navigation("TimeSlot");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamStudent", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamStudent", b =>
                 {
-                    b.HasOne("sep490_be.Models.ExamSchedule", "ExamSchedule")
+                    b.HasOne("PRN232_be.Models.ExamSchedule", "ExamSchedule")
                         .WithMany("ExamStudents")
                         .HasForeignKey("ExamScheduleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.Student", "Student")
+                    b.HasOne("PRN232_be.Models.Student", "Student")
                         .WithMany("ExamStudents")
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2386,13 +2389,13 @@ namespace sep490_be.Migrations
 
             modelBuilder.Entity("PRN232_be.Models.Homework", b =>
                 {
-                    b.HasOne("sep490_be.Models.Class", "Class")
+                    b.HasOne("PRN232_be.Models.Class", "Class")
                         .WithMany()
                         .HasForeignKey("ClassId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.Teacher", "Teacher")
+                    b.HasOne("PRN232_be.Models.Teacher", "Teacher")
                         .WithMany()
                         .HasForeignKey("TeacherId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2403,15 +2406,15 @@ namespace sep490_be.Migrations
                     b.Navigation("Teacher");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.HomeworkSubmission", b =>
+            modelBuilder.Entity("PRN232_be.Models.HomeworkSubmission", b =>
                 {
-                    b.HasOne("sep490_be.Models.Homework", "Homework")
+                    b.HasOne("PRN232_be.Models.Homework", "Homework")
                         .WithMany("HomeworkSubmissions")
                         .HasForeignKey("HomeworkId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.Student", "Student")
+                    b.HasOne("PRN232_be.Models.Student", "Student")
                         .WithMany()
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2422,24 +2425,24 @@ namespace sep490_be.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.LearningMaterial", b =>
+            modelBuilder.Entity("PRN232_be.Models.LearningMaterial", b =>
                 {
-                    b.HasOne("sep490_be.Models.Class", "Class")
+                    b.HasOne("PRN232_be.Models.Class", "Class")
                         .WithMany("LearningMaterials")
                         .HasForeignKey("ClassId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.Course", "Course")
+                    b.HasOne("PRN232_be.Models.Course", "Course")
                         .WithMany("LearningMaterials")
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.ClassSchedule", "ClassSchedule")
+                    b.HasOne("PRN232_be.Models.ClassSchedule", "ClassSchedule")
                         .WithMany("LearningMaterials")
                         .HasForeignKey("ScheduleId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("sep490_be.Models.Teacher", "Teacher")
+                    b.HasOne("PRN232_be.Models.Teacher", "Teacher")
                         .WithMany("LearningMaterials")
                         .HasForeignKey("UploadedBy")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2453,9 +2456,9 @@ namespace sep490_be.Migrations
                     b.Navigation("Teacher");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Notification", b =>
+            modelBuilder.Entity("PRN232_be.Models.Notification", b =>
                 {
-                    b.HasOne("sep490_be.Models.Class", "Class")
+                    b.HasOne("PRN232_be.Models.Class", "Class")
                         .WithMany("Notifications")
                         .HasForeignKey("ClassId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2463,9 +2466,9 @@ namespace sep490_be.Migrations
                     b.Navigation("Class");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ParentStudent", b =>
+            modelBuilder.Entity("PRN232_be.Models.ParentStudent", b =>
                 {
-                    b.HasOne("sep490_be.Models.Student", "Student")
+                    b.HasOne("PRN232_be.Models.Student", "Student")
                         .WithMany("ParentStudents")
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2474,9 +2477,9 @@ namespace sep490_be.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Question", b =>
+            modelBuilder.Entity("PRN232_be.Models.Question", b =>
                 {
-                    b.HasOne("sep490_be.Models.QuestionCategory", "QuestionCategory")
+                    b.HasOne("PRN232_be.Models.QuestionCategory", "QuestionCategory")
                         .WithMany("Questions")
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2484,9 +2487,9 @@ namespace sep490_be.Migrations
                     b.Navigation("QuestionCategory");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.QuestionAnswer", b =>
+            modelBuilder.Entity("PRN232_be.Models.QuestionAnswer", b =>
                 {
-                    b.HasOne("sep490_be.Models.Question", "Question")
+                    b.HasOne("PRN232_be.Models.Question", "Question")
                         .WithMany("QuestionAnswers")
                         .HasForeignKey("QuestionId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -2494,7 +2497,7 @@ namespace sep490_be.Migrations
                     b.Navigation("Question");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.RefreshToken", b =>
+            modelBuilder.Entity("PRN232_be.Models.RefreshToken", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "User")
                         .WithMany()
@@ -2505,15 +2508,15 @@ namespace sep490_be.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.StudentClass", b =>
+            modelBuilder.Entity("PRN232_be.Models.StudentClass", b =>
                 {
-                    b.HasOne("sep490_be.Models.Class", "Class")
+                    b.HasOne("PRN232_be.Models.Class", "Class")
                         .WithMany("StudentClasses")
                         .HasForeignKey("ClassId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.Student", "Student")
+                    b.HasOne("PRN232_be.Models.Student", "Student")
                         .WithMany("StudentClasses")
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2524,15 +2527,15 @@ namespace sep490_be.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.StudentGrade", b =>
+            modelBuilder.Entity("PRN232_be.Models.StudentGrade", b =>
                 {
-                    b.HasOne("sep490_be.Models.Exam", "Exam")
+                    b.HasOne("PRN232_be.Models.Exam", "Exam")
                         .WithMany("StudentGrades")
                         .HasForeignKey("ExamId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.StudentClass", "StudentClass")
+                    b.HasOne("PRN232_be.Models.StudentClass", "StudentClass")
                         .WithMany("StudentGrades")
                         .HasForeignKey("StudentClassId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2564,19 +2567,19 @@ namespace sep490_be.Migrations
 
             modelBuilder.Entity("PRN232_be.Models.StudentRegistration", b =>
                 {
-                    b.HasOne("sep490_be.Models.Course", "Course")
+                    b.HasOne("PRN232_be.Models.Course", "Course")
                         .WithMany()
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.Semester", "Semester")
+                    b.HasOne("PRN232_be.Models.Semester", "Semester")
                         .WithMany("StudentRegistrations")
                         .HasForeignKey("SemesterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.Student", "Student")
+                    b.HasOne("PRN232_be.Models.Student", "Student")
                         .WithMany()
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2589,15 +2592,15 @@ namespace sep490_be.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.TeacherAvailability", b =>
+            modelBuilder.Entity("PRN232_be.Models.TeacherAvailability", b =>
                 {
-                    b.HasOne("sep490_be.Models.Semester", "Semester")
+                    b.HasOne("PRN232_be.Models.Semester", "Semester")
                         .WithMany("TeacherAvailabilities")
                         .HasForeignKey("SemesterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("sep490_be.Models.Teacher", "Teacher")
+                    b.HasOne("PRN232_be.Models.Teacher", "Teacher")
                         .WithMany()
                         .HasForeignKey("TeacherId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2608,7 +2611,7 @@ namespace sep490_be.Migrations
                     b.Navigation("Teacher");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Class", b =>
+            modelBuilder.Entity("PRN232_be.Models.Class", b =>
                 {
                     b.Navigation("ClassSchedules");
 
@@ -2621,7 +2624,7 @@ namespace sep490_be.Migrations
                     b.Navigation("StudentClasses");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ClassSchedule", b =>
+            modelBuilder.Entity("PRN232_be.Models.ClassSchedule", b =>
                 {
                     b.Navigation("Attendances");
 
@@ -2630,7 +2633,7 @@ namespace sep490_be.Migrations
                     b.Navigation("LearningMaterials");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Course", b =>
+            modelBuilder.Entity("PRN232_be.Models.Course", b =>
                 {
                     b.Navigation("Classes");
 
@@ -2639,7 +2642,7 @@ namespace sep490_be.Migrations
                     b.Navigation("LearningMaterials");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Exam", b =>
+            modelBuilder.Entity("PRN232_be.Models.Exam", b =>
                 {
                     b.Navigation("ExamAttempts");
 
@@ -2650,12 +2653,12 @@ namespace sep490_be.Migrations
                     b.Navigation("StudentGrades");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamAttempt", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamAttempt", b =>
                 {
                     b.Navigation("ExamAnswers");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ExamSchedule", b =>
+            modelBuilder.Entity("PRN232_be.Models.ExamSchedule", b =>
                 {
                     b.Navigation("ExamStudents");
                 });
@@ -2670,7 +2673,7 @@ namespace sep490_be.Migrations
                     b.Navigation("HomeworkSubmissions");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Question", b =>
+            modelBuilder.Entity("PRN232_be.Models.Question", b =>
                 {
                     b.Navigation("ExamAnswers");
 
@@ -2679,26 +2682,26 @@ namespace sep490_be.Migrations
                     b.Navigation("QuestionAnswers");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.QuestionCategory", b =>
+            modelBuilder.Entity("PRN232_be.Models.QuestionCategory", b =>
                 {
                     b.Navigation("Questions");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Room", b =>
+            modelBuilder.Entity("PRN232_be.Models.Room", b =>
                 {
                     b.Navigation("ClassSchedules");
 
                     b.Navigation("ExamSchedules");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Semester", b =>
+            modelBuilder.Entity("PRN232_be.Models.Semester", b =>
                 {
                     b.Navigation("StudentRegistrations");
 
                     b.Navigation("TeacherAvailabilities");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Student", b =>
+            modelBuilder.Entity("PRN232_be.Models.Student", b =>
                 {
                     b.Navigation("Attendances");
 
@@ -2711,14 +2714,14 @@ namespace sep490_be.Migrations
                     b.Navigation("StudentClasses");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.StudentClass", b =>
+            modelBuilder.Entity("PRN232_be.Models.StudentClass", b =>
                 {
                     b.Navigation("StudentGradeOverrides");
 
                     b.Navigation("StudentGrades");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.Teacher", b =>
+            modelBuilder.Entity("PRN232_be.Models.Teacher", b =>
                 {
                     b.Navigation("ClassSchedules");
 
@@ -2729,7 +2732,7 @@ namespace sep490_be.Migrations
                     b.Navigation("LearningMaterials");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.TimeSlot", b =>
+            modelBuilder.Entity("PRN232_be.Models.TimeSlot", b =>
                 {
                     b.Navigation("ClassSchedules");
 
@@ -2739,4 +2742,3 @@ namespace sep490_be.Migrations
         }
     }
 }
-
