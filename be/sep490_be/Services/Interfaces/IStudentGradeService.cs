@@ -1,7 +1,7 @@
-using PRN232_be.DTO;
-using PRN232_be.DTO.StudentGrade;
+using sep490_be.DTO;
+using sep490_be.DTO.StudentGrade;
 
-namespace PRN232_be.Services.Interfaces
+namespace sep490_be.Services.Interfaces
 {
     public interface IStudentGradeService
     {

@@ -1,7 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using sep490_be.Models;
 
-namespace PRN232_be.Models.Configurations
+namespace sep490_be.Models.Configurations
 {
     public class GradeComponentConfiguration : IEntityTypeConfiguration<GradeComponent>
     {

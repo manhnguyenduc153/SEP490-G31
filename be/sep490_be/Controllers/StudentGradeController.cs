@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PRN232_be.DTO.Common;
-using PRN232_be.DTO.StudentGrade;
-using PRN232_be.Helpers.Authorization;
-using PRN232_be.Services.Interfaces;
+using sep490_be.DTO.Common;
+using sep490_be.DTO.StudentGrade;
+using sep490_be.Helpers.Authorization;
+using sep490_be.Services.Interfaces;
 
-namespace PRN232_be.Controllers
+namespace sep490_be.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]

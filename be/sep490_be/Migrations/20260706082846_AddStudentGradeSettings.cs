@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace PRN232_be.Migrations
+namespace sep490_be.Migrations
 {
     /// <inheritdoc />
     public partial class AddStudentGradeSettings : Migration

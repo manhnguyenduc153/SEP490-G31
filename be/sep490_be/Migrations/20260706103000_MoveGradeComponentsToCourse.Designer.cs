@@ -1,11 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using PRN232_be.Models;
+using sep490_be.Models;
 
 #nullable disable
 
-namespace PRN232_be.Migrations
+namespace sep490_be.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
     [Migration("20260706103000_MoveGradeComponentsToCourse")]
