@@ -16,7 +16,7 @@ namespace sep490_be.DTO.Common
         public static class Role
         {
             public const string RolePage = "Role";
-            public const string Role_View = "Role.View";
+            public const string Role_View = "Role.View";                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
             public const string Role_Create = "Role.Create";
             public const string Role_Edit = "Role.Edit";
             public const string Role_Delete = "Role.Delete";
