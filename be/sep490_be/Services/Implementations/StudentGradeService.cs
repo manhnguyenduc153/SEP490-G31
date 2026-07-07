@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using PRN232_be.DTO;
-using PRN232_be.DTO.StudentGrade;
-using PRN232_be.Models;
-using PRN232_be.Services.Interfaces;
+using sep490_be.DTO;
+using sep490_be.DTO.StudentGrade;
+using sep490_be.Models;
+using sep490_be.Services.Interfaces;
 
-namespace PRN232_be.Services.Implementations
+namespace sep490_be.Services.Implementations
 {
     public class StudentGradeService : IStudentGradeService
     {

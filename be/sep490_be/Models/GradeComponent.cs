@@ -1,6 +1,6 @@
-using PRN232_be.Models.BaseEntities;
+using sep490_be.Models.BaseEntities;
 
-namespace PRN232_be.Models
+namespace sep490_be.Models
 {
     public class GradeComponent : AuditableEntity<int>
     {
