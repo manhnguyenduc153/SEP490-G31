@@ -11,7 +11,7 @@ namespace sep490_be.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            return Ok("Heheh");
+            return Ok("Heheh123");
         }
     }
 }
