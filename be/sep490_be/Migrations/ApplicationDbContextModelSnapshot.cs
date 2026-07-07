@@ -892,7 +892,6 @@ namespace sep490_be.Migrations
                     b.ToTable("exam_students", (string)null);
                 });
 
-<<<<<<< HEAD:be/PRN232_be/Migrations/ApplicationDbContextModelSnapshot.cs
             modelBuilder.Entity("PRN232_be.Models.GradeComponent", b =>
                 {
                     b.Property<int>("Id")
@@ -953,9 +952,6 @@ namespace sep490_be.Migrations
                 });
 
             modelBuilder.Entity("PRN232_be.Models.Homework", b =>
-=======
-            modelBuilder.Entity("sep490_be.Models.Homework", b =>
->>>>>>> 284aa30f2cf59093489c894e384fcf71caa98d69:be/sep490_be/Migrations/ApplicationDbContextModelSnapshot.cs
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1876,7 +1872,6 @@ namespace sep490_be.Migrations
                     b.ToTable("student_grades", (string)null);
                 });
 
-<<<<<<< HEAD:be/PRN232_be/Migrations/ApplicationDbContextModelSnapshot.cs
             modelBuilder.Entity("PRN232_be.Models.StudentGradeOverride", b =>
                 {
                     b.Property<int>("Id")
@@ -1926,9 +1921,6 @@ namespace sep490_be.Migrations
                 });
 
             modelBuilder.Entity("PRN232_be.Models.StudentRegistration", b =>
-=======
-            modelBuilder.Entity("sep490_be.Models.StudentRegistration", b =>
->>>>>>> 284aa30f2cf59093489c894e384fcf71caa98d69:be/sep490_be/Migrations/ApplicationDbContextModelSnapshot.cs
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -2381,7 +2373,6 @@ namespace sep490_be.Migrations
                     b.Navigation("Student");
                 });
 
-<<<<<<< HEAD:be/PRN232_be/Migrations/ApplicationDbContextModelSnapshot.cs
             modelBuilder.Entity("PRN232_be.Models.GradeComponent", b =>
                 {
                     b.HasOne("PRN232_be.Models.Course", "Course")
@@ -2394,9 +2385,6 @@ namespace sep490_be.Migrations
                 });
 
             modelBuilder.Entity("PRN232_be.Models.Homework", b =>
-=======
-            modelBuilder.Entity("sep490_be.Models.Homework", b =>
->>>>>>> 284aa30f2cf59093489c894e384fcf71caa98d69:be/sep490_be/Migrations/ApplicationDbContextModelSnapshot.cs
                 {
                     b.HasOne("sep490_be.Models.Class", "Class")
                         .WithMany()
@@ -2555,7 +2543,6 @@ namespace sep490_be.Migrations
                     b.Navigation("StudentClass");
                 });
 
-<<<<<<< HEAD:be/PRN232_be/Migrations/ApplicationDbContextModelSnapshot.cs
             modelBuilder.Entity("PRN232_be.Models.StudentGradeOverride", b =>
                 {
                     b.HasOne("PRN232_be.Models.GradeComponent", "GradeComponent")
@@ -2576,9 +2563,6 @@ namespace sep490_be.Migrations
                 });
 
             modelBuilder.Entity("PRN232_be.Models.StudentRegistration", b =>
-=======
-            modelBuilder.Entity("sep490_be.Models.StudentRegistration", b =>
->>>>>>> 284aa30f2cf59093489c894e384fcf71caa98d69:be/sep490_be/Migrations/ApplicationDbContextModelSnapshot.cs
                 {
                     b.HasOne("sep490_be.Models.Course", "Course")
                         .WithMany()
@@ -2676,16 +2660,12 @@ namespace sep490_be.Migrations
                     b.Navigation("ExamStudents");
                 });
 
-<<<<<<< HEAD:be/PRN232_be/Migrations/ApplicationDbContextModelSnapshot.cs
             modelBuilder.Entity("PRN232_be.Models.GradeComponent", b =>
                 {
                     b.Navigation("StudentGradeOverrides");
                 });
 
             modelBuilder.Entity("PRN232_be.Models.Homework", b =>
-=======
-            modelBuilder.Entity("sep490_be.Models.Homework", b =>
->>>>>>> 284aa30f2cf59093489c894e384fcf71caa98d69:be/sep490_be/Migrations/ApplicationDbContextModelSnapshot.cs
                 {
                     b.Navigation("HomeworkSubmissions");
                 });
