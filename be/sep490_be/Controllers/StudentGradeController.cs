@@ -4,6 +4,7 @@ using sep490_be.DTO.Common;
 using sep490_be.DTO.StudentGrade;
 using sep490_be.Helpers.Authorization;
 using sep490_be.Services.Interfaces;
+using System.Security.Claims;
 
 namespace sep490_be.Controllers
 {
@@ -24,6 +25,28 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> GetSettings(int classId)
         {
             var response = await _service.GetSettingsAsync(classId);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        [HttpGet("my")]
+        public async Task<IActionResult> GetMyGrades()
+        {
+            var identifiers = User.Claims
+                .Where(c =>
+                    c.Type == ClaimTypes.Email ||
+                    c.Type == ClaimTypes.Name ||
+                    c.Type == ClaimTypes.NameIdentifier ||
+                    c.Type == "email" ||
+                    c.Type == "sub" ||
+                    c.Type == "unique_name" ||
+                    c.Type == "preferred_username")
+                .Select(c => c.Value)
+                .Append(User.Identity?.Name)
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct()
+                .ToList();
+
+            var response = await _service.GetMyGradesAsync(identifiers!);
             return StatusCode(response.StatusCode, response);
         }
 

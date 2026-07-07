@@ -81,6 +81,130 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<List<MyGradeClassDto>>> GetMyGradesAsync(IEnumerable<string> identifiers)
+        {
+            try
+            {
+                var lookup = identifiers
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim())
+                    .Distinct()
+                    .ToList();
+                var lookupSet = lookup.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (lookup.Count == 0)
+                {
+                    return ApiResponse<List<MyGradeClassDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var student = await _dbContext.Students
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s =>
+                        (s.Email != null && lookup.Contains(s.Email)) ||
+                        (s.Code != null && lookup.Contains(s.Code)));
+
+                if (student == null)
+                {
+                    var candidates = await _dbContext.Students
+                        .AsNoTracking()
+                        .Where(s => s.Email != null || s.Code != null)
+                        .ToListAsync();
+
+                    student = candidates.FirstOrDefault(s =>
+                        (!string.IsNullOrWhiteSpace(s.Email) &&
+                            (lookupSet.Contains(s.Email) || lookupSet.Contains(s.Email.Split('@')[0]))) ||
+                        (!string.IsNullOrWhiteSpace(s.Code) && lookupSet.Contains(s.Code)));
+                }
+
+                if (student == null)
+                {
+                    return ApiResponse<List<MyGradeClassDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var enrollments = await _dbContext.StudentClasses
+                    .AsNoTracking()
+                    .Include(sc => sc.Class)
+                        .ThenInclude(c => c.Course)
+                    .Where(sc => sc.StudentId == student.Id && !sc.Class.IsDeleted)
+                    .OrderByDescending(sc => sc.EnrollDate)
+                    .ThenBy(sc => sc.Class.Name)
+                    .ToListAsync();
+
+                var result = new List<MyGradeClassDto>();
+
+                foreach (var enrollment in enrollments)
+                {
+                    var classInfo = enrollment.Class;
+                    if (!classInfo.CourseId.HasValue)
+                    {
+                        continue;
+                    }
+
+                    var courseId = classInfo.CourseId.Value;
+                    await EnsureDefaultComponentsAsync(courseId);
+
+                    var components = await _dbContext.GradeComponents
+                        .AsNoTracking()
+                        .Where(x => x.CourseId == courseId)
+                        .OrderBy(x => x.SortOrder)
+                        .ThenBy(x => x.Id)
+                        .ToListAsync();
+
+                    var componentIds = components.Select(x => x.Id).ToList();
+                    var overrides = await _dbContext.StudentGradeOverrides
+                        .AsNoTracking()
+                        .Where(x => x.StudentClassId == enrollment.Id && componentIds.Contains(x.GradeComponentId))
+                        .ToDictionaryAsync(x => x.GradeComponentId, x => x.Score);
+
+                    var rawScores = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["attendance"] = await CalculateAttendanceScoreAsync(classInfo.Id, student.Id),
+                        ["homework"] = await CalculateHomeworkScoreAsync(classInfo.Id, student.Id),
+                        ["exam"] = await CalculateExamScoreAsync(classInfo.Id, student.Id)
+                    };
+
+                    var scoreComponents = components.Select(component =>
+                    {
+                        var rawScore = rawScores.TryGetValue(component.Code, out var value) ? value : 0m;
+                        var hasOverride = overrides.TryGetValue(component.Id, out var overrideScore);
+                        return new MyGradeComponentScoreDto
+                        {
+                            GradeComponentId = component.Id,
+                            ComponentCode = component.Code,
+                            ComponentName = component.Name,
+                            Weight = component.Weight,
+                            RawScore = Round1(rawScore),
+                            Score = Round1(hasOverride ? overrideScore : rawScore),
+                            IsOverride = hasOverride
+                        };
+                    }).ToList();
+
+                    var totalWeight = scoreComponents.Sum(x => Math.Max(0m, x.Weight));
+                    var average = totalWeight > 0
+                        ? scoreComponents.Sum(x => x.Score * Math.Max(0m, x.Weight)) / totalWeight
+                        : 0m;
+
+                    result.Add(new MyGradeClassDto
+                    {
+                        ClassId = classInfo.Id,
+                        ClassCode = classInfo.Code,
+                        ClassName = classInfo.Name,
+                        CourseId = classInfo.CourseId,
+                        CourseCode = classInfo.Course?.Code,
+                        CourseName = classInfo.Course?.Name,
+                        AverageScore = Round1(average),
+                        Components = scoreComponents
+                    });
+                }
+
+                return ApiResponse<List<MyGradeClassDto>>.Ok(result, "GET_MY_GRADES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<MyGradeClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
         public async Task<ApiResponse<List<GradeComponentDto>>> GetCourseComponentsAsync(int courseId)
         {
             try
@@ -298,6 +422,78 @@ namespace sep490_be.Services.Implementations
             );
             await _dbContext.SaveChangesAsync();
         }
+
+        private async Task<decimal> CalculateAttendanceScoreAsync(int classId, int studentId)
+        {
+            var attendances = await _dbContext.Attendances
+                .AsNoTracking()
+                .Include(x => x.ClassSchedule)
+                .Where(x => x.StudentId == studentId && x.ClassSchedule != null && x.ClassSchedule.ClassId == classId && x.Status != -1)
+                .Select(x => x.Status)
+                .ToListAsync();
+
+            if (attendances.Count == 0) return 0m;
+            var attended = attendances.Count(x => x != 0);
+            return (decimal)attended / attendances.Count * 10m;
+        }
+
+        private async Task<decimal> CalculateHomeworkScoreAsync(int classId, int studentId)
+        {
+            var homeworks = await _dbContext.Homeworks
+                .AsNoTracking()
+                .Where(x => x.ClassId == classId)
+                .Select(x => new { x.Id, x.TotalScore })
+                .ToListAsync();
+
+            if (homeworks.Count == 0) return 0m;
+
+            var homeworkIds = homeworks.Select(x => x.Id).ToList();
+            var submissions = await _dbContext.HomeworkSubmissions
+                .AsNoTracking()
+                .Where(x => x.StudentId == studentId && homeworkIds.Contains(x.HomeworkId))
+                .GroupBy(x => x.HomeworkId)
+                .Select(g => new { HomeworkId = g.Key, Score = g.Max(x => x.Score) })
+                .ToListAsync();
+
+            var scoreByHomework = submissions.ToDictionary(x => x.HomeworkId, x => x.Score);
+            var normalizedScores = homeworks.Select(homework =>
+                NormalizeScore(scoreByHomework.GetValueOrDefault(homework.Id), homework.TotalScore));
+
+            return normalizedScores.Sum() / homeworks.Count;
+        }
+
+        private async Task<decimal> CalculateExamScoreAsync(int classId, int studentId)
+        {
+            var exams = await _dbContext.Exams
+                .AsNoTracking()
+                .Where(x => x.ClassId == classId)
+                .Select(x => new { x.Id, x.TotalScore })
+                .ToListAsync();
+
+            if (exams.Count == 0) return 0m;
+
+            var examIds = exams.Select(x => x.Id).ToList();
+            var attempts = await _dbContext.ExamAttempts
+                .AsNoTracking()
+                .Where(x => x.StudentId == studentId && examIds.Contains(x.ExamId))
+                .GroupBy(x => x.ExamId)
+                .Select(g => new { ExamId = g.Key, Score = g.Max(x => x.Score) })
+                .ToListAsync();
+
+            var scoreByExam = attempts.ToDictionary(x => x.ExamId, x => x.Score);
+            var normalizedScores = exams.Select(exam =>
+                NormalizeScore(scoreByExam.GetValueOrDefault(exam.Id), exam.TotalScore ?? 10m));
+
+            return normalizedScores.Sum() / exams.Count;
+        }
+
+        private static decimal NormalizeScore(decimal? score, decimal total)
+        {
+            if (!score.HasValue || total <= 0) return 0m;
+            return Math.Max(0m, Math.Min(10m, score.Value / total * 10m));
+        }
+
+        private static decimal Round1(decimal value) => Math.Round(value, 1, MidpointRounding.AwayFromZero);
 
         private static GradeComponentDto MapComponent(GradeComponent entity) => new()
         {
