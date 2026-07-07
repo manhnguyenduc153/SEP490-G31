@@ -12,5 +12,6 @@ namespace PRN232_be.Models
 
         public virtual ICollection<Class> Classes { get; set; } = new List<Class>();
         public virtual ICollection<LearningMaterial> LearningMaterials { get; set; } = new List<LearningMaterial>();
+        public virtual ICollection<GradeComponent> GradeComponents { get; set; } = new List<GradeComponent>();
     }
 }

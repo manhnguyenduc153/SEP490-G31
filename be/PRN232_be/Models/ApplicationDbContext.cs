@@ -42,6 +42,8 @@ namespace PRN232_be.Models
         public DbSet<ExamSchedule> ExamSchedules { get; set; }
         public DbSet<ExamStudent> ExamStudents { get; set; }
         public DbSet<StudentGrade> StudentGrades { get; set; }
+        public DbSet<GradeComponent> GradeComponents { get; set; }
+        public DbSet<StudentGradeOverride> StudentGradeOverrides { get; set; }
         public DbSet<Homework> Homeworks { get; set; }
         public DbSet<HomeworkSubmission> HomeworkSubmissions { get; set; }
         public DbSet<Semester> Semesters { get; set; }

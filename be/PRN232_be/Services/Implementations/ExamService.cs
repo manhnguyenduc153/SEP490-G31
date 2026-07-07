@@ -499,6 +499,56 @@ namespace PRN232_be.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<List<ExamAttemptDto>>> GetAttemptsByExamAsync(int examId)
+        {
+            try
+            {
+                var exam = await _dbContext.Exams.FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
+                if (exam == null)
+                {
+                    return ApiResponse<List<ExamAttemptDto>>.Fail("Bai kiem tra khong ton tai.");
+                }
+
+                var attempts = await _dbContext.ExamAttempts
+                    .AsNoTracking()
+                    .Include(a => a.Student)
+                    .Include(a => a.ExamAnswers)
+                    .Where(a => a.ExamId == examId && !a.IsDeleted)
+                    .OrderBy(a => a.Student.Name)
+                    .ThenByDescending(a => a.SubmitTime ?? a.StartTime)
+                    .Select(a => new ExamAttemptDto
+                    {
+                        Id = a.Id,
+                        ExamId = a.ExamId,
+                        ExamTitle = exam.Title,
+                        StudentId = a.StudentId,
+                        StudentName = a.Student.Name,
+                        StudentCode = a.Student.Code ?? string.Empty,
+                        StartTime = a.StartTime,
+                        SubmitTime = a.SubmitTime,
+                        Score = a.Score,
+                        Status = a.Status,
+                        Duration = exam.Duration,
+                        Answers = a.ExamAnswers.Select(ans => new ExamAnswerDto
+                        {
+                            Id = ans.Id,
+                            QuestionId = ans.QuestionId,
+                            AnswerContent = ans.AnswerContent,
+                            AttachmentUrl = ans.AttachmentUrl,
+                            Score = ans.Score,
+                            TeacherComment = ans.TeacherComment
+                        }).ToList()
+                    })
+                    .ToListAsync();
+
+                return ApiResponse<List<ExamAttemptDto>>.Ok(attempts, "GET_ATTEMPTS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ExamAttemptDto>>.Fail("Error: " + ex.Message);
+            }
+        }
+
         public async Task<ApiResponse<ExamAttemptDto>> StartAttemptAsync(int examId, string userEmailOrCode)
         {
             try

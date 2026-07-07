@@ -77,6 +77,15 @@ namespace PRN232_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        // GET: api/Exam/5/all-attempts
+        [HttpGet("{id}/all-attempts")]
+        [HasPermission(Permissions.Exam.Exam_View)]
+        public async Task<IActionResult> GetAttemptsByExam(int id)
+        {
+            var response = await _service.GetAttemptsByExamAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
+
         // GET: api/Exam/{id}/student-detail - for students to read exam without Exam_View permission
         [HttpGet("{id}/student-detail")]
         public async Task<IActionResult> GetStudentExamDetail(int id)
