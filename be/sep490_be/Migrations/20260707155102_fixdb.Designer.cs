@@ -12,8 +12,8 @@ using sep490_be.Models;
 namespace sep490_be.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260706082846_AddStudentGradeSettings")]
-    partial class AddStudentGradeSettings
+    [Migration("20260707155102_fixdb")]
+    partial class fixdb
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -903,13 +903,13 @@ namespace sep490_be.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("CourseId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
