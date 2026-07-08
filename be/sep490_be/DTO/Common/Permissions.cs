@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 
 namespace sep490_be.DTO.Common
 {
@@ -74,6 +74,9 @@ namespace sep490_be.DTO.Common
             public const string Class_Create = "Class.Create";
             public const string Class_Edit = "Class.Edit";
             public const string Class_Delete = "Class.Delete";
+            public const string Class_Import = "Class.Import";
+            public const string Class_StudentView = "Class.StudentView";
+            public const string Class_TeacherView = "Class.TeacherView";
         }
 
         public static class Room
@@ -119,6 +122,7 @@ namespace sep490_be.DTO.Common
             public const string Attendance_Create = "Attendance.Create";
             public const string Attendance_Edit = "Attendance.Edit";
             public const string Attendance_Delete = "Attendance.Delete";
+            public const string Attendance_SaveAttendance = "Attendance.SaveAttendance";
         }
 
         public static class LearningMaterial
@@ -227,6 +231,7 @@ namespace sep490_be.DTO.Common
             public const string StudentGrade_Create = "StudentGrade.Create";
             public const string StudentGrade_Edit = "StudentGrade.Edit";
             public const string StudentGrade_Delete = "StudentGrade.Delete";
+            public const string StudentGrade_SaveGrade = "StudentGrade.SaveGrade";
         }
 
         public static class Homework

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using sep490_be.DTO.Class;
@@ -34,7 +34,36 @@ namespace sep490_be.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var response = await _service.GetByIdAsync(id);
+            var username = User.Identity?.Name;
+            var response = await _service.GetByIdAsync(id, username);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Class/teaching-classes
+        [HttpGet("teaching-classes")]
+        [HasPermission(Permissions.Class.Class_TeacherView)]
+        public async Task<IActionResult> GetTeacherClasses([FromQuery] ClassSearchDto searchDto)
+        {
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                return Unauthorized();
+            }
+            var response = await _service.GetTeacherClassesAsync(username, searchDto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Class/my-classes
+        [HttpGet("my-classes")]
+        [HasPermission(Permissions.Class.Class_StudentView)]
+        public async Task<IActionResult> GetStudentClasses([FromQuery] ClassSearchDto searchDto)
+        {
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                return Unauthorized();
+            }
+            var response = await _service.GetStudentClassesAsync(username, searchDto);
             return StatusCode(response.StatusCode, response);
         }
 
