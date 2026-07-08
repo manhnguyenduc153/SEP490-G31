@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using sep490_be.Services.Interfaces;
 using System;
@@ -21,7 +21,13 @@ namespace sep490_be.Services.Implementations
             if (file == null || file.Length == 0)
                 throw new ArgumentException("File is empty or null.");
 
-            var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", folderName);
+            var webRootPath = _env.WebRootPath;
+            if (string.IsNullOrEmpty(webRootPath))
+            {
+                webRootPath = Path.Combine(_env.ContentRootPath, "wwwroot");
+            }
+
+            var uploadsFolder = Path.Combine(webRootPath, "uploads", folderName);
             if (!Directory.Exists(uploadsFolder))
             {
                 Directory.CreateDirectory(uploadsFolder);
