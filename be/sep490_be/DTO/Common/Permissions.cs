@@ -243,6 +243,25 @@ namespace sep490_be.DTO.Common
             public const string Homework_Delete = "Homework.Delete";
         }
 
+        public static class Semester
+        {
+            public const string SemesterPage = "Semester";
+            public const string Semester_View = "Semester.View";
+            public const string Semester_Create = "Semester.Create";
+            public const string Semester_Edit = "Semester.Edit";
+            public const string Semester_Delete = "Semester.Delete";
+        }
+
+        public static class StudentRegistration
+        {
+            public const string StudentRegistrationPage = "StudentRegistration";
+            public const string StudentRegistration_View = "StudentRegistration.View";
+            public const string StudentRegistration_Create = "StudentRegistration.Create";
+            public const string StudentRegistration_Edit = "StudentRegistration.Edit";
+            public const string StudentRegistration_Delete = "StudentRegistration.Delete";
+            public const string StudentRegistration_Import = "StudentRegistration.Import";
+        }
+
         public static List<string> GetAllPermissions()
         {
             var permissions = new List<string>();
