@@ -67,7 +67,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpPut("class/{classId}/overrides")]
-        [HasPermission(Permissions.StudentGrade.StudentGrade_Edit)]
+        [HasPermission(Permissions.StudentGrade.StudentGrade_SaveGrade)]
         public async Task<IActionResult> SaveOverrides(int classId, [FromBody] StudentGradeOverridesSaveDto dto)
         {
             var response = await _service.SaveOverridesAsync(classId, dto);

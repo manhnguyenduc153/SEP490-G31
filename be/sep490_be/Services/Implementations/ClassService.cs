@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Mapster;
 using sep490_be.DTO;
@@ -91,7 +91,7 @@ namespace sep490_be.Services.Implementations
             }
         }
 
-        public async Task<ApiResponse<ClassDto>> GetByIdAsync(int id)
+        public async Task<ApiResponse<ClassDto>> GetByIdAsync(int id, string? username = null)
         {
             try
             {
@@ -113,6 +113,40 @@ namespace sep490_be.Services.Implementations
                 if (entity == null)
                 {
                     return ApiResponse<ClassDto>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (!string.IsNullOrEmpty(username))
+                {
+                    var user = await _userManager.FindByNameAsync(username);
+                    if (user != null)
+                    {
+                        var roles = await _userManager.GetRolesAsync(user);
+                        if (!roles.Contains("Admin"))
+                        {
+                            if (roles.Contains("Teacher"))
+                            {
+                                var teacher = await _teacherRepository.FindAll()
+                                    .FirstOrDefaultAsync(t => t.Email == user.Email || t.Email == username);
+                                if (teacher == null || entity.TeacherId != teacher.Id)
+                                {
+                                    return ApiResponse<ClassDto>.Fail("ERR_FORBIDDEN", StatusCodes.Status403Forbidden);
+                                }
+                            }
+                            else if (roles.Contains("Student"))
+                            {
+                                var student = await _studentRepository.FindAll()
+                                    .FirstOrDefaultAsync(s => s.Email == user.Email || s.Email == username);
+                                if (student == null || !entity.StudentClasses.Any(sc => sc.StudentId == student.Id))
+                                {
+                                    return ApiResponse<ClassDto>.Fail("ERR_FORBIDDEN", StatusCodes.Status403Forbidden);
+                                }
+                            }
+                            else
+                            {
+                                return ApiResponse<ClassDto>.Fail("ERR_FORBIDDEN", StatusCodes.Status403Forbidden);
+                            }
+                        }
+                    }
                 }
 
                 return ApiResponse<ClassDto>.Ok(MapToDto(entity), "GET_CLASS_DETAIL_SUCCESS");
@@ -358,6 +392,114 @@ namespace sep490_be.Services.Implementations
             catch (Exception ex)
             {
                 return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<PagingResponse<ClassDto>>> GetTeacherClassesAsync(string username, ClassSearchDto searchDto)
+        {
+            try
+            {
+                await AutoUpdateClassStatusesAsync();
+
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
+                {
+                    return ApiResponse<PagingResponse<ClassDto>>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var teacher = await _teacherRepository.FindAll()
+                    .FirstOrDefaultAsync(t => t.Email == user.Email || t.Email == username);
+                if (teacher == null)
+                {
+                    return ApiResponse<PagingResponse<ClassDto>>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var query = _repository.FindAll()
+                    .Include(c => c.Course)
+                    .Include(c => c.Teacher)
+                    .Include(c => c.Semester)
+                    .Include(c => c.StudentClasses)
+                    .Where(c => c.TeacherId == teacher.Id)
+                    .AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
+                {
+                    query = query.Where(c => c.TextSearch != null && c.TextSearch.Contains(searchDto.Keyword));
+                }
+
+                if (searchDto.CourseId.HasValue)
+                {
+                    query = query.Where(c => c.CourseId == searchDto.CourseId.Value);
+                }
+
+                var totalRecords = await query.CountAsync();
+                var entities = await query.ApplyPagingAsync(searchDto);
+
+                var dtos = entities.Select(MapToDto);
+                var pagingResponse = dtos.ToPagingResponse(totalRecords, searchDto);
+
+                return ApiResponse<PagingResponse<ClassDto>>.Ok(pagingResponse, "GET_TEACHER_CLASSES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<PagingResponse<ClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<PagingResponse<ClassDto>>> GetStudentClassesAsync(string username, ClassSearchDto searchDto)
+        {
+            try
+            {
+                await AutoUpdateClassStatusesAsync();
+
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
+                {
+                    return ApiResponse<PagingResponse<ClassDto>>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var student = await _studentRepository.FindAll()
+                    .Include(s => s.StudentClasses)
+                    .FirstOrDefaultAsync(s => s.Email == user.Email || s.Email == username);
+                if (student == null)
+                {
+                    return ApiResponse<PagingResponse<ClassDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var classIds = student.StudentClasses
+                    .Where(sc => sc.Status == (int)StudentClassStatus.Enrolled || sc.Status == (int)StudentClassStatus.Studying || sc.Status == (int)StudentClassStatus.Completed)
+                    .Select(sc => sc.ClassId)
+                    .ToList();
+
+                var query = _repository.FindAll()
+                    .Include(c => c.Course)
+                    .Include(c => c.Teacher)
+                    .Include(c => c.Semester)
+                    .Include(c => c.StudentClasses)
+                    .Where(c => classIds.Contains(c.Id))
+                    .AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
+                {
+                    query = query.Where(c => c.TextSearch != null && c.TextSearch.Contains(searchDto.Keyword));
+                }
+
+                if (searchDto.CourseId.HasValue)
+                {
+                    query = query.Where(c => c.CourseId == searchDto.CourseId.Value);
+                }
+
+                var totalRecords = await query.CountAsync();
+                var entities = await query.ApplyPagingAsync(searchDto);
+
+                var dtos = entities.Select(MapToDto);
+                var pagingResponse = dtos.ToPagingResponse(totalRecords, searchDto);
+
+                return ApiResponse<PagingResponse<ClassDto>>.Ok(pagingResponse, "GET_STUDENT_CLASSES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<PagingResponse<ClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 
