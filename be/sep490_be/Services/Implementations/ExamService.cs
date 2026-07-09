@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -540,6 +540,41 @@ namespace sep490_be.Services.Implementations
                         }).ToList()
                     })
                     .ToListAsync();
+
+                // Fetch correct status for each answer
+                var examDetailRes = await GetByIdAsync(examId);
+                if (examDetailRes.Success && examDetailRes.Data != null)
+                {
+                    var questionsMap = examDetailRes.Data.Questions.ToDictionary(q => q.Id);
+                    foreach (var attempt in attempts)
+                    {
+                        foreach (var ans in attempt.Answers)
+                        {
+                            if (questionsMap.TryGetValue(ans.QuestionId, out var qDto))
+                            {
+                                // Check correctness
+                                var correctAnswers = qDto.QuestionAnswers.Where(qa => qa.IsCorrect).Select(qa => qa.Content.Trim().ToLower()).ToList();
+                                var correctIds = qDto.QuestionAnswers.Where(qa => qa.IsCorrect).Select(qa => qa.Id.ToString()).ToList();
+                                
+                                if (!string.IsNullOrEmpty(ans.AnswerContent))
+                                {
+                                    var stdAns = ans.AnswerContent.Trim().ToLower();
+                                    if (qDto.QuestionType == 1 || qDto.QuestionType == 4)
+                                    {
+                                        ans.IsCorrect = correctAnswers.Contains(stdAns) || correctIds.Contains(stdAns);
+                                    }
+                                    else if (qDto.QuestionType == 2)
+                                    {
+                                        var stdAnswers = stdAns.Split(',').Select(s => s.Trim()).ToHashSet();
+                                        var correctSet = correctAnswers.ToHashSet();
+                                        var correctIdSet = correctIds.ToHashSet();
+                                        ans.IsCorrect = stdAnswers.SetEquals(correctSet) || stdAnswers.SetEquals(correctIdSet);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 return ApiResponse<List<ExamAttemptDto>>.Ok(attempts, "GET_ATTEMPTS_SUCCESS");
             }
