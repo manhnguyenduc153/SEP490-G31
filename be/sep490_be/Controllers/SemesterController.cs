@@ -25,7 +25,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Semester
         [HttpGet]
-        [HasPermission(Permissions.Class.Class_View)]
+        [HasPermission(Permissions.Semester.Semester_View)]
         public async Task<IActionResult> GetAll()
         {
             var response = await _service.GetAllAsync();
@@ -34,7 +34,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Semester/5
         [HttpGet("{id}")]
-        [HasPermission(Permissions.Class.Class_View)]
+        [HasPermission(Permissions.Semester.Semester_View)]
         public async Task<IActionResult> GetById(int id)
         {
             var response = await _service.GetByIdAsync(id);
@@ -43,7 +43,7 @@ namespace sep490_be.Controllers
 
         // POST: api/Semester
         [HttpPost]
-        [HasPermission(Permissions.Class.Class_Edit)]
+        [HasPermission(Permissions.Semester.Semester_Create)]
         public async Task<IActionResult> Create([FromBody] SemesterSaveDto dto)
         {
             var response = await _service.CreateAsync(dto);
@@ -52,7 +52,7 @@ namespace sep490_be.Controllers
 
         // PUT: api/Semester/5
         [HttpPut("{id}")]
-        [HasPermission(Permissions.Class.Class_Edit)]
+        [HasPermission(Permissions.Semester.Semester_Edit)]
         public async Task<IActionResult> Edit(int id, [FromBody] SemesterSaveDto dto)
         {
             dto.Id = id;
@@ -62,7 +62,7 @@ namespace sep490_be.Controllers
 
         // DELETE: api/Semester/5
         [HttpDelete("{id}")]
-        [HasPermission(Permissions.Class.Class_Edit)]
+        [HasPermission(Permissions.Semester.Semester_Delete)]
         public async Task<IActionResult> Delete(int id)
         {
             var response = await _service.DeleteAsync(id);
@@ -71,7 +71,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Semester/5/teacher/3/availability
         [HttpGet("{semesterId}/teacher/{teacherId}/availability")]
-        [HasPermission(Permissions.Class.Class_View)]
+        [HasPermission(Permissions.Semester.Semester_View)]
         public async Task<IActionResult> GetTeacherAvailability(int semesterId, int teacherId)
         {
             var response = await _service.GetTeacherAvailabilitiesAsync(semesterId, teacherId);
@@ -80,7 +80,7 @@ namespace sep490_be.Controllers
 
         // POST: api/Semester/availability
         [HttpPost("availability")]
-        [HasPermission(Permissions.Class.Class_Edit)]
+        [HasPermission(Permissions.Semester.Semester_Edit)]
         public async Task<IActionResult> SaveTeacherAvailability([FromBody] TeacherAvailabilitySaveDto dto)
         {
             var response = await _service.SaveTeacherAvailabilityAsync(dto);
@@ -89,7 +89,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Semester/5/registrations
         [HttpGet("{semesterId}/registrations")]
-        [HasPermission(Permissions.Class.Class_View)]
+        [HasPermission(Permissions.StudentRegistration.StudentRegistration_View)]
         public async Task<IActionResult> GetStudentRegistrations(
             int semesterId,
             [FromQuery] string? keyword,
@@ -104,7 +104,7 @@ namespace sep490_be.Controllers
 
         // POST: api/Semester/registrations/import
         [HttpPost("registrations/import")]
-        [HasPermission(Permissions.Class.Class_Edit)]
+        [HasPermission(Permissions.StudentRegistration.StudentRegistration_Import)]
         public async Task<IActionResult> ImportStudentRegistrations([FromBody] List<StudentRegistrationSaveDto> dtos)
         {
             var response = await _service.ImportStudentRegistrationsAsync(dtos);
@@ -113,7 +113,7 @@ namespace sep490_be.Controllers
 
         // POST: api/Semester/registrations
         [HttpPost("registrations")]
-        [HasPermission(Permissions.Class.Class_Edit)]
+        [HasPermission(Permissions.StudentRegistration.StudentRegistration_Create)]
         public async Task<IActionResult> CreateStudentRegistration([FromBody] StudentRegistrationSaveDto dto)
         {
             var response = await _service.CreateStudentRegistrationAsync(dto);
@@ -122,7 +122,7 @@ namespace sep490_be.Controllers
 
         // PUT: api/Semester/registrations/5
         [HttpPut("registrations/{id}")]
-        [HasPermission(Permissions.Class.Class_Edit)]
+        [HasPermission(Permissions.StudentRegistration.StudentRegistration_Edit)]
         public async Task<IActionResult> EditStudentRegistration(int id, [FromBody] StudentRegistrationSaveDto dto)
         {
             var response = await _service.EditStudentRegistrationAsync(id, dto);
@@ -131,7 +131,7 @@ namespace sep490_be.Controllers
 
         // DELETE: api/Semester/registrations/5
         [HttpDelete("registrations/{id}")]
-        [HasPermission(Permissions.Class.Class_Edit)]
+        [HasPermission(Permissions.StudentRegistration.StudentRegistration_Delete)]
         public async Task<IActionResult> DeleteStudentRegistration(int id)
         {
             var response = await _service.DeleteStudentRegistrationAsync(id);

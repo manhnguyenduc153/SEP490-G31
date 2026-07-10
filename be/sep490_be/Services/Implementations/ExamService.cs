@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -439,6 +439,91 @@ namespace sep490_be.Services.Implementations
                         StudentId = a.StudentId,
                         StudentName = student.Name,
                         StudentCode = student.Code ?? string.Empty,
+                        StartTime = a.StartTime,
+                        SubmitTime = a.SubmitTime,
+                        Score = a.Score,
+                        Status = a.Status,
+                        Duration = exam.Duration,
+                        Answers = a.ExamAnswers.Select(ans => new ExamAnswerDto
+                        {
+                            Id = ans.Id,
+                            QuestionId = ans.QuestionId,
+                            AnswerContent = ans.AnswerContent,
+                            AttachmentUrl = ans.AttachmentUrl,
+                            Score = ans.Score,
+                            TeacherComment = ans.TeacherComment
+                        }).ToList()
+                    })
+                    .ToListAsync();
+
+                // Fetch correct status for each answer
+                var examDetailRes = await GetByIdAsync(examId);
+                if (examDetailRes.Success && examDetailRes.Data != null)
+                {
+                    var questionsMap = examDetailRes.Data.Questions.ToDictionary(q => q.Id);
+                    foreach (var attempt in attempts)
+                    {
+                        foreach (var ans in attempt.Answers)
+                        {
+                            if (questionsMap.TryGetValue(ans.QuestionId, out var qDto))
+                            {
+                                // Check correctness
+                                var correctAnswers = qDto.QuestionAnswers.Where(qa => qa.IsCorrect).Select(qa => qa.Content.Trim().ToLower()).ToList();
+                                var correctIds = qDto.QuestionAnswers.Where(qa => qa.IsCorrect).Select(qa => qa.Id.ToString()).ToList();
+                                
+                                if (!string.IsNullOrEmpty(ans.AnswerContent))
+                                {
+                                    var stdAns = ans.AnswerContent.Trim().ToLower();
+                                    if (qDto.QuestionType == 1 || qDto.QuestionType == 4)
+                                    {
+                                        ans.IsCorrect = correctAnswers.Contains(stdAns) || correctIds.Contains(stdAns);
+                                    }
+                                    else if (qDto.QuestionType == 2)
+                                    {
+                                        var stdAnswers = stdAns.Split(',').Select(s => s.Trim()).ToHashSet();
+                                        var correctSet = correctAnswers.ToHashSet();
+                                        var correctIdSet = correctIds.ToHashSet();
+                                        ans.IsCorrect = stdAnswers.SetEquals(correctSet) || stdAnswers.SetEquals(correctIdSet);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return ApiResponse<List<ExamAttemptDto>>.Ok(attempts, "GET_ATTEMPTS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ExamAttemptDto>>.Fail("Error: " + ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse<List<ExamAttemptDto>>> GetAttemptsByExamAsync(int examId)
+        {
+            try
+            {
+                var exam = await _dbContext.Exams.FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
+                if (exam == null)
+                {
+                    return ApiResponse<List<ExamAttemptDto>>.Fail("Bai kiem tra khong ton tai.");
+                }
+
+                var attempts = await _dbContext.ExamAttempts
+                    .AsNoTracking()
+                    .Include(a => a.Student)
+                    .Include(a => a.ExamAnswers)
+                    .Where(a => a.ExamId == examId && !a.IsDeleted)
+                    .OrderBy(a => a.Student.Name)
+                    .ThenByDescending(a => a.SubmitTime ?? a.StartTime)
+                    .Select(a => new ExamAttemptDto
+                    {
+                        Id = a.Id,
+                        ExamId = a.ExamId,
+                        ExamTitle = exam.Title,
+                        StudentId = a.StudentId,
+                        StudentName = a.Student.Name,
+                        StudentCode = a.Student.Code ?? string.Empty,
                         StartTime = a.StartTime,
                         SubmitTime = a.SubmitTime,
                         Score = a.Score,

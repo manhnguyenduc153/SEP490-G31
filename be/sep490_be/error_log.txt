@@ -121,3 +121,18 @@ Details: Query: None | User: Anonymous
 [2026-07-07 22:22:00] [CLIENT ERROR 401] GET /api/Dashboard
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-07-10 22:27:00] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-10 22:27:00] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-10 22:27:34] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-10 22:27:34] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-10 22:34:05] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------

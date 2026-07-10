@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using sep490_be.DTO.Attendance;
 using sep490_be.DTO.Common;
@@ -31,7 +31,7 @@ namespace sep490_be.Controllers
 
         // POST: api/Attendance/bulk-save
         [HttpPost("bulk-save")]
-        [HasPermission(Permissions.Attendance.Attendance_Create)]
+        [HasPermission(Permissions.Attendance.Attendance_SaveAttendance)]
         public async Task<IActionResult> BulkSave([FromBody] AttendanceBulkSaveDto dto)
         {
             var response = await _service.BulkSaveAsync(dto);

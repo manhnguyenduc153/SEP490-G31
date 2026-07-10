@@ -892,6 +892,65 @@ namespace sep490_be.Migrations
                     b.ToTable("exam_students", (string)null);
                 });
 
+            modelBuilder.Entity("sep490_be.Models.GradeComponent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("Weight")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("grade_components", (string)null);
+                });
+
             modelBuilder.Entity("sep490_be.Models.Homework", b =>
                 {
                     b.Property<int>("Id")
@@ -1813,6 +1872,54 @@ namespace sep490_be.Migrations
                     b.ToTable("student_grades", (string)null);
                 });
 
+            modelBuilder.Entity("sep490_be.Models.StudentGradeOverride", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("GradeComponentId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("Score")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("StudentClassId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GradeComponentId");
+
+                    b.HasIndex("StudentClassId", "GradeComponentId")
+                        .IsUnique();
+
+                    b.ToTable("student_grade_overrides", (string)null);
+                });
+
             modelBuilder.Entity("sep490_be.Models.StudentRegistration", b =>
                 {
                     b.Property<int>("Id")
@@ -2266,6 +2373,17 @@ namespace sep490_be.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("sep490_be.Models.GradeComponent", b =>
+                {
+                    b.HasOne("sep490_be.Models.Course", "Course")
+                        .WithMany("GradeComponents")
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+                });
+
             modelBuilder.Entity("sep490_be.Models.Homework", b =>
                 {
                     b.HasOne("sep490_be.Models.Class", "Class")
@@ -2425,6 +2543,25 @@ namespace sep490_be.Migrations
                     b.Navigation("StudentClass");
                 });
 
+            modelBuilder.Entity("sep490_be.Models.StudentGradeOverride", b =>
+                {
+                    b.HasOne("sep490_be.Models.GradeComponent", "GradeComponent")
+                        .WithMany("StudentGradeOverrides")
+                        .HasForeignKey("GradeComponentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("sep490_be.Models.StudentClass", "StudentClass")
+                        .WithMany("StudentGradeOverrides")
+                        .HasForeignKey("StudentClassId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("GradeComponent");
+
+                    b.Navigation("StudentClass");
+                });
+
             modelBuilder.Entity("sep490_be.Models.StudentRegistration", b =>
                 {
                     b.HasOne("sep490_be.Models.Course", "Course")
@@ -2497,6 +2634,8 @@ namespace sep490_be.Migrations
                 {
                     b.Navigation("Classes");
 
+                    b.Navigation("GradeComponents");
+
                     b.Navigation("LearningMaterials");
                 });
 
@@ -2519,6 +2658,11 @@ namespace sep490_be.Migrations
             modelBuilder.Entity("sep490_be.Models.ExamSchedule", b =>
                 {
                     b.Navigation("ExamStudents");
+                });
+
+            modelBuilder.Entity("sep490_be.Models.GradeComponent", b =>
+                {
+                    b.Navigation("StudentGradeOverrides");
                 });
 
             modelBuilder.Entity("sep490_be.Models.Homework", b =>
@@ -2569,6 +2713,8 @@ namespace sep490_be.Migrations
 
             modelBuilder.Entity("sep490_be.Models.StudentClass", b =>
                 {
+                    b.Navigation("StudentGradeOverrides");
+
                     b.Navigation("StudentGrades");
                 });
 
@@ -2593,4 +2739,3 @@ namespace sep490_be.Migrations
         }
     }
 }
-
