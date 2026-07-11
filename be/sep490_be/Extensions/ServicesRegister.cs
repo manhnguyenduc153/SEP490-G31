@@ -1,4 +1,4 @@
-﻿using sep490_be.Repositories.Interfaces;
+using sep490_be.Repositories.Interfaces;
 using sep490_be.Repositories.Implementations;
 using sep490_be.Services.Interfaces;
 using sep490_be.Services.Implementations;
@@ -53,6 +53,7 @@ namespace sep490_be.Extensions
             services.AddScoped<IScheduleOptimizationService, ScheduleOptimizationService>();
             services.AddScoped<ILearningMaterialService, LearningMaterialService>();
             services.AddScoped<ISemesterService, SemesterService>();
+            services.AddScoped<IDashboardService, DashboardService>();
             services.AddScoped<IStudentGradeService, StudentGradeService>();
         }
     }
