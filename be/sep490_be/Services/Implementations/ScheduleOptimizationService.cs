@@ -505,6 +505,32 @@ namespace sep490_be.Services.Implementations
                     model.Add(teacherSpread == maxTeacherClasses - minTeacherClasses);
                 }
 
+                IntVar? roomSpread = null;
+                if (numRooms > 1 && numClasses > 1)
+                {
+                    var classesCountForRoom = new IntVar[numRooms];
+                    for (int r = 0; r < numRooms; r++)
+                    {
+                        classesCountForRoom[r] = model.NewIntVar(0, numClasses, $"rCount_{r}");
+                        var assignedToRoom = new List<IntVar>();
+                        for (int i = 0; i < numClasses; i++)
+                        {
+                            var assigned = model.NewBoolVar($"assignedRoom_{i}_{r}");
+                            model.Add(roomVar[i] == r).OnlyEnforceIf(assigned);
+                            model.Add(roomVar[i] != r).OnlyEnforceIf(assigned.Not());
+                            assignedToRoom.Add(assigned);
+                        }
+                        model.Add(classesCountForRoom[r] == LinearExpr.Sum(assignedToRoom.ToArray()));
+                    }
+
+                    var maxRoomClasses = model.NewIntVar(0, numClasses, "maxRoomClasses");
+                    var minRoomClasses = model.NewIntVar(0, numClasses, "minRoomClasses");
+                    model.AddMaxEquality(maxRoomClasses, classesCountForRoom);
+                    model.AddMinEquality(minRoomClasses, classesCountForRoom);
+                    roomSpread = model.NewIntVar(0, numClasses, "roomSpread");
+                    model.Add(roomSpread == maxRoomClasses - minRoomClasses);
+                }
+
                 // Combine objectives
                 var objectiveExpressions = new List<IntVar>();
                 if (spread != null)
@@ -517,6 +543,13 @@ namespace sep490_be.Services.Implementations
                     var weightedTeacherSpread = model.NewIntVar(0, numClasses * 100, "weightedTeacherSpread");
                     model.Add(weightedTeacherSpread == teacherSpread * 100);
                     objectiveExpressions.Add(weightedTeacherSpread);
+                }
+                if (roomSpread != null)
+                {
+                    // Scale roomSpread by 50 to ensure room utilization balance is a high priority
+                    var weightedRoomSpread = model.NewIntVar(0, numClasses * 50, "weightedRoomSpread");
+                    model.Add(weightedRoomSpread == roomSpread * 50);
+                    objectiveExpressions.Add(weightedRoomSpread);
                 }
 
                 // ── Optimization: Minimize active teaching days for teachers ──────────────────
