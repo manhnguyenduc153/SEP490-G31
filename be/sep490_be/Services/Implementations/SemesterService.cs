@@ -258,7 +258,12 @@ namespace sep490_be.Services.Implementations
                     .Include(sr => sr.Student)
                     .Include(sr => sr.Course)
                     .Include(sr => sr.Semester)
-                    .Where(sr => sr.SemesterId == semesterId);
+                    .AsQueryable();
+
+                if (semesterId > 0)
+                {
+                    query = query.Where(sr => sr.SemesterId == semesterId);
+                }
 
                 if (!string.IsNullOrWhiteSpace(keyword))
                 {

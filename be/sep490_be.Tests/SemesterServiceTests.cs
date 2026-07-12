@@ -7,6 +7,7 @@ using Moq;
 using FluentAssertions;
 using sep490_be.DTO.Semester;
 using sep490_be.DTO.Student;
+using sep490_be.DTO.Teacher;
 using sep490_be.Models;
 using sep490_be.Services.Implementations;
 using Xunit;
@@ -24,6 +25,7 @@ namespace sep490_be.Tests.Services
             // Tạo cấu hình Database In-Memory độc lập cho mỗi test case
             return new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .ConfigureWarnings(x => x.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
                 .Options;
         }
 
@@ -284,6 +286,279 @@ namespace sep490_be.Tests.Services
             }
         }
 
+        [Fact]
+        public async Task Normal_EditAsync_WithValidInputs_ShouldUpdateSemester()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            int createdId;
+
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var s = new Semester { Code = "FALL2026", Name = "Kỳ học Thu 2026", StartDate = DateTime.Now, EndDate = DateTime.Now.AddMonths(3) };
+                context.Semesters.Add(s);
+                await context.SaveChangesAsync();
+                createdId = s.Id;
+            }
+
+            var editDto = new SemesterSaveDto
+            {
+                Id = createdId,
+                Code = "FALL2026_UPDATED",
+                Name = "Kỳ học Thu 2026 Cập nhật",
+                StartDate = DateTime.Now,
+                EndDate = DateTime.Now.AddMonths(3),
+                Status = 1
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.EditAsync(editDto);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
+                response.Data!.Code.Should().Be("FALL2026_UPDATED");
+                response.Data.Name.Should().Be("Kỳ học Thu 2026 Cập nhật");
+            }
+        }
+
+        [Fact]
+        public async Task Normal_DeleteAsync_ShouldSoftDeleteSemester()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            int createdId;
+
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var s = new Semester { Code = "FALL2026", Name = "Kỳ học Thu 2026", StartDate = DateTime.Now, EndDate = DateTime.Now.AddMonths(3) };
+                context.Semesters.Add(s);
+                await context.SaveChangesAsync();
+                createdId = s.Id;
+            }
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.DeleteAsync(createdId);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
+                response.Data.Should().BeTrue();
+
+                var deleted = await context.Semesters.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == createdId);
+                deleted!.IsDeleted.Should().BeTrue();
+            }
+        }
+
+        [Fact]
+        public async Task Normal_GetTeacherAvailabilitiesAsync_ShouldReturnAvailabilityList()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var s = new Semester { Id = 1, Code = "F26", Name = "Fall 2026" };
+                var t = new Teacher { Id = 1, Code = "T01", Name = "Teacher 1" };
+                context.Semesters.Add(s);
+                context.Teachers.Add(t);
+                context.TeacherAvailabilities.Add(new TeacherAvailability { SemesterId = 1, TeacherId = 1, DayOfWeek = 1, SlotIndex = 2 });
+                await context.SaveChangesAsync();
+            }
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.GetTeacherAvailabilitiesAsync(1, 1);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
+                response.Data.Should().HaveCount(1);
+                response.Data![0].DayOfWeek.Should().Be(1);
+                response.Data[0].SlotIndex.Should().Be(2);
+            }
+        }
+
+        [Fact]
+        public async Task Normal_SaveTeacherAvailabilityAsync_ShouldSaveAvailabilities()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            var saveDto = new TeacherAvailabilitySaveDto
+            {
+                SemesterId = 1,
+                TeacherId = 1,
+                Slots = new List<TeacherAvailabilitySlotDto>
+                {
+                    new TeacherAvailabilitySlotDto { DayOfWeek = 1, SlotIndex = 0 },
+                    new TeacherAvailabilitySlotDto { DayOfWeek = 2, SlotIndex = 1 }
+                }
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.SaveTeacherAvailabilityAsync(saveDto);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
+
+                var count = await context.TeacherAvailabilities.CountAsync(x => x.SemesterId == 1 && x.TeacherId == 1);
+                count.Should().Be(2);
+            }
+        }
+
+        [Fact]
+        public async Task Normal_GetStudentRegistrationsAsync_ShouldReturnRegistrations()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            int semesterId;
+
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var s = new Semester { Code = "F26", Name = "Fall 2026" };
+                var student = new Student { Code = "S01", Name = "Student A" };
+                var course = new Course { Code = "C01", Name = "Math" };
+                context.Semesters.Add(s);
+                context.Students.Add(student);
+                context.Courses.Add(course);
+                await context.SaveChangesAsync();
+
+                semesterId = s.Id;
+
+                context.StudentRegistrations.Add(new StudentRegistration 
+                { 
+                    SemesterId = semesterId, 
+                    StudentId = student.Id, 
+                    CourseId = course.Id, 
+                    PreferredSlotsJson = "[]", 
+                    Status = 0 
+                });
+                await context.SaveChangesAsync();
+            }
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.GetStudentRegistrationsAsync(semesterId);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
+                response.Data.Should().HaveCount(1);
+            }
+        }
+
+        [Fact]
+        public async Task Normal_GetStudentRegistrationsPagedAsync_ShouldReturnPagedRegistrations()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            int semesterId;
+            int studentId;
+            int courseId;
+
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var s = new Semester { Code = "F26", Name = "Fall 2026" };
+                var student = new Student { Code = "S01", Name = "Nguyen Van A" };
+                var course = new Course { Code = "C01", Name = "Math" };
+                context.Semesters.Add(s);
+                context.Students.Add(student);
+                context.Courses.Add(course);
+                await context.SaveChangesAsync();
+
+                semesterId = s.Id;
+                studentId = student.Id;
+                courseId = course.Id;
+
+                context.StudentRegistrations.Add(new StudentRegistration 
+                { 
+                    SemesterId = semesterId, 
+                    StudentId = studentId, 
+                    CourseId = courseId, 
+                    PreferredSlotsJson = "[]", 
+                    Status = 0 
+                });
+                await context.SaveChangesAsync();
+            }
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.GetStudentRegistrationsPagedAsync(semesterId, "Nguyen", null, null, 1, 10);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
+                response.Data!.Items.Should().HaveCount(1);
+            }
+        }
+
+        [Fact]
+        public async Task Normal_ImportStudentRegistrationsAsync_ShouldImportSuccessfully()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var s = new Semester { Id = 1, Code = "F26", Name = "Fall 2026" };
+                var course = new Course { Id = 1, Code = "KH00001", Name = "Math Course", Status = 1 };
+                context.Semesters.Add(s);
+                context.Courses.Add(course);
+                await context.SaveChangesAsync();
+            }
+
+            var importList = new List<StudentRegistrationSaveDto>
+            {
+                new StudentRegistrationSaveDto
+                {
+                    SemesterId = 1,
+                    CourseId = 1,
+                    StudentEmail = "student@test.com",
+                    StudentName = "Imported Student",
+                    PreferredSlots = new List<string> { "Morning" }
+                }
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.ImportStudentRegistrationsAsync(importList);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
+                response.Data.Should().HaveCount(1);
+                response.Data![0].StudentEmail.Should().Be("student@test.com");
+            }
+        }
+
         #endregion
 
         #region Boundary Test Cases (Kiểm thử giá trị biên)
@@ -345,6 +620,32 @@ namespace sep490_be.Tests.Services
                 response.Success.Should().BeTrue();
                 response.Data.Should().NotBeNull();
                 response.Data!.Name.Should().HaveLength(200);
+            }
+        }
+
+        [Fact]
+        public async Task Boundary_SaveTeacherAvailabilityAsync_WithEmptySlots_ShouldSucceed()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            var saveDto = new TeacherAvailabilitySaveDto
+            {
+                SemesterId = 1,
+                TeacherId = 1,
+                Slots = new List<TeacherAvailabilitySlotDto>()
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.SaveTeacherAvailabilityAsync(saveDto);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeTrue();
             }
         }
 
@@ -651,6 +952,125 @@ namespace sep490_be.Tests.Services
                 response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
                 response.Message.Should().Be("ERR_REGISTRATION_ALREADY_SCHEDULED_CANNOT_DELETE");
             }
+        }
+
+        [Fact]
+        public async Task Abnormal_EditAsync_SemesterNotFound_ShouldReturnNotFound()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            var editDto = new SemesterSaveDto
+            {
+                Id = 9999,
+                Code = "ERR",
+                Name = "Error Semester"
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.EditAsync(editDto);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeFalse();
+                response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+                response.Message.Should().Be("ERR_SEMESTER_NOT_FOUND");
+            }
+        }
+
+        [Fact]
+        public async Task Abnormal_DeleteAsync_SemesterNotFound_ShouldReturnNotFound()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.DeleteAsync(9999);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeFalse();
+                response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+                response.Message.Should().Be("ERR_SEMESTER_NOT_FOUND");
+            }
+        }
+
+        [Fact]
+        public async Task Abnormal_SaveTeacherAvailabilityAsync_WithInvalidSlot_ShouldReturnBadRequest()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            var saveDto = new TeacherAvailabilitySaveDto
+            {
+                SemesterId = 1,
+                TeacherId = 1,
+                Slots = new List<TeacherAvailabilitySlotDto>
+                {
+                    new TeacherAvailabilitySlotDto { DayOfWeek = 99, SlotIndex = 0 }
+                }
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.SaveTeacherAvailabilityAsync(saveDto);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeFalse();
+                response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+                response.Message.Should().Be("ERR_INVALID_DAY_OR_SLOT");
+            }
+        }
+
+        [Fact]
+        public async Task Abnormal_ImportStudentRegistrationsAsync_WithMissingSemesterOrEmail_ShouldReturnBadRequest()
+        {
+            // Arrange
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            var importList = new List<StudentRegistrationSaveDto>
+            {
+                new StudentRegistrationSaveDto
+                {
+                    SemesterId = 0,
+                    StudentEmail = "",
+                    StudentName = "Bad Row"
+                }
+            };
+
+            // Act
+            using (var context = new ApplicationDbContext(options, mockHttp.Object))
+            {
+                var service = new SemesterService(context);
+                var response = await service.ImportStudentRegistrationsAsync(importList);
+
+                // Assert
+                response.Should().NotBeNull();
+                response.Success.Should().BeFalse();
+                response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+                response.Message.Should().Contain("ERR_REGISTRATION_MISSING_SEMESTER_OR_EMAIL");
+            }
+        }
+
+        [Fact]
+        public async Task Abnormal_IntentionalFailure_ShouldFail()
+        {
+            // Act & Assert
+            bool condition = true;
+            condition.Should().BeFalse("This is an intentional failure to prove that the test suite is capable of identifying failures.");
         }
 
         #endregion
