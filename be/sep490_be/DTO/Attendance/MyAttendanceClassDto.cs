@@ -8,6 +8,7 @@ namespace sep490_be.DTO.Attendance
         public string? CourseName { get; set; }
         public string? TeacherName { get; set; }
         public int AttendedSessions { get; set; }
+        public int AbsentSessions { get; set; }
         public int TotalSessions { get; set; }
         public double AttendanceRate { get; set; }
     }

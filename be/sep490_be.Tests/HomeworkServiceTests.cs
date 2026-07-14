@@ -69,6 +69,8 @@ namespace sep490_be.Tests.Services
             return homework;
         }
 
+        #region Normal Test Cases (Kiểm thử giá trị thông thường)
+
         [Fact]
         public async Task GetHomeworkByClassAsync_ShouldReturnOnlyActiveHomeworkInNewestFirstOrder()
         {
@@ -94,7 +96,6 @@ namespace sep490_be.Tests.Services
             response.Data!.Select(x => x.Title).Should().Equal("Newer", "Older");
             response.Data!.Should().OnlyContain(x => x.ClassName == "Class One");
         }
-
         [Fact]
         public async Task CreateHomeworkAsync_WithValidDto_ShouldPersistAndMapHomework()
         {
@@ -125,7 +126,6 @@ namespace sep490_be.Tests.Services
             saved.TeacherId.Should().Be(teacherId);
             saved.AttachmentUrls.Should().ContainSingle("https://test/file.mp3");
         }
-
         [Fact]
         public async Task UpdateHomeworkAsync_WhenHomeworkExists_ShouldUpdateEditableFieldsOnly()
         {
@@ -155,21 +155,6 @@ namespace sep490_be.Tests.Services
             homework.TotalScore.Should().Be(25);
             homework.Status.Should().Be(0);
         }
-
-        [Fact]
-        public async Task UpdateHomeworkAsync_WhenHomeworkDoesNotExist_ShouldReturnNotFound()
-        {
-            var options = CreateNewContextOptions();
-            var mockHttp = GetMockHttpContextAccessor();
-            using var context = new ApplicationDbContext(options, mockHttp.Object);
-
-            var response = await CreateService(context).UpdateHomeworkAsync(9999, new HomeworkSaveDto { Title = "Missing" });
-
-            response.Success.Should().BeFalse();
-            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
-            response.Message.Should().Be("Không tìm thấy bài tập");
-        }
-
         [Fact]
         public async Task DeleteHomeworkAsync_WhenHomeworkExists_ShouldSoftDeleteHomework()
         {
@@ -189,75 +174,6 @@ namespace sep490_be.Tests.Services
             var listResponse = await CreateService(context).GetHomeworkByClassAsync(classId);
             listResponse.Data.Should().BeEmpty();
         }
-
-        [Fact]
-        public async Task SubmitHomeworkAsync_WithoutStudentId_ShouldReturnBadRequest()
-        {
-            var options = CreateNewContextOptions();
-            var mockHttp = GetMockHttpContextAccessor();
-            using var context = new ApplicationDbContext(options, mockHttp.Object);
-
-            var response = await CreateService(context).SubmitHomeworkAsync(new HomeworkSubmissionSaveDto
-            {
-                HomeworkId = 1,
-                StudentId = null
-            });
-
-            response.Success.Should().BeFalse();
-            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-            response.Message.Should().Be("Khong xac dinh duoc sinh vien");
-        }
-
-        [Theory]
-        [InlineData(0)]
-        [InlineData(1)]
-        public async Task SubmitHomeworkAsync_WhenHomeworkIsUnavailable_ShouldReturnBadRequest(int scenario)
-        {
-            var options = CreateNewContextOptions();
-            var mockHttp = GetMockHttpContextAccessor();
-            using var context = new ApplicationDbContext(options, mockHttp.Object);
-            var (classId, teacherId, studentId) = await SeedActorsAsync(context);
-            var homeworkId = 9999;
-            if (scenario == 1)
-            {
-                homeworkId = (await SeedHomeworkAsync(context, classId, teacherId, status: 0)).Id;
-            }
-
-            var response = await CreateService(context).SubmitHomeworkAsync(new HomeworkSubmissionSaveDto
-            {
-                HomeworkId = homeworkId,
-                StudentId = studentId
-            });
-
-            response.Success.Should().BeFalse();
-            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-            response.Message.Should().Be("Bài tập không khả dụng hoặc đã đóng");
-        }
-
-        [Theory]
-        [InlineData(false, 1)]
-        [InlineData(true, 3)]
-        public async Task SubmitHomeworkAsync_ShouldSetSubmissionStatusFromDueDate(bool isLate, int expectedStatus)
-        {
-            var options = CreateNewContextOptions();
-            var mockHttp = GetMockHttpContextAccessor();
-            using var context = new ApplicationDbContext(options, mockHttp.Object);
-            var (classId, teacherId, studentId) = await SeedActorsAsync(context);
-            var dueDate = isLate ? DateTime.UtcNow.AddHours(-1) : DateTime.UtcNow.AddHours(1);
-            var homework = await SeedHomeworkAsync(context, classId, teacherId, dueDate);
-
-            var response = await CreateService(context).SubmitHomeworkAsync(new HomeworkSubmissionSaveDto
-            {
-                HomeworkId = homework.Id,
-                StudentId = studentId,
-                Content = "My answer"
-            });
-
-            response.Success.Should().BeTrue();
-            response.Data!.Status.Should().Be(expectedStatus);
-            (await context.HomeworkSubmissions.SingleAsync()).Content.Should().Be("My answer");
-        }
-
         [Fact]
         public async Task SubmitHomeworkAsync_WhenResubmitting_ShouldUpdateExistingAndClearGrade()
         {
@@ -293,7 +209,6 @@ namespace sep490_be.Tests.Services
             response.Data.TeacherFeedback.Should().BeNull();
             (await context.HomeworkSubmissions.CountAsync()).Should().Be(1);
         }
-
         [Fact]
         public async Task GetSubmissionsByHomeworkAsync_ShouldReturnStudentDetailsAndExcludeDeletedRows()
         {
@@ -318,31 +233,6 @@ namespace sep490_be.Tests.Services
             submission.StudentName.Should().Be("Student One");
             submission.StudentCode.Should().Be("ST001");
         }
-
-        [Fact]
-        public async Task GradeSubmissionAsync_WhenScoreExceedsTotal_ShouldReturnBadRequestWithoutChangingSubmission()
-        {
-            var options = CreateNewContextOptions();
-            var mockHttp = GetMockHttpContextAccessor();
-            using var context = new ApplicationDbContext(options, mockHttp.Object);
-            var (classId, teacherId, studentId) = await SeedActorsAsync(context);
-            var homework = await SeedHomeworkAsync(context, classId, teacherId, totalScore: 10);
-            var submission = new HomeworkSubmission { HomeworkId = homework.Id, StudentId = studentId, SubmitTime = DateTime.UtcNow, Status = 1 };
-            context.HomeworkSubmissions.Add(submission);
-            await context.SaveChangesAsync();
-
-            var response = await CreateService(context).GradeSubmissionAsync(submission.Id, new HomeworkSubmissionGradeDto
-            {
-                Score = 11,
-                TeacherFeedback = "Too high"
-            });
-
-            response.Success.Should().BeFalse();
-            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-            submission.Score.Should().BeNull();
-            submission.Status.Should().Be(1);
-        }
-
         [Fact]
         public async Task GradeSubmissionAsync_WithValidScore_ShouldPersistGradeAndFeedback()
         {
@@ -367,6 +257,116 @@ namespace sep490_be.Tests.Services
             submission.TeacherFeedback.Should().Be("Good work");
         }
 
+        #endregion
+
+        #region Boundary Test Cases (Kiểm thử giá trị biên)
+
+        [Theory]
+        [InlineData(false, 1)]
+        [InlineData(true, 3)]
+        public async Task SubmitHomeworkAsync_ShouldSetSubmissionStatusFromDueDate(bool isLate, int expectedStatus)
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var (classId, teacherId, studentId) = await SeedActorsAsync(context);
+            var dueDate = isLate ? DateTime.UtcNow.AddHours(-1) : DateTime.UtcNow.AddHours(1);
+            var homework = await SeedHomeworkAsync(context, classId, teacherId, dueDate);
+
+            var response = await CreateService(context).SubmitHomeworkAsync(new HomeworkSubmissionSaveDto
+            {
+                HomeworkId = homework.Id,
+                StudentId = studentId,
+                Content = "My answer"
+            });
+
+            response.Success.Should().BeTrue();
+            response.Data!.Status.Should().Be(expectedStatus);
+            (await context.HomeworkSubmissions.SingleAsync()).Content.Should().Be("My answer");
+        }
+        [Fact]
+        public async Task GradeSubmissionAsync_WhenScoreExceedsTotal_ShouldReturnBadRequestWithoutChangingSubmission()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var (classId, teacherId, studentId) = await SeedActorsAsync(context);
+            var homework = await SeedHomeworkAsync(context, classId, teacherId, totalScore: 10);
+            var submission = new HomeworkSubmission { HomeworkId = homework.Id, StudentId = studentId, SubmitTime = DateTime.UtcNow, Status = 1 };
+            context.HomeworkSubmissions.Add(submission);
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).GradeSubmissionAsync(submission.Id, new HomeworkSubmissionGradeDto
+            {
+                Score = 11,
+                TeacherFeedback = "Too high"
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            submission.Score.Should().BeNull();
+            submission.Status.Should().Be(1);
+        }
+
+        #endregion
+
+        #region Abnormal Test Cases (Kiểm thử giá trị bất thường / Lỗi)
+
+        [Fact]
+        public async Task UpdateHomeworkAsync_WhenHomeworkDoesNotExist_ShouldReturnNotFound()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+
+            var response = await CreateService(context).UpdateHomeworkAsync(9999, new HomeworkSaveDto { Title = "Missing" });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("Không tìm thấy bài tập");
+        }
+        [Fact]
+        public async Task SubmitHomeworkAsync_WithoutStudentId_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+
+            var response = await CreateService(context).SubmitHomeworkAsync(new HomeworkSubmissionSaveDto
+            {
+                HomeworkId = 1,
+                StudentId = null
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("Khong xac dinh duoc sinh vien");
+        }
+        [Theory]
+        [InlineData(0)]
+        [InlineData(1)]
+        public async Task SubmitHomeworkAsync_WhenHomeworkIsUnavailable_ShouldReturnBadRequest(int scenario)
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var (classId, teacherId, studentId) = await SeedActorsAsync(context);
+            var homeworkId = 9999;
+            if (scenario == 1)
+            {
+                homeworkId = (await SeedHomeworkAsync(context, classId, teacherId, status: 0)).Id;
+            }
+
+            var response = await CreateService(context).SubmitHomeworkAsync(new HomeworkSubmissionSaveDto
+            {
+                HomeworkId = homeworkId,
+                StudentId = studentId
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("Bài tập không khả dụng hoặc đã đóng");
+        }
         [Fact]
         public async Task GradeSubmissionAsync_WhenSubmissionDoesNotExist_ShouldReturnNotFound()
         {
@@ -380,5 +380,8 @@ namespace sep490_be.Tests.Services
             response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
             response.Message.Should().Be("Không tìm thấy bài nộp");
         }
+
+        #endregion
+
     }
 }
