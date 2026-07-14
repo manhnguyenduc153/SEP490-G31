@@ -220,6 +220,161 @@ namespace sep490_be.Services.Implementations
                 return ApiResponse<AttendanceReportDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
+
+        public async Task<ApiResponse<List<MyAttendanceClassDto>>> GetMyAttendanceAsync(IEnumerable<string> identifiers)
+        {
+            try
+            {
+                var lookup = identifiers
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim())
+                    .Distinct()
+                    .ToList();
+                var lookupSet = lookup.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (lookup.Count == 0)
+                {
+                    return ApiResponse<List<MyAttendanceClassDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var student = await _dbContext.Students
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s =>
+                        (s.Email != null && lookup.Contains(s.Email)) ||
+                        (s.Code != null && lookup.Contains(s.Code)));
+
+                if (student == null)
+                {
+                    var candidates = await _dbContext.Students
+                        .AsNoTracking()
+                        .Where(s => s.Email != null || s.Code != null)
+                        .ToListAsync();
+
+                    student = candidates.FirstOrDefault(s =>
+                        (!string.IsNullOrWhiteSpace(s.Email) &&
+                            (lookupSet.Contains(s.Email) || lookupSet.Contains(s.Email.Split('@')[0]))) ||
+                        (!string.IsNullOrWhiteSpace(s.Code) && lookupSet.Contains(s.Code)));
+                }
+
+                if (student == null)
+                {
+                    return ApiResponse<List<MyAttendanceClassDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var studentId = student.Id;
+                var result = await _dbContext.StudentClasses
+                    .AsNoTracking()
+                    .Where(sc => sc.StudentId == studentId &&
+                                 sc.Class.Status == 1 &&
+                                 !sc.Class.IsDeleted)
+                    .OrderBy(sc => sc.Class.Name)
+                    .Select(sc => new MyAttendanceClassDto
+                    {
+                        ClassId = sc.ClassId,
+                        ClassCode = sc.Class.Code,
+                        ClassName = sc.Class.Name,
+                        CourseName = sc.Class.Course != null ? sc.Class.Course.Name : null,
+                        TeacherName = sc.Class.Teacher != null ? sc.Class.Teacher.Name : null,
+                        AttendedSessions = sc.Class.ClassSchedules
+                            .SelectMany(schedule => schedule.Attendances)
+                            .Count(attendance => attendance.StudentId == studentId && attendance.Status != (int)AttendanceStatus.Absent),
+                        TotalSessions = sc.Class.ClassSchedules
+                            .SelectMany(schedule => schedule.Attendances)
+                            .Count(attendance => attendance.StudentId == studentId)
+                    })
+                    .ToListAsync();
+
+                foreach (var item in result)
+                {
+                    item.AttendanceRate = item.TotalSessions > 0
+                        ? Math.Round((double)item.AttendedSessions / item.TotalSessions * 100, 1)
+                        : 0;
+                }
+
+                return ApiResponse<List<MyAttendanceClassDto>>.Ok(result, "GET_MY_ATTENDANCE_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<MyAttendanceClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<MyAttendanceSessionDto>>> GetMyAttendanceDetailsAsync(int classId, IEnumerable<string> identifiers)
+        {
+            try
+            {
+                var lookup = identifiers
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim())
+                    .Distinct()
+                    .ToList();
+                var lookupSet = lookup.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var student = await _dbContext.Students
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s =>
+                        (s.Email != null && lookup.Contains(s.Email)) ||
+                        (s.Code != null && lookup.Contains(s.Code)));
+
+                if (student == null)
+                {
+                    var candidates = await _dbContext.Students
+                        .AsNoTracking()
+                        .Where(s => s.Email != null || s.Code != null)
+                        .ToListAsync();
+
+                    student = candidates.FirstOrDefault(s =>
+                        (!string.IsNullOrWhiteSpace(s.Email) &&
+                            (lookupSet.Contains(s.Email) || lookupSet.Contains(s.Email.Split('@')[0]))) ||
+                        (!string.IsNullOrWhiteSpace(s.Code) && lookupSet.Contains(s.Code)));
+                }
+
+                if (student == null)
+                {
+                    return ApiResponse<List<MyAttendanceSessionDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var isEnrolled = await _dbContext.StudentClasses
+                    .AsNoTracking()
+                    .AnyAsync(sc => sc.StudentId == student.Id &&
+                                    sc.ClassId == classId &&
+                                    sc.Class.Status == 1 &&
+                                    !sc.Class.IsDeleted);
+
+                if (!isEnrolled)
+                {
+                    return ApiResponse<List<MyAttendanceSessionDto>>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var sessions = await _dbContext.Attendances
+                    .AsNoTracking()
+                    .Where(a => a.StudentId == student.Id &&
+                                a.ClassSchedule != null &&
+                                a.ClassSchedule.ClassId == classId)
+                    .OrderBy(a => a.ClassSchedule!.ScheduleDate)
+                    .ThenBy(a => a.ClassSchedule!.LessonNo)
+                    .Select(a => new MyAttendanceSessionDto
+                    {
+                        ScheduleId = a.ScheduleId ?? 0,
+                        LessonNo = a.ClassSchedule!.LessonNo ?? 0,
+                        Date = a.ClassSchedule.ScheduleDate,
+                        Status = a.Status,
+                        Description = a.Description
+                    })
+                    .ToListAsync();
+
+                foreach (var session in sessions)
+                {
+                    session.StatusName = ((AttendanceStatus)session.Status).GetStringValue();
+                }
+
+                return ApiResponse<List<MyAttendanceSessionDto>>.Ok(sessions, "GET_MY_ATTENDANCE_DETAILS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<MyAttendanceSessionDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
     }
 }
 
