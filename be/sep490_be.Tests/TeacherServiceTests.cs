@@ -315,5 +315,116 @@ namespace sep490_be.Tests.Services
             response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
             response.Message.Should().Be("ERR_TEACHER_NOT_FOUND");
         }
+
+        [Fact]
+        public async Task GetByIdAsync_WhenIdentityAccountExists_ShouldSetHasAccount()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var teacher = new Teacher { Code = "TC001", Name = "Teacher One", Email = "account@test.com" };
+            context.Teachers.Add(teacher);
+            await context.SaveChangesAsync();
+            var (userManager, roleManager) = CreateIdentityManagers(context);
+            await userManager.CreateAsync(new IdentityUser { UserName = "account", Email = teacher.Email, EmailConfirmed = true }, "123456");
+            var service = new TeacherService(
+                new TeacherRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                userManager,
+                roleManager);
+
+            var response = await service.GetByIdAsync(teacher.Id);
+
+            response.Success.Should().BeTrue();
+            response.Data!.HasAccount.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task CreateAsync_WithDuplicateEmail_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            context.Teachers.Add(new Teacher { Code = "TC001", Name = "Teacher One", Email = "same@test.com" });
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).CreateAsync(new TeacherSaveDto
+            {
+                Code = "TC002",
+                Name = "Teacher Two",
+                Email = "same@test.com"
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_EMAIL_DUPLICATE");
+        }
+
+        [Fact]
+        public async Task ImportAsync_ShouldCreateValidRowsAndSkipInvalidRows()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+
+            var response = await CreateService(context).ImportAsync(new List<TeacherSaveDto>
+            {
+                new() { Code = "TC001", Name = "Teacher One", Email = "one@test.com" },
+                new() { Code = "", Name = "Invalid Teacher", Email = "invalid@test.com" },
+                new() { Code = "TC002", Name = "Teacher Two", Email = "two@test.com" }
+            });
+
+            response.Success.Should().BeTrue();
+            response.Data.Should().HaveCount(2);
+            response.Data!.Select(x => x.Code).Should().BeEquivalentTo(new[] { "TC001", "TC002" });
+            (await context.Teachers.CountAsync()).Should().Be(2);
+        }
+
+        [Fact]
+        public async Task BulkProvisionAccountsAsync_WithEmptySelection_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+
+            var response = await CreateService(context).BulkProvisionAccountsAsync(new List<int>());
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_NO_TEACHERS_SELECTED");
+        }
+
+        [Fact]
+        public async Task BulkProvisionAccountsAsync_WhenTeacherHasNoEmail_ShouldReturnDetailedFailure()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var teacher = new Teacher { Code = "TC001", Name = "Teacher One", Email = null };
+            context.Teachers.Add(teacher);
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).BulkProvisionAccountsAsync(new List<int> { teacher.Id });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Contain("không có email");
+        }
+
+        [Fact]
+        public async Task DeleteAndDeactivateAsync_WhenTeacherDoesNotExist_ShouldReturnNotFound()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var service = CreateService(context);
+
+            var deleteResponse = await service.DeleteAsync(9999);
+            var deactivateResponse = await service.DeactiveAsync(9999);
+
+            deleteResponse.Success.Should().BeFalse();
+            deleteResponse.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            deactivateResponse.Success.Should().BeFalse();
+            deactivateResponse.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        }
     }
 }
