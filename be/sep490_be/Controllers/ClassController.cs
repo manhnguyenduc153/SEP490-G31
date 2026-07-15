@@ -130,6 +130,19 @@ namespace sep490_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        // GET: api/Class/ChildSchedules?studentId=5
+        [HttpGet("ChildSchedules")]
+        public async Task<IActionResult> GetChildSchedules([FromQuery] int studentId)
+        {
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                return Unauthorized();
+            }
+            var response = await _service.GetChildSchedulesAsync(username, studentId);
+            return StatusCode(response.StatusCode, response);
+        }
+
         // POST: api/Class/check-conflict
         [HttpPost("check-conflict")]
         [HasPermission(Permissions.Class.Class_View)]

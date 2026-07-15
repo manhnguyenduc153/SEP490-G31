@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace sep490_be.Models.Configurations
@@ -19,16 +19,9 @@ namespace sep490_be.Models.Configurations
             builder.Property(x => x.ParentPhone).HasMaxLength(20);
             builder.Property(x => x.Email).HasMaxLength(150);
             builder.Property(x => x.UserId).HasMaxLength(450);   // IdentityUser Id là GUID string
-            builder.Property(x => x.Relationship).HasMaxLength(50);
 
             // ⭐ Soft-delete global filter — BẮT BUỘC
             builder.HasQueryFilter(x => !x.IsDeleted);
-
-            builder.HasOne(x => x.Student)
-                .WithMany(s => s.ParentStudents)
-                .HasForeignKey(x => x.StudentId)
-                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
-
