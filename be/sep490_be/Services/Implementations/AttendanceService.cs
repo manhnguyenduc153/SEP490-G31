@@ -276,11 +276,15 @@ namespace sep490_be.Services.Implementations
                         CourseName = sc.Class.Course != null ? sc.Class.Course.Name : null,
                         TeacherName = sc.Class.Teacher != null ? sc.Class.Teacher.Name : null,
                         AttendedSessions = sc.Class.ClassSchedules
+                            .Where(schedule => !schedule.IsDeleted)
                             .SelectMany(schedule => schedule.Attendances)
                             .Count(attendance => attendance.StudentId == studentId && attendance.Status != (int)AttendanceStatus.Absent),
-                        TotalSessions = sc.Class.ClassSchedules
+                        AbsentSessions = sc.Class.ClassSchedules
+                            .Where(schedule => !schedule.IsDeleted)
                             .SelectMany(schedule => schedule.Attendances)
-                            .Count(attendance => attendance.StudentId == studentId)
+                            .Count(attendance => attendance.StudentId == studentId && attendance.Status == (int)AttendanceStatus.Absent),
+                        TotalSessions = sc.Class.ClassSchedules
+                            .Count(schedule => !schedule.IsDeleted)
                     })
                     .ToListAsync();
 

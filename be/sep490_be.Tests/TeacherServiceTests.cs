@@ -65,6 +65,8 @@ namespace sep490_be.Tests.Services
             return new TeacherService(repo, userManager, roleManager);
         }
 
+        #region Normal Test Cases (Kiểm thử giá trị thông thường)
+
         [Fact]
         public async Task GetAllAsync_WithKeywordAndFilters_ShouldReturnMatchingTeachers()
         {
@@ -115,7 +117,6 @@ namespace sep490_be.Tests.Services
                 response.Data.Items.First().Code.Should().Be("TC001");
             }
         }
-
         [Fact]
         public async Task CreateAsync_WithValidDto_ShouldCreateTeacher()
         {
@@ -139,30 +140,6 @@ namespace sep490_be.Tests.Services
             response.Data.Status.Should().Be((int)TeacherStatus.Active);
             response.Data.GradeLevelName.Should().Be("Pre-IELTS");
         }
-
-        [Fact]
-        public async Task CreateAsync_WithDuplicateCode_ShouldReturnBadRequest()
-        {
-            var options = CreateNewContextOptions();
-            var mockHttp = GetMockHttpContextAccessor();
-
-            using var context = new ApplicationDbContext(options, mockHttp.Object);
-            context.Teachers.Add(new Teacher { Code = "DUP", Name = "Teacher One", Email = "one@test.com" });
-            await context.SaveChangesAsync();
-
-            var service = CreateService(context);
-            var response = await service.CreateAsync(new TeacherSaveDto
-            {
-                Code = "DUP",
-                Name = "Teacher Two",
-                Email = "two@test.com"
-            });
-
-            response.Success.Should().BeFalse();
-            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-            response.Message.Should().Be("ERR_CODE_DUPLICATE");
-        }
-
         [Fact]
         public async Task EditAsync_WhenEmailChanges_ShouldSyncIdentityUser()
         {
@@ -204,7 +181,6 @@ namespace sep490_be.Tests.Services
                 newUser!.UserName.Should().Be("new");
             }
         }
-
         [Fact]
         public async Task DeleteAsync_WhenTeacherExists_ShouldSoftDeleteTeacherAndDeleteIdentityUser()
         {
@@ -236,7 +212,6 @@ namespace sep490_be.Tests.Services
                 (await userManager.FindByEmailAsync("delete@test.com")).Should().BeNull();
             }
         }
-
         [Fact]
         public async Task DeactiveAsync_WhenTeacherExists_ShouldDeactivateAndLockIdentityUser()
         {
@@ -270,7 +245,6 @@ namespace sep490_be.Tests.Services
                 (await userManager.IsLockedOutAsync(user!)).Should().BeTrue();
             }
         }
-
         [Fact]
         public async Task BulkProvisionAccountsAsync_ShouldCreateTeacherAccounts()
         {
@@ -299,23 +273,6 @@ namespace sep490_be.Tests.Services
                 (await userManager.IsInRoleAsync(user!, "Teacher")).Should().BeTrue();
             }
         }
-
-        [Fact]
-        public async Task GetByIdAsync_WhenTeacherDoesNotExist_ShouldReturnNotFound()
-        {
-            var options = CreateNewContextOptions();
-            var mockHttp = GetMockHttpContextAccessor();
-
-            using var context = new ApplicationDbContext(options, mockHttp.Object);
-            var service = CreateService(context);
-
-            var response = await service.GetByIdAsync(9999);
-
-            response.Success.Should().BeFalse();
-            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
-            response.Message.Should().Be("ERR_TEACHER_NOT_FOUND");
-        }
-
         [Fact]
         public async Task GetByIdAsync_WhenIdentityAccountExists_ShouldSetHasAccount()
         {
@@ -338,26 +295,9 @@ namespace sep490_be.Tests.Services
             response.Data!.HasAccount.Should().BeTrue();
         }
 
-        [Fact]
-        public async Task CreateAsync_WithDuplicateEmail_ShouldReturnBadRequest()
-        {
-            var options = CreateNewContextOptions();
-            var mockHttp = GetMockHttpContextAccessor();
-            using var context = new ApplicationDbContext(options, mockHttp.Object);
-            context.Teachers.Add(new Teacher { Code = "TC001", Name = "Teacher One", Email = "same@test.com" });
-            await context.SaveChangesAsync();
+        #endregion
 
-            var response = await CreateService(context).CreateAsync(new TeacherSaveDto
-            {
-                Code = "TC002",
-                Name = "Teacher Two",
-                Email = "same@test.com"
-            });
-
-            response.Success.Should().BeFalse();
-            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-            response.Message.Should().Be("ERR_EMAIL_DUPLICATE");
-        }
+        #region Boundary Test Cases (Kiểm thử giá trị biên)
 
         [Fact]
         public async Task ImportAsync_ShouldCreateValidRowsAndSkipInvalidRows()
@@ -379,6 +319,67 @@ namespace sep490_be.Tests.Services
             (await context.Teachers.CountAsync()).Should().Be(2);
         }
 
+        #endregion
+
+        #region Abnormal Test Cases (Kiểm thử giá trị bất thường / Lỗi)
+
+        [Fact]
+        public async Task CreateAsync_WithDuplicateCode_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            context.Teachers.Add(new Teacher { Code = "DUP", Name = "Teacher One", Email = "one@test.com" });
+            await context.SaveChangesAsync();
+
+            var service = CreateService(context);
+            var response = await service.CreateAsync(new TeacherSaveDto
+            {
+                Code = "DUP",
+                Name = "Teacher Two",
+                Email = "two@test.com"
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_CODE_DUPLICATE");
+        }
+        [Fact]
+        public async Task GetByIdAsync_WhenTeacherDoesNotExist_ShouldReturnNotFound()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var service = CreateService(context);
+
+            var response = await service.GetByIdAsync(9999);
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("ERR_TEACHER_NOT_FOUND");
+        }
+        [Fact]
+        public async Task CreateAsync_WithDuplicateEmail_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            context.Teachers.Add(new Teacher { Code = "TC001", Name = "Teacher One", Email = "same@test.com" });
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).CreateAsync(new TeacherSaveDto
+            {
+                Code = "TC002",
+                Name = "Teacher Two",
+                Email = "same@test.com"
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_EMAIL_DUPLICATE");
+        }
         [Fact]
         public async Task BulkProvisionAccountsAsync_WithEmptySelection_ShouldReturnBadRequest()
         {
@@ -392,7 +393,6 @@ namespace sep490_be.Tests.Services
             response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
             response.Message.Should().Be("ERR_NO_TEACHERS_SELECTED");
         }
-
         [Fact]
         public async Task BulkProvisionAccountsAsync_WhenTeacherHasNoEmail_ShouldReturnDetailedFailure()
         {
@@ -409,7 +409,6 @@ namespace sep490_be.Tests.Services
             response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
             response.Message.Should().Contain("không có email");
         }
-
         [Fact]
         public async Task DeleteAndDeactivateAsync_WhenTeacherDoesNotExist_ShouldReturnNotFound()
         {
@@ -426,5 +425,8 @@ namespace sep490_be.Tests.Services
             deactivateResponse.Success.Should().BeFalse();
             deactivateResponse.StatusCode.Should().Be(StatusCodes.Status404NotFound);
         }
+
+        #endregion
+
     }
 }
