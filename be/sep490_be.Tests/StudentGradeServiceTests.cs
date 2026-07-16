@@ -42,6 +42,8 @@ namespace sep490_be.Tests.Services
             return (course.Id, classEntity.Id, studentClass.Id);
         }
 
+        #region Normal Test Cases (Kiểm thử giá trị thông thường)
+
         [Fact]
         public async Task GetSettingsAsync_WhenClassHasCourse_ShouldCreateDefaultComponents()
         {
@@ -59,23 +61,6 @@ namespace sep490_be.Tests.Services
             response.Data.Components.Select(x => x.Code).Should().Equal("attendance", "homework", "exam");
             response.Data.Components.Select(x => x.Weight).Should().Equal(30m, 30m, 40m);
         }
-
-        [Fact]
-        public async Task GetSettingsAsync_WhenClassDoesNotExist_ShouldReturnNotFound()
-        {
-            var options = CreateNewContextOptions();
-            var mockHttp = GetMockHttpContextAccessor();
-
-            using var context = new ApplicationDbContext(options, mockHttp.Object);
-            var service = new StudentGradeService(context);
-
-            var response = await service.GetSettingsAsync(9999);
-
-            response.Success.Should().BeFalse();
-            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
-            response.Message.Should().Be("ERR_CLASS_NOT_FOUND");
-        }
-
         [Fact]
         public async Task GetCourseComponentsAsync_WhenCourseExistsWithoutComponents_ShouldCreateDefaults()
         {
@@ -94,7 +79,6 @@ namespace sep490_be.Tests.Services
             response.Data.Should().HaveCount(3);
             response.Data!.Select(x => x.Code).Should().Equal("attendance", "homework", "exam");
         }
-
         [Fact]
         public async Task SaveCourseComponentsAsync_WithValidComponents_ShouldCreateAndOrderComponents()
         {
@@ -120,25 +104,82 @@ namespace sep490_be.Tests.Services
             response.Data!.Select(x => x.Code).Should().Equal("final", "quiz");
             response.Data!.Sum(x => x.Weight).Should().Be(100);
         }
-
         [Fact]
-        public async Task SaveCourseComponentsAsync_WithEmptyList_ShouldReturnBadRequest()
+        public async Task GetMyGradesAsync_ShouldCalculateRawScoresAndWeightedAverage()
         {
             var options = CreateNewContextOptions();
             var mockHttp = GetMockHttpContextAccessor();
-
             using var context = new ApplicationDbContext(options, mockHttp.Object);
-            var course = new Course { Code = "C001", Name = "Course One", Status = (int)GeneralStatus.Active };
-            context.Courses.Add(course);
+            var (_, classId, studentClassId) = await SeedClassAsync(context);
+            var studentId = (await context.StudentClasses.FindAsync(studentClassId))!.StudentId;
+            var service = new StudentGradeService(context);
+            var settings = await service.GetSettingsAsync(classId);
+
+            var schedule = new ClassSchedule { ClassId = classId, Status = 1 };
+            context.ClassSchedules.Add(schedule);
+            await context.SaveChangesAsync();
+            context.Attendances.AddRange(
+                new Attendance { ScheduleId = schedule.Id, StudentId = studentId, Status = 1 },
+                new Attendance { ScheduleId = schedule.Id, StudentId = studentId, Status = 0 },
+                new Attendance { ScheduleId = schedule.Id, StudentId = studentId, Status = -1 });
+
+            var teacher = new Teacher { Code = "TC001", Name = "Teacher One", Email = "teacher@test.com" };
+            context.Teachers.Add(teacher);
+            await context.SaveChangesAsync();
+            var homework1 = new Homework { ClassId = classId, TeacherId = teacher.Id, Title = "HW1", TotalScore = 10, Status = 1 };
+            var homework2 = new Homework { ClassId = classId, TeacherId = teacher.Id, Title = "HW2", TotalScore = 20, Status = 1 };
+            context.Homeworks.AddRange(homework1, homework2);
+
+            var exam = new Exam { Code = "EX001", Name = "Exam One", Title = "Exam One", ClassId = classId, TotalScore = 20, Status = 1, Type = 1 };
+            context.Exams.Add(exam);
+            await context.SaveChangesAsync();
+            context.HomeworkSubmissions.AddRange(
+                new HomeworkSubmission { HomeworkId = homework1.Id, StudentId = studentId, SubmitTime = DateTime.UtcNow, Score = 8, Status = 2 },
+                new HomeworkSubmission { HomeworkId = homework2.Id, StudentId = studentId, SubmitTime = DateTime.UtcNow, Score = 10, Status = 2 });
+            context.ExamAttempts.Add(new ExamAttempt { ExamId = exam.Id, StudentId = studentId, StartTime = DateTime.UtcNow, Score = 15, Status = 2 });
             await context.SaveChangesAsync();
 
-            var service = new StudentGradeService(context);
-            var response = await service.SaveCourseComponentsAsync(course.Id, new ClassGradeComponentsSaveDto());
+            var response = await service.GetMyGradesAsync(new[] { "student" });
 
-            response.Success.Should().BeFalse();
-            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-            response.Message.Should().Be("ERR_GRADE_COMPONENT_EMPTY");
+            response.Success.Should().BeTrue();
+            response.Data.Should().ContainSingle();
+            var grade = response.Data!.Single();
+            grade.Components.Single(x => x.ComponentCode == "attendance").RawScore.Should().Be(5);
+            grade.Components.Single(x => x.ComponentCode == "homework").RawScore.Should().Be(6.5m);
+            grade.Components.Single(x => x.ComponentCode == "exam").RawScore.Should().Be(7.5m);
+            grade.AverageScore.Should().Be(6.5m);
+            settings.Data!.Components.Should().HaveCount(3);
         }
+        [Fact]
+        public async Task GetMyGradesAsync_WhenOverrideExists_ShouldUseOverrideButKeepRawScore()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var (_, classId, studentClassId) = await SeedClassAsync(context);
+            var service = new StudentGradeService(context);
+            var settings = await service.GetSettingsAsync(classId);
+            var attendance = settings.Data!.Components.Single(x => x.Code == "attendance");
+            await service.SaveOverridesAsync(classId, new StudentGradeOverridesSaveDto
+            {
+                Overrides = new List<StudentGradeOverrideSaveDto>
+                {
+                    new() { StudentClassId = studentClassId, GradeComponentId = attendance.Id, Score = 9 }
+                }
+            });
+
+            var response = await service.GetMyGradesAsync(new[] { "ST001" });
+
+            var component = response.Data!.Single().Components.Single(x => x.ComponentCode == "attendance");
+            component.RawScore.Should().Be(0);
+            component.Score.Should().Be(9);
+            component.IsOverride.Should().BeTrue();
+            response.Data!.Single().AverageScore.Should().Be(2.7m);
+        }
+
+        #endregion
+
+        #region Boundary Test Cases (Kiểm thử giá trị biên)
 
         [Fact]
         public async Task SaveOverridesAsync_ShouldClampScoresAndIgnoreInvalidTargets()
@@ -168,7 +209,6 @@ namespace sep490_be.Tests.Services
             response.Data!.First(x => x.GradeComponentId == attendanceId).Score.Should().Be(10);
             response.Data.First(x => x.GradeComponentId == examId).Score.Should().Be(0);
         }
-
         [Fact]
         public async Task SaveOverridesAsync_WithNullScore_ShouldRemoveExistingOverride()
         {
@@ -204,5 +244,78 @@ namespace sep490_be.Tests.Services
             visibleOverrideCount.Should().Be(0);
             totalOverrideCount.Should().Be(1);
         }
+
+        #endregion
+
+        #region Abnormal Test Cases (Kiểm thử giá trị bất thường / Lỗi)
+
+        [Fact]
+        public async Task GetSettingsAsync_WhenClassDoesNotExist_ShouldReturnNotFound()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var service = new StudentGradeService(context);
+
+            var response = await service.GetSettingsAsync(9999);
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("ERR_CLASS_NOT_FOUND");
+        }
+        [Fact]
+        public async Task SaveCourseComponentsAsync_WithEmptyList_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var course = new Course { Code = "C001", Name = "Course One", Status = (int)GeneralStatus.Active };
+            context.Courses.Add(course);
+            await context.SaveChangesAsync();
+
+            var service = new StudentGradeService(context);
+            var response = await service.SaveCourseComponentsAsync(course.Id, new ClassGradeComponentsSaveDto());
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_GRADE_COMPONENT_EMPTY");
+        }
+        [Fact]
+        public async Task GetMyGradesAsync_WithBlankIdentifiers_ShouldReturnStudentNotFound()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+
+            var response = await new StudentGradeService(context).GetMyGradesAsync(new[] { "", "  " });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("ERR_STUDENT_NOT_FOUND");
+        }
+        [Fact]
+        public async Task SaveCourseComponentsAsync_WithBlankName_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var course = new Course { Code = "C001", Name = "Course One", Status = (int)GeneralStatus.Active };
+            context.Courses.Add(course);
+            await context.SaveChangesAsync();
+
+            var response = await new StudentGradeService(context).SaveCourseComponentsAsync(course.Id, new ClassGradeComponentsSaveDto
+            {
+                Components = new List<GradeComponentSaveDto> { new() { Code = "quiz", Name = "  ", Weight = 10 } }
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_GRADE_COMPONENT_NAME_EMPTY");
+        }
+
+        #endregion
+
     }
 }

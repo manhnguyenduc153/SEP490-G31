@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
 using sep490_be.DTO.Common;
 
@@ -76,6 +76,43 @@ namespace sep490_be.Helpers
                 if (!await userManager.IsInRoleAsync(adminUser, adminRoleName))
                 {
                     await userManager.AddToRoleAsync(adminUser, adminRoleName);
+                }
+            }
+
+            // 4. Tạo vai trò Student nếu chưa tồn tại và cấp permissions cần thiết
+            const string studentRoleName = "Student";
+            var studentRole = await roleManager.FindByNameAsync(studentRoleName);
+            if (studentRole == null)
+            {
+                studentRole = new IdentityRole(studentRoleName);
+                await roleManager.CreateAsync(studentRole);
+                studentRole = await roleManager.FindByNameAsync(studentRoleName);
+            }
+
+            // Danh sách permissions dành cho Student
+            var studentPermissions = new List<string>
+            {
+                Permissions.Class.Class_StudentView,
+                Permissions.Homework.Homework_View,
+                Permissions.Homework.Homework_Create,
+                Permissions.Attendance.Attendance_View,
+                Permissions.StudentGrade.StudentGrade_View,
+                Permissions.ClassSchedule.ClassSchedule_View,
+                Permissions.Notification.Notification_View,
+                Permissions.LearningMaterial.LearningMaterial_View,
+            };
+
+            var existingStudentClaims = await roleManager.GetClaimsAsync(studentRole!);
+            var existingStudentPermissions = existingStudentClaims
+                .Where(c => c.Type.Equals("Permission", System.StringComparison.OrdinalIgnoreCase))
+                .Select(c => c.Value)
+                .ToList();
+
+            foreach (var perm in studentPermissions)
+            {
+                if (!existingStudentPermissions.Contains(perm))
+                {
+                    await roleManager.AddClaimAsync(studentRole!, new Claim("Permission", perm));
                 }
             }
         }

@@ -5,6 +5,7 @@ using sep490_be.DTO.Common;
 using sep490_be.Services.Interfaces;
 using sep490_be.Helpers.Authorization;
 using System.Threading.Tasks;
+using System.Security.Claims;
 
 namespace sep490_be.Controllers
 {
@@ -44,6 +45,52 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> GetReportByClassId(int classId)
         {
             var response = await _service.GetReportByClassIdAsync(classId);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Attendance/my
+        [HttpGet("my")]
+        public async Task<IActionResult> GetMyAttendance()
+        {
+            var identifiers = User.Claims
+                .Where(c =>
+                    c.Type == ClaimTypes.Email ||
+                    c.Type == ClaimTypes.Name ||
+                    c.Type == ClaimTypes.NameIdentifier ||
+                    c.Type == "email" ||
+                    c.Type == "sub" ||
+                    c.Type == "unique_name" ||
+                    c.Type == "preferred_username")
+                .Select(c => c.Value)
+                .Append(User.Identity?.Name)
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct()
+                .ToList();
+
+            var response = await _service.GetMyAttendanceAsync(identifiers!);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Attendance/my/class/5
+        [HttpGet("my/class/{classId}")]
+        public async Task<IActionResult> GetMyAttendanceDetails(int classId)
+        {
+            var identifiers = User.Claims
+                .Where(c =>
+                    c.Type == ClaimTypes.Email ||
+                    c.Type == ClaimTypes.Name ||
+                    c.Type == ClaimTypes.NameIdentifier ||
+                    c.Type == "email" ||
+                    c.Type == "sub" ||
+                    c.Type == "unique_name" ||
+                    c.Type == "preferred_username")
+                .Select(c => c.Value)
+                .Append(User.Identity?.Name)
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct()
+                .ToList();
+
+            var response = await _service.GetMyAttendanceDetailsAsync(classId, identifiers!);
             return StatusCode(response.StatusCode, response);
         }
     }

@@ -1011,7 +1011,113 @@ namespace sep490_be.Services.Implementations
                     })
                     .ToListAsync();
 
+                if (schedules.Any())
+                {
+                    var scheduleIds = schedules.Select(s => s.Id).ToList();
+                    var attendances = await _dbContext.Attendances
+                        .AsNoTracking()
+                        .Where(a => a.StudentId == student.Id && a.ScheduleId.HasValue && scheduleIds.Contains(a.ScheduleId.Value) && !a.IsDeleted)
+                        .ToDictionaryAsync(a => a.ScheduleId!.Value, a => a.Status);
+
+                    foreach (var s in schedules)
+                    {
+                        if (attendances.TryGetValue(s.Id, out var attStatus))
+                        {
+                            s.AttendanceStatus = attStatus;
+                        }
+                    }
+                }
+
                 return ApiResponse<List<ClassScheduleDto>>.Ok(schedules, "GET_STUDENT_SCHEDULES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ClassScheduleDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<ClassScheduleDto>>> GetChildSchedulesAsync(string username, int studentId)
+        {
+            try
+            {
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
+                {
+                    return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                // Check permissions: parent must be mapped to this studentId, or admin/teacher
+                var roles = await _userManager.GetRolesAsync(user);
+                var isAdminOrTeacher = roles.Contains("Admin") || roles.Contains("Teacher");
+                if (!isAdminOrTeacher)
+                {
+                    var isParentOfStudent = await _dbContext.ParentStudentLinks.AnyAsync(l => l.Parent.Email == user.Email && l.StudentId == studentId);
+                    if (!isParentOfStudent)
+                    {
+                        return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_UNAUTHORIZED", StatusCodes.Status403Forbidden);
+                    }
+                }
+
+                var student = await _studentRepository.FindAll()
+                    .Include(s => s.StudentClasses)
+                    .FirstOrDefaultAsync(s => s.Id == studentId);
+                if (student == null)
+                {
+                    return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var classIds = student.StudentClasses
+                    .Where(sc => sc.Status == (int)StudentClassStatus.Enrolled || sc.Status == (int)StudentClassStatus.Studying)
+                    .Select(sc => sc.ClassId)
+                    .ToList();
+
+                var schedules = await _scheduleRepository.FindAll()
+                    .Include(cs => cs.TimeSlot)
+                    .Include(cs => cs.Room)
+                    .Include(cs => cs.Class)
+                    .Include(cs => cs.Teacher)
+                    .Where(cs => cs.ClassId.HasValue && classIds.Contains(cs.ClassId.Value) && cs.Class != null && !cs.Class.IsDeleted)
+                    .OrderBy(cs => cs.ScheduleDate)
+                    .Select(cs => new ClassScheduleDto
+                    {
+                        Id = cs.Id,
+                        ClassId = cs.ClassId,
+                        ClassCode = cs.Class != null ? cs.Class.Code : null,
+                        ClassName = cs.Class != null ? cs.Class.Name : null,
+                        LessonNo = cs.LessonNo,
+                        ScheduleDate = cs.ScheduleDate,
+                        SlotId = cs.SlotId,
+                        SlotName = cs.TimeSlot != null ? cs.TimeSlot.Name : null,
+                        StartTime = cs.TimeSlot != null ? cs.TimeSlot.StartTime.ToString(@"hh\:mm") : null,
+                        EndTime = cs.TimeSlot != null ? cs.TimeSlot.EndTime.ToString(@"hh\:mm") : null,
+                        RoomId = cs.RoomId,
+                        RoomName = cs.Room != null ? cs.Room.Name : null,
+                        TeacherId = cs.TeacherId,
+                        TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
+                        TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
+                        Status = cs.Status,
+                        Note = cs.Note
+                    })
+                    .ToListAsync();
+
+                if (schedules.Any())
+                {
+                    var scheduleIds = schedules.Select(s => s.Id).ToList();
+                    var attendances = await _dbContext.Attendances
+                        .AsNoTracking()
+                        .Where(a => a.StudentId == student.Id && a.ScheduleId.HasValue && scheduleIds.Contains(a.ScheduleId.Value) && !a.IsDeleted)
+                        .ToDictionaryAsync(a => a.ScheduleId!.Value, a => a.Status);
+
+                    foreach (var s in schedules)
+                    {
+                        if (attendances.TryGetValue(s.Id, out var attStatus))
+                        {
+                            s.AttendanceStatus = attStatus;
+                        }
+                    }
+                }
+
+                return ApiResponse<List<ClassScheduleDto>>.Ok(schedules, "GET_CHILD_SCHEDULES_SUCCESS");
             }
             catch (Exception ex)
             {
