@@ -30,7 +30,10 @@ jobs:
             echo "===== Restart API ====="
             docker compose up -d api
 
-            echo "===== Remove dangling images ====="
-            docker image prune -f
+            echo "===== Cleanup Docker cache ====="
+            docker builder prune -af
+
+            echo "===== Remove unused images ====="
+            docker image prune -af
 
             echo "===== Deploy completed ====="
