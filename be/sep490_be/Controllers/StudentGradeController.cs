@@ -50,6 +50,14 @@ namespace sep490_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        [HttpGet("child-grades")]
+        public async Task<IActionResult> GetChildGrades([FromQuery] int studentId)
+        {
+            var username = User.Identity?.Name ?? "";
+            var response = await _service.GetChildGradesAsync(username, studentId);
+            return StatusCode(response.StatusCode, response);
+        }
+
         [HttpGet("course/{courseId}/components")]
         [HasPermission(Permissions.StudentGrade.StudentGrade_View)]
         public async Task<IActionResult> GetCourseComponents(int courseId)

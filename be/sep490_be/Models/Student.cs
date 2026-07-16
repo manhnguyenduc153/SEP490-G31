@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using sep490_be.Models.BaseEntities;
 
@@ -19,7 +19,7 @@ namespace sep490_be.Models
         public string? ParentPhone { get; set; }
         public string? Avatar { get; set; }
 
-        public virtual ICollection<ParentStudent> ParentStudents { get; set; } = new List<ParentStudent>();
+        public virtual ICollection<ParentStudentLink> ParentStudentLinks { get; set; } = new List<ParentStudentLink>();
         public virtual ICollection<StudentClass> StudentClasses { get; set; } = new List<StudentClass>();
         public virtual ICollection<Attendance> Attendances { get; set; } = new List<Attendance>();
         public virtual ICollection<ExamAttempt> ExamAttempts { get; set; } = new List<ExamAttempt>();
