@@ -77,6 +77,7 @@ namespace sep490_be.Services.Implementations
                     query = query.Where(c => c.TeacherId == searchDto.TeacherId.Value);
                 }
 
+                query = query.OrderByDescending(c => c.Id);
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(searchDto);
 
@@ -308,6 +309,11 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                if (existingEntity.Status != (int)ClassStatus.Planning)
+                {
+                    return ApiResponse<bool>.Fail("ERR_CLASS_ALREADY_STARTED", StatusCodes.Status400BadRequest);
+                }
+
                 // 1. Get student IDs enrolled in this class
                 var studentClasses = await _dbContext.StudentClasses
                     .Where(sc => sc.ClassId == id)
@@ -353,11 +359,11 @@ namespace sep490_be.Services.Implementations
                     }
                 }
 
-                // Remove StudentClasses relations to avoid orphans
-                if (studentClasses.Any())
-                {
-                    _dbContext.StudentClasses.RemoveRange(studentClasses);
-                }
+                 // Remove StudentClasses relations to avoid orphans
+                 if (studentClasses.Any())
+                 {
+                     _dbContext.StudentClasses.RemoveRange(studentClasses);
+                 }
 
                 // Delete the class itself
                 await _repository.DeleteAsync(existingEntity);
@@ -432,6 +438,7 @@ namespace sep490_be.Services.Implementations
                     query = query.Where(c => c.CourseId == searchDto.CourseId.Value);
                 }
 
+                query = query.OrderByDescending(c => c.Id);
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(searchDto);
 
@@ -489,6 +496,7 @@ namespace sep490_be.Services.Implementations
                     query = query.Where(c => c.CourseId == searchDto.CourseId.Value);
                 }
 
+                query = query.OrderByDescending(c => c.Id);
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(searchDto);
 
