@@ -1011,6 +1011,23 @@ namespace sep490_be.Services.Implementations
                     })
                     .ToListAsync();
 
+                if (schedules.Any())
+                {
+                    var scheduleIds = schedules.Select(s => s.Id).ToList();
+                    var attendances = await _dbContext.Attendances
+                        .AsNoTracking()
+                        .Where(a => a.StudentId == student.Id && a.ScheduleId.HasValue && scheduleIds.Contains(a.ScheduleId.Value) && !a.IsDeleted)
+                        .ToDictionaryAsync(a => a.ScheduleId!.Value, a => a.Status);
+
+                    foreach (var s in schedules)
+                    {
+                        if (attendances.TryGetValue(s.Id, out var attStatus))
+                        {
+                            s.AttendanceStatus = attStatus;
+                        }
+                    }
+                }
+
                 return ApiResponse<List<ClassScheduleDto>>.Ok(schedules, "GET_STUDENT_SCHEDULES_SUCCESS");
             }
             catch (Exception ex)
@@ -1082,6 +1099,23 @@ namespace sep490_be.Services.Implementations
                         Note = cs.Note
                     })
                     .ToListAsync();
+
+                if (schedules.Any())
+                {
+                    var scheduleIds = schedules.Select(s => s.Id).ToList();
+                    var attendances = await _dbContext.Attendances
+                        .AsNoTracking()
+                        .Where(a => a.StudentId == student.Id && a.ScheduleId.HasValue && scheduleIds.Contains(a.ScheduleId.Value) && !a.IsDeleted)
+                        .ToDictionaryAsync(a => a.ScheduleId!.Value, a => a.Status);
+
+                    foreach (var s in schedules)
+                    {
+                        if (attendances.TryGetValue(s.Id, out var attStatus))
+                        {
+                            s.AttendanceStatus = attStatus;
+                        }
+                    }
+                }
 
                 return ApiResponse<List<ClassScheduleDto>>.Ok(schedules, "GET_CHILD_SCHEDULES_SUCCESS");
             }
