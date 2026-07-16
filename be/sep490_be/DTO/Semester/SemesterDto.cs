@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace sep490_be.DTO.Semester
 {
@@ -11,6 +11,8 @@ namespace sep490_be.DTO.Semester
         public DateTime EndDate { get; set; }
         public int Status { get; set; }
         public string? StatusName { get; set; }
+        public int ClassCount { get; set; }
+        public bool HasSchedules { get; set; }
     }
 }
 

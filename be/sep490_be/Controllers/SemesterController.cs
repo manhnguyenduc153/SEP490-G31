@@ -78,6 +78,15 @@ namespace sep490_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        // GET: api/Semester/5/teacher/3/has-schedules
+        [HttpGet("{semesterId}/teacher/{teacherId}/has-schedules")]
+        [HasPermission(Permissions.Semester.Semester_View)]
+        public async Task<IActionResult> CheckTeacherHasSchedules(int semesterId, int teacherId)
+        {
+            var response = await _service.CheckTeacherHasSchedulesAsync(semesterId, teacherId);
+            return StatusCode(response.StatusCode, response);
+        }
+
         // POST: api/Semester/availability
         [HttpPost("availability")]
         [HasPermission(Permissions.Semester.Semester_Edit)]
