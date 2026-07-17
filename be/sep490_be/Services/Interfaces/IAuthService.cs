@@ -1,4 +1,4 @@
-﻿using sep490_be.DTO;
+using sep490_be.DTO;
 using sep490_be.DTO.Auth;
 
 namespace sep490_be.Services.Interfaces
@@ -12,7 +12,7 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<bool>> AssignUserRoleAsync(string username, string roleName);
         Task<ApiResponse<List<string>>> GetAllRolesAsync();
         Task<ApiResponse<PagingResponse<RoleDto>>> GetAllRoleAsync(RoleSearchDto searchDto);
-        Task<ApiResponse<List<string>>> GetAllPermissionsAsync();
+        Task<ApiResponse<Dictionary<string, Dictionary<string, List<string>>>>> GetAllPermissionsAsync();
         Task<ApiResponse<List<string>>> GetUserRolesAsync(string username);
         Task<ApiResponse<List<string>>> GetUserPermissionsAsync(string username);
         Task<ApiResponse<List<string>>> GetRolePermissionsAsync(string roleName);

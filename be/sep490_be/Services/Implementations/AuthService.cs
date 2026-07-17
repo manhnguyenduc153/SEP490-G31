@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -520,16 +520,16 @@ namespace sep490_be.Services.Implementations
             }
         }
 
-        public Task<ApiResponse<List<string>>> GetAllPermissionsAsync()
+        public Task<ApiResponse<Dictionary<string, Dictionary<string, List<string>>>>> GetAllPermissionsAsync()
         {
             try
             {
-                var permissions = Permissions.GetAllPermissions();
-                return Task.FromResult(ApiResponse<List<string>>.Ok(permissions, "GET_SYSTEM_PERMISSIONS_SUCCESS"));
+                var permissions = Permissions.GetStructuredPermissions();
+                return Task.FromResult(ApiResponse<Dictionary<string, Dictionary<string, List<string>>>>.Ok(permissions, "GET_SYSTEM_PERMISSIONS_SUCCESS"));
             }
             catch (Exception ex)
             {
-                return Task.FromResult(ApiResponse<List<string>>.Fail(ex.Message, StatusCodes.Status500InternalServerError));
+                return Task.FromResult(ApiResponse<Dictionary<string, Dictionary<string, List<string>>>>.Fail(ex.Message, StatusCodes.Status500InternalServerError));
             }
         }
 
