@@ -270,6 +270,7 @@ namespace sep490_be.Services.Implementations
 
                 var teacherVar   = new IntVar[numClasses];
                 var roomVar      = new IntVar[numClasses];
+                var roomPenaltyVar = new IntVar[numClasses];
                 var dayVar       = new IntVar[numClasses, freq];
                 var slotIndexVar = new IntVar[numClasses, freq];
                 var slotVar      = new IntVar[numClasses, freq]; // flat = day*numFixed + slotIndex
@@ -297,6 +298,14 @@ namespace sep490_be.Services.Implementations
                             model.Add(roomVar[i] != rIdx);
                         }
                     }
+
+                    // Room capacity penalty: minimize (roomCapacity - classSize)
+                    roomPenaltyVar[i] = model.NewIntVar(0, 9999, $"roomPenalty_{i}");
+                    long[] roomPenaltiesForClass = rooms.Select(r => {
+                        long cap = r.Capacity ?? 999;
+                        return cap >= studentCount ? (cap - studentCount) : 9999;
+                    }).ToArray();
+                    model.AddElement(roomVar[i], roomPenaltiesForClass, roomPenaltyVar[i]);
 
                     for (int j = 0; j < freq; j++)
                     {
@@ -552,7 +561,14 @@ namespace sep490_be.Services.Implementations
                     objectiveExpressions.Add(weightedRoomSpread);
                 }
 
-                // ── Optimization: Minimize active teaching days for teachers ──────────────────
+                // Add room capacity penalty (minimize difference between capacity and size)
+                var totalRoomPenalty = model.NewIntVar(0, 999999, "totalRoomPenalty");
+                model.Add(totalRoomPenalty == LinearExpr.Sum(roomPenaltyVar));
+                var weightedRoomPenalty = model.NewIntVar(0, 999999 * 5, "weightedRoomPenalty");
+                model.Add(weightedRoomPenalty == totalRoomPenalty * 5);
+                objectiveExpressions.Add(weightedRoomPenalty);
+
+                // ── Optimization: Minimize active teaching days & gaps for teachers ───────────
                 if (numClasses > 1)
                 {
                     // Pre-calculate isTeacher[i, t]
@@ -583,14 +599,47 @@ namespace sep490_be.Services.Implementations
                         }
                     }
 
-                    // Define teacherTeachesOnDay[t, d]
+                    // Define teacherTeachesOnDay[t, d] & gapPenalties
                     var teacherTeachesOnDay = new List<BoolVar>();
+                    var gapPenalties = new List<(BoolVar Var, int Weight)>();
+
                     for (int t = 0; t < numTeachers; t++)
                     {
                         foreach (int d in allowedDays)
                         {
                             var tTeachesOnD = model.NewBoolVar($"t_teaches_opt_{t}_{d}");
                             var activeSessions = new List<IntVar>();
+
+                            // teachesAtSlot[s] represents if teacher t teaches on day d at slot s
+                            var teachesAtSlot = new BoolVar[numFixed];
+                            for (int s = 0; s < numFixed; s++)
+                            {
+                                teachesAtSlot[s] = model.NewBoolVar($"teaches_t_{t}_d_{d}_s_{s}");
+                                if (!allowedSlotIndices.Contains(s))
+                                {
+                                    model.Add(teachesAtSlot[s] == 0);
+                                    continue;
+                                }
+
+                                var sessionsAtSlot = new List<BoolVar>();
+                                for (int i = 0; i < numClasses; i++)
+                                {
+                                    for (int j = 0; j < freq; j++)
+                                    {
+                                        var isBoth = model.NewBoolVar($"is_both_opt_{i}_{j}_{t}_{d}_{s}");
+                                        var isSlot = model.NewBoolVar($"is_slot_opt_{i}_{j}_{s}");
+                                        model.Add(slotIndexVar[i, j] == s).OnlyEnforceIf(isSlot);
+                                        model.Add(slotIndexVar[i, j] != s).OnlyEnforceIf(isSlot.Not());
+
+                                        model.AddBoolAnd(new[] { isTeacher[i, t], isDay[(i, j, d)], isSlot }).OnlyEnforceIf(isBoth);
+                                        model.AddBoolOr(new ILiteral[] { isTeacher[i, t].Not(), isDay[(i, j, d)].Not(), isSlot.Not() }).OnlyEnforceIf(isBoth.Not());
+                                        sessionsAtSlot.Add(isBoth);
+                                    }
+                                }
+
+                                model.AddBoolOr(sessionsAtSlot.Cast<ILiteral>().ToArray()).OnlyEnforceIf(teachesAtSlot[s]);
+                                model.AddBoolAnd(sessionsAtSlot.Select(b => (ILiteral)b.Not()).ToArray()).OnlyEnforceIf(teachesAtSlot[s].Not());
+                            }
 
                             for (int i = 0; i < numClasses; i++)
                             {
@@ -607,6 +656,25 @@ namespace sep490_be.Services.Implementations
                             model.Add(sumExpr >= 1).OnlyEnforceIf(tTeachesOnD);
                             model.Add(sumExpr == 0).OnlyEnforceIf(tTeachesOnD.Not());
                             teacherTeachesOnDay.Add(tTeachesOnD);
+
+                            // Calculate gaps (distance >= 3)
+                            // Slot 0 and Slot 4 (distance 4) -> penalty 60
+                            var gap04 = model.NewBoolVar($"gap04_{t}_{d}");
+                            model.AddBoolAnd(new[] { teachesAtSlot[0], teachesAtSlot[4] }).OnlyEnforceIf(gap04);
+                            model.AddBoolOr(new ILiteral[] { teachesAtSlot[0].Not(), teachesAtSlot[4].Not() }).OnlyEnforceIf(gap04.Not());
+                            gapPenalties.Add((gap04, 60));
+
+                            // Slot 0 and Slot 3 (distance 3) -> penalty 30
+                            var gap03 = model.NewBoolVar($"gap03_{t}_{d}");
+                            model.AddBoolAnd(new[] { teachesAtSlot[0], teachesAtSlot[3] }).OnlyEnforceIf(gap03);
+                            model.AddBoolOr(new ILiteral[] { teachesAtSlot[0].Not(), teachesAtSlot[3].Not() }).OnlyEnforceIf(gap03.Not());
+                            gapPenalties.Add((gap03, 30));
+
+                            // Slot 1 and Slot 4 (distance 3) -> penalty 30
+                            var gap14 = model.NewBoolVar($"gap14_{t}_{d}");
+                            model.AddBoolAnd(new[] { teachesAtSlot[1], teachesAtSlot[4] }).OnlyEnforceIf(gap14);
+                            model.AddBoolOr(new ILiteral[] { teachesAtSlot[1].Not(), teachesAtSlot[4].Not() }).OnlyEnforceIf(gap14.Not());
+                            gapPenalties.Add((gap14, 30));
                         }
                     }
 
@@ -616,6 +684,15 @@ namespace sep490_be.Services.Implementations
                     var weightedTeacherDays = model.NewIntVar(0, numTeachers * allowedDays.Length * 10, "weightedTeacherDays");
                     model.Add(weightedTeacherDays == totalTeacherDays * 10);
                     objectiveExpressions.Add(weightedTeacherDays);
+
+                    // Add totalGapPenalty to objectives
+                    if (gapPenalties.Any())
+                    {
+                        var totalGapPenalty = model.NewIntVar(0, 999999, "totalGapPenalty");
+                        var gapExprs = gapPenalties.Select(gp => gp.Var * gp.Weight).ToArray();
+                        model.Add(totalGapPenalty == LinearExpr.Sum(gapExprs));
+                        objectiveExpressions.Add(totalGapPenalty);
+                    }
                 }
 
                 if (objectiveExpressions.Any())
@@ -1016,6 +1093,7 @@ namespace sep490_be.Services.Implementations
 
                 var teacherVar = new IntVar[numClasses];
                 var roomVar = new IntVar[numClasses];
+                var roomPenaltyVar = new IntVar[numClasses];
                 var dayVar = new IntVar[numClasses, freq];
                 var slotIndexVar = new IntVar[numClasses, freq];
                 var slotVar = new IntVar[numClasses, freq]; // flat = day * numFixed + slotIndex
@@ -1034,6 +1112,14 @@ namespace sep490_be.Services.Implementations
                             model.Add(roomVar[i] != rIdx);
                         }
                     }
+
+                    // Room capacity penalty: minimize (roomCapacity - classSize)
+                    roomPenaltyVar[i] = model.NewIntVar(0, 9999, $"roomPenalty_{i}");
+                    long[] roomPenaltiesForClass = rooms.Select(r => {
+                        long cap = r.Capacity ?? 999;
+                        return cap >= draft.Size ? (cap - draft.Size) : 9999;
+                    }).ToArray();
+                    model.AddElement(roomVar[i], roomPenaltiesForClass, roomPenaltyVar[i]);
 
                     // Intersect preferred slot of draft class with globally allowed slots
                     var preferredSlots = !string.IsNullOrWhiteSpace(draft.PreferredSlotBucket) && slotMap.ContainsKey(draft.PreferredSlotBucket.ToLower())
@@ -1276,7 +1362,14 @@ namespace sep490_be.Services.Implementations
                     objectiveExpressions.Add(weightedTeacherSpread);
                 }
 
-                // ── Optimization: Minimize active teaching days for teachers ──────────────────
+                // Add room capacity penalty (minimize difference between capacity and size)
+                var totalRoomPenalty = model.NewIntVar(0, 999999, "totalRoomPenalty");
+                model.Add(totalRoomPenalty == LinearExpr.Sum(roomPenaltyVar));
+                var weightedRoomPenalty = model.NewIntVar(0, 999999 * 5, "weightedRoomPenalty");
+                model.Add(weightedRoomPenalty == totalRoomPenalty * 5);
+                objectiveExpressions.Add(weightedRoomPenalty);
+
+                // ── Optimization: Minimize active teaching days & gaps for teachers ───────────
                 if (numClasses > 1)
                 {
                     // Pre-calculate isTeacher[i, t]
@@ -1307,14 +1400,47 @@ namespace sep490_be.Services.Implementations
                         }
                     }
 
-                    // Define teacherTeachesOnDay[t, d]
+                    // Define teacherTeachesOnDay[t, d] & gapPenalties
                     var teacherTeachesOnDay = new List<BoolVar>();
+                    var gapPenalties = new List<(BoolVar Var, int Weight)>();
+
                     for (int t = 0; t < numTeachers; t++)
                     {
                         foreach (int d in allowedDays)
                         {
                             var tTeachesOnD = model.NewBoolVar($"t_teaches_opt_sem_{t}_{d}");
                             var activeSessions = new List<IntVar>();
+
+                            // teachesAtSlot[s] represents if teacher t teaches on day d at slot s
+                            var teachesAtSlot = new BoolVar[numFixed];
+                            for (int s = 0; s < numFixed; s++)
+                            {
+                                teachesAtSlot[s] = model.NewBoolVar($"teaches_sem_t_{t}_d_{d}_s_{s}");
+                                if (!globalAllowedSlots.Contains(s))
+                                {
+                                    model.Add(teachesAtSlot[s] == 0);
+                                    continue;
+                                }
+
+                                var sessionsAtSlot = new List<BoolVar>();
+                                for (int i = 0; i < numClasses; i++)
+                                {
+                                    for (int j = 0; j < freq; j++)
+                                    {
+                                        var isBoth = model.NewBoolVar($"is_both_opt_sem_{i}_{j}_{t}_{d}_{s}");
+                                        var isSlot = model.NewBoolVar($"is_slot_opt_sem_{i}_{j}_{s}");
+                                        model.Add(slotIndexVar[i, j] == s).OnlyEnforceIf(isSlot);
+                                        model.Add(slotIndexVar[i, j] != s).OnlyEnforceIf(isSlot.Not());
+
+                                        model.AddBoolAnd(new[] { isTeacher[i, t], isDay[(i, j, d)], isSlot }).OnlyEnforceIf(isBoth);
+                                        model.AddBoolOr(new ILiteral[] { isTeacher[i, t].Not(), isDay[(i, j, d)].Not(), isSlot.Not() }).OnlyEnforceIf(isBoth.Not());
+                                        sessionsAtSlot.Add(isBoth);
+                                    }
+                                }
+
+                                model.AddBoolOr(sessionsAtSlot.Cast<ILiteral>().ToArray()).OnlyEnforceIf(teachesAtSlot[s]);
+                                model.AddBoolAnd(sessionsAtSlot.Select(b => (ILiteral)b.Not()).ToArray()).OnlyEnforceIf(teachesAtSlot[s].Not());
+                            }
 
                             for (int i = 0; i < numClasses; i++)
                             {
@@ -1331,6 +1457,25 @@ namespace sep490_be.Services.Implementations
                             model.Add(sumExpr >= 1).OnlyEnforceIf(tTeachesOnD);
                             model.Add(sumExpr == 0).OnlyEnforceIf(tTeachesOnD.Not());
                             teacherTeachesOnDay.Add(tTeachesOnD);
+
+                            // Calculate gaps (distance >= 3)
+                            // Slot 0 and Slot 4 (distance 4) -> penalty 60
+                            var gap04 = model.NewBoolVar($"gap04_sem_{t}_{d}");
+                            model.AddBoolAnd(new[] { teachesAtSlot[0], teachesAtSlot[4] }).OnlyEnforceIf(gap04);
+                            model.AddBoolOr(new ILiteral[] { teachesAtSlot[0].Not(), teachesAtSlot[4].Not() }).OnlyEnforceIf(gap04.Not());
+                            gapPenalties.Add((gap04, 60));
+
+                            // Slot 0 and Slot 3 (distance 3) -> penalty 30
+                            var gap03 = model.NewBoolVar($"gap03_sem_{t}_{d}");
+                            model.AddBoolAnd(new[] { teachesAtSlot[0], teachesAtSlot[3] }).OnlyEnforceIf(gap03);
+                            model.AddBoolOr(new ILiteral[] { teachesAtSlot[0].Not(), teachesAtSlot[3].Not() }).OnlyEnforceIf(gap03.Not());
+                            gapPenalties.Add((gap03, 30));
+
+                            // Slot 1 and Slot 4 (distance 3) -> penalty 30
+                            var gap14 = model.NewBoolVar($"gap14_sem_{t}_{d}");
+                            model.AddBoolAnd(new[] { teachesAtSlot[1], teachesAtSlot[4] }).OnlyEnforceIf(gap14);
+                            model.AddBoolOr(new ILiteral[] { teachesAtSlot[1].Not(), teachesAtSlot[4].Not() }).OnlyEnforceIf(gap14.Not());
+                            gapPenalties.Add((gap14, 30));
                         }
                     }
 
@@ -1340,6 +1485,15 @@ namespace sep490_be.Services.Implementations
                     var weightedTeacherDays = model.NewIntVar(0, numTeachers * allowedDays.Length * 10, "weightedTeacherDays_sem");
                     model.Add(weightedTeacherDays == totalTeacherDays * 10);
                     objectiveExpressions.Add(weightedTeacherDays);
+
+                    // Add totalGapPenalty to objectives
+                    if (gapPenalties.Any())
+                    {
+                        var totalGapPenalty = model.NewIntVar(0, 999999, "totalGapPenalty");
+                        var gapExprs = gapPenalties.Select(gp => gp.Var * gp.Weight).ToArray();
+                        model.Add(totalGapPenalty == LinearExpr.Sum(gapExprs));
+                        objectiveExpressions.Add(totalGapPenalty);
+                    }
                 }
 
                 if (objectiveExpressions.Any())
