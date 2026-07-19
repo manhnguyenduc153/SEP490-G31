@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using sep490_be.DTO;
 using sep490_be.DTO.Room;
@@ -32,9 +32,7 @@ namespace sep490_be.Services.Implementations
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
                     query = query.Where(r => r.TextSearch != null && r.TextSearch.Contains(searchDto.Keyword));
 
-                // Lọc theo loại phòng
-                if (searchDto.RoomType.HasValue)
-                    query = query.Where(r => r.RoomType == searchDto.RoomType.Value);
+
 
                 // Lọc theo tòa nhà
                 if (!string.IsNullOrWhiteSpace(searchDto.Building))
@@ -104,10 +102,8 @@ namespace sep490_be.Services.Implementations
                     Name     = dto.Name.Trim(),
                     Capacity = dto.Capacity,
                     Status   = dto.Status != 0 ? dto.Status : (int)RoomStatus.Active,
-                    RoomType = dto.RoomType,
                     Building = dto.Building?.Trim(),
                     Floor    = dto.Floor?.Trim(),
-                    Image    = dto.Image,
                     TextSearch = dto.TextSearch
                 };
 
@@ -142,10 +138,8 @@ namespace sep490_be.Services.Implementations
                 entity.Name      = dto.Name.Trim();
                 entity.Capacity  = dto.Capacity;
                 entity.Status    = dto.Status;
-                entity.RoomType  = dto.RoomType;
                 entity.Building  = dto.Building?.Trim();
                 entity.Floor     = dto.Floor?.Trim();
-                entity.Image     = dto.Image;
                 entity.TextSearch = dto.TextSearch;
 
                 await _repository.UpdateAsync(entity);
@@ -338,11 +332,8 @@ namespace sep490_be.Services.Implementations
             Capacity    = entity.Capacity,
             Status      = entity.Status,
             StatusName  = ((RoomStatus)entity.Status).GetStringValue(),
-            RoomType    = entity.RoomType,
-            RoomTypeName = entity.RoomType.GetStringValue(),
             Building    = entity.Building,
-            Floor       = entity.Floor,
-            Image       = entity.Image
+            Floor       = entity.Floor
         };
 
         /// <summary>
@@ -369,14 +360,7 @@ namespace sep490_be.Services.Implementations
             if (dto.Capacity.HasValue && dto.Capacity < 1)
                 return "ERR_CAPACITY_INVALID";
 
-            if (string.IsNullOrWhiteSpace(dto.Building))
-                return "ERR_BUILDING_EMPTY";
 
-            if (string.IsNullOrWhiteSpace(dto.Floor))
-                return "ERR_FLOOR_EMPTY";
-
-            if (string.IsNullOrWhiteSpace(dto.Image))
-                return "ERR_IMAGE_EMPTY";
 
             // BR-11: Kiểm tra trùng tên phòng
             var duplicateName = await _repository.FindAll()

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using sep490_be.Models;
 
@@ -11,9 +12,11 @@ using sep490_be.Models;
 namespace sep490_be.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714170955_AddParentStudentLinkTable")]
+    partial class AddParentStudentLinkTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1311,6 +1314,10 @@ namespace sep490_be.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1326,6 +1333,10 @@ namespace sep490_be.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("ParentId")
                         .HasColumnType("int");
 
@@ -1338,6 +1349,9 @@ namespace sep490_be.Migrations
 
                     b.Property<int>("StudentId")
                         .HasColumnType("int");
+
+                    b.Property<string>("TextSearch")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -1667,6 +1681,11 @@ namespace sep490_be.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("Image")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("RoomImg");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -1674,6 +1693,9 @@ namespace sep490_be.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("RoomType")
+                        .HasColumnType("int");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -2229,7 +2251,7 @@ namespace sep490_be.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("sep490_be.Models.Semester", "Semester")
-                        .WithMany("Classes")
+                        .WithMany()
                         .HasForeignKey("SemesterId")
                         .OnDelete(DeleteBehavior.Restrict);
 
@@ -2740,8 +2762,6 @@ namespace sep490_be.Migrations
 
             modelBuilder.Entity("sep490_be.Models.Semester", b =>
                 {
-                    b.Navigation("Classes");
-
                     b.Navigation("StudentRegistrations");
 
                     b.Navigation("TeacherAvailabilities");

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace sep490_be.Models.Configurations
@@ -31,7 +31,7 @@ namespace sep490_be.Models.Configurations
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasOne(x => x.Semester)
-                .WithMany()
+                .WithMany(s => s.Classes)
                 .HasForeignKey(x => x.SemesterId)
                 .OnDelete(DeleteBehavior.Restrict);
 

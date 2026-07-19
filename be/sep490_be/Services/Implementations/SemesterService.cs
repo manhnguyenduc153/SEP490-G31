@@ -34,7 +34,26 @@ namespace sep490_be.Services.Implementations
                     .OrderByDescending(s => s.StartDate)
                     .ToListAsync();
 
-                var dtos = entities.Select(MapToDto).ToList();
+                var semesterIds = entities.Select(e => e.Id).ToList();
+                var classCounts = await _dbContext.Classes
+                    .Where(c => !c.IsDeleted && c.SemesterId != null && semesterIds.Contains(c.SemesterId.Value))
+                    .GroupBy(c => c.SemesterId)
+                    .Select(g => new { SemesterId = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.SemesterId!.Value, x => x.Count);
+
+                var scheduleSemesterIds = await _dbContext.ClassSchedules
+                    .Where(cs => !cs.IsDeleted && cs.Class != null && !cs.Class.IsDeleted && cs.Class.SemesterId != null && semesterIds.Contains(cs.Class.SemesterId.Value))
+                    .Select(cs => cs.Class.SemesterId!.Value)
+                    .Distinct()
+                    .ToListAsync();
+
+                var dtos = entities.Select(e => {
+                    var dto = MapToDto(e);
+                    dto.ClassCount = classCounts.ContainsKey(e.Id) ? classCounts[e.Id] : 0;
+                    dto.HasSchedules = scheduleSemesterIds.Contains(e.Id);
+                    return dto;
+                }).ToList();
+
                 return ApiResponse<List<SemesterDto>>.Ok(dtos, "GET_SEMESTER_LIST_SUCCESS");
             }
             catch (Exception)
@@ -53,7 +72,14 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                return ApiResponse<SemesterDto>.Ok(MapToDto(entity), "GET_SEMESTER_DETAIL_SUCCESS");
+                var classCount = await _dbContext.Classes.CountAsync(c => c.SemesterId == id && !c.IsDeleted);
+                var hasSchedules = await _dbContext.ClassSchedules.AnyAsync(cs => cs.Class.SemesterId == id && !cs.Class.IsDeleted && !cs.IsDeleted);
+
+                var dto = MapToDto(entity);
+                dto.ClassCount = classCount;
+                dto.HasSchedules = hasSchedules;
+
+                return ApiResponse<SemesterDto>.Ok(dto, "GET_SEMESTER_DETAIL_SUCCESS");
             }
             catch (Exception)
             {
@@ -90,7 +116,11 @@ namespace sep490_be.Services.Implementations
                 _dbContext.Semesters.Add(entity);
                 await _dbContext.SaveChangesAsync();
 
-                return ApiResponse<SemesterDto>.Created(MapToDto(entity), "CREATE_SEMESTER_SUCCESS");
+                var result = MapToDto(entity);
+                result.ClassCount = 0;
+                result.HasSchedules = false;
+
+                return ApiResponse<SemesterDto>.Created(result, "CREATE_SEMESTER_SUCCESS");
             }
             catch (Exception)
             {
@@ -108,17 +138,35 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                var classCount = await _dbContext.Classes.CountAsync(c => c.SemesterId == dto.Id && !c.IsDeleted);
+                var hasSchedules = await _dbContext.ClassSchedules.AnyAsync(cs => cs.Class.SemesterId == dto.Id && !cs.Class.IsDeleted && !cs.IsDeleted);
+
+                if (hasSchedules)
+                {
+                    if (entity.StartDate != dto.StartDate || entity.EndDate != dto.EndDate)
+                    {
+                        return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_HAS_SCHEDULES_CANNOT_CHANGE_DATES", StatusCodes.Status400BadRequest);
+                    }
+                }
+
                 entity.Code = dto.Code;
                 entity.Name = dto.Name;
-                entity.StartDate = dto.StartDate;
-                entity.EndDate = dto.EndDate;
-                entity.Status = dto.Status;
+                if (!hasSchedules)
+                {
+                    entity.StartDate = dto.StartDate;
+                    entity.EndDate = dto.EndDate;
+                }
+                entity.Status = dto.Status != 0 ? dto.Status : 1; // Always fallback to active if not provided or 0
                 entity.TextSearch = dto.TextSearch;
 
                 _dbContext.Semesters.Update(entity);
                 await _dbContext.SaveChangesAsync();
 
-                return ApiResponse<SemesterDto>.Ok(MapToDto(entity), "UPDATE_SEMESTER_SUCCESS");
+                var result = MapToDto(entity);
+                result.ClassCount = classCount;
+                result.HasSchedules = hasSchedules;
+
+                return ApiResponse<SemesterDto>.Ok(result, "UPDATE_SEMESTER_SUCCESS");
             }
             catch (Exception)
             {
@@ -186,6 +234,17 @@ namespace sep490_be.Services.Implementations
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
+                var hasSchedules = await _dbContext.ClassSchedules.AnyAsync(cs =>
+                    cs.Class.SemesterId == dto.SemesterId &&
+                    cs.TeacherId == dto.TeacherId &&
+                    !cs.IsDeleted &&
+                    !cs.Class.IsDeleted);
+
+                if (hasSchedules)
+                {
+                    return ApiResponse<bool>.Fail("ERR_TEACHER_ALREADY_SCHEDULED_CANNOT_CHANGE_AVAILABILITY", StatusCodes.Status400BadRequest);
+                }
+
                 // Clear existing availabilities for this teacher and semester
                 var existing = await _dbContext.TeacherAvailabilities
                     .Where(t => t.SemesterId == dto.SemesterId && t.TeacherId == dto.TeacherId)
@@ -223,6 +282,24 @@ namespace sep490_be.Services.Implementations
             {
                 await transaction.RollbackAsync();
                 return ApiResponse<bool>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<bool>> CheckTeacherHasSchedulesAsync(int semesterId, int teacherId)
+        {
+            try
+            {
+                var hasSchedules = await _dbContext.ClassSchedules.AnyAsync(cs =>
+                    cs.Class.SemesterId == semesterId &&
+                    cs.TeacherId == teacherId &&
+                    !cs.IsDeleted &&
+                    !cs.Class.IsDeleted);
+
+                return ApiResponse<bool>.Ok(hasSchedules, "CHECK_TEACHER_SCHEDULES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 

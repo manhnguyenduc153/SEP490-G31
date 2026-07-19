@@ -1,4 +1,4 @@
-﻿using sep490_be.Enums;
+using sep490_be.Enums;
 
 namespace sep490_be.DTO.Room
 {
@@ -10,11 +10,8 @@ namespace sep490_be.DTO.Room
         public int? Capacity { get; set; }
         public int Status { get; set; }
         public string? StatusName { get; set; }
-        public RoomType RoomType { get; set; }
-        public string? RoomTypeName { get; set; }
         public string? Building { get; set; }
         public string? Floor { get; set; }
-        public string? Image { get; set; }
     }
 }
 

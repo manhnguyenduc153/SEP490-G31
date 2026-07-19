@@ -283,6 +283,93 @@ namespace sep490_be.DTO.Common
             }
             return permissions;
         }
+
+        public static readonly Dictionary<string, string> FeatureToGroupMapping = new()
+        {
+            { "Semester", "academicOperations" },
+            { "Course", "academicOperations" },
+            { "StudentRegistration", "academicOperations" },
+            { "Class", "academicOperations" },
+            { "StudentClass", "academicOperations" },
+            { "Teacher", "academicOperations" },
+            { "Student", "academicOperations" },
+            { "Room", "academicOperations" },
+            
+            { "ClassSchedule", "schedule" },
+            { "TimeSlot", "schedule" },
+            
+            { "Exam", "assessments" },
+            { "ExamQuestion", "assessments" },
+            { "ExamAttempt", "assessments" },
+            { "ExamAnswer", "assessments" },
+            { "ExamStudent", "assessments" },
+            { "Homework", "assessments" },
+            { "Question", "assessments" },
+            { "QuestionCategory", "assessments" },
+            { "StudentGrade", "assessments" },
+            
+            { "LearningMaterial", "learning" },
+            { "Attendance", "learning" },
+            
+            { "User", "administration" },
+            { "Role", "administration" },
+            { "Notification", "administration" },
+            
+            { "ParentStudent", "parentServices" },
+            
+            { "Product", "others" }
+        };
+
+        public static Dictionary<string, Dictionary<string, List<string>>> GetStructuredPermissions()
+        {
+            var structured = new Dictionary<string, Dictionary<string, List<string>>>();
+            
+            var groups = new[] { "academicOperations", "schedule", "assessments", "learning", "administration", "parentServices", "others" };
+            foreach (var g in groups)
+            {
+                structured[g] = new Dictionary<string, List<string>>();
+            }
+
+            var nestedTypes = typeof(Permissions).GetNestedTypes(BindingFlags.Public);
+            foreach (var type in nestedTypes)
+            {
+                var featureName = type.Name;
+                var groupId = FeatureToGroupMapping.GetValueOrDefault(featureName, "others");
+                var groupNode = structured[groupId];
+
+                var fields = type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+                var permissionStrings = new List<string>();
+                
+                foreach (var field in fields)
+                {
+                    if (field.IsLiteral && !field.IsInitOnly && field.FieldType == typeof(string))
+                    {
+                        var value = field.GetRawConstantValue() as string;
+                        if (value != null)
+                        {
+                            permissionStrings.Add(value);
+                        }
+                    }
+                }
+
+                if (permissionStrings.Count > 0)
+                {
+                    groupNode[featureName] = permissionStrings;
+                }
+            }
+
+            // Remove empty groups
+            var keys = structured.Keys.ToList();
+            foreach (var key in keys)
+            {
+                if (structured[key].Count == 0)
+                {
+                    structured.Remove(key);
+                }
+            }
+
+            return structured;
+        }
     }
 }
 
