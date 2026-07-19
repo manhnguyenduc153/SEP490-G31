@@ -29,8 +29,6 @@ namespace sep490_be.DTO.Report
         public string? StudentName { get; set; }
         public int PresentCount { get; set; }
         public int AbsentCount { get; set; }
-        public int LateCount { get; set; }
-        public int ExcusedCount { get; set; }
         public double AttendanceRate { get; set; }
         public List<ClassAttendanceStatusDto> Attendances { get; set; } = new();
     }

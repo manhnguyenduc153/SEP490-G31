@@ -96,14 +96,12 @@ namespace sep490_be.Services.Implementations
 
                             if (status == (int)AttendanceStatus.Present) row.PresentCount++;
                             else if (status == (int)AttendanceStatus.Absent) row.AbsentCount++;
-                            else if (status == (int)AttendanceStatus.Late) row.LateCount++;
-                            else if (status == (int)AttendanceStatus.Excused) row.ExcusedCount++;
                         }
 
-                        int takenSessions = row.PresentCount + row.AbsentCount + row.LateCount + row.ExcusedCount;
+                        int takenSessions = row.PresentCount + row.AbsentCount;
                         if (takenSessions > 0)
                         {
-                            row.AttendanceRate = Math.Round((double)(row.PresentCount + row.LateCount) / takenSessions * 100, 2);
+                            row.AttendanceRate = Math.Round((double)row.PresentCount / takenSessions * 100, 2);
                         }
 
                         report.Students.Add(row);
