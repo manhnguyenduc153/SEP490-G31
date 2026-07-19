@@ -24,6 +24,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class
         [HttpGet]
+        [HasPermission(Permissions.Class.Class_View)]
         public async Task<IActionResult> GetAll([FromQuery] ClassSearchDto searchDto)
         {
             var response = await _service.GetAllAsync(searchDto);
