@@ -16,7 +16,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 194,
+          "SelectedChildIndex": 193,
           "Children": [
             {
               "$type": "Bookmark",
@@ -25,10 +25,6 @@
             {
               "$type": "Bookmark",
               "Name": "ST:1:0:{e8b06f52-6d01-11d2-aa7d-00c04f990343}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{e1b7d1f8-9b3c-49b1-8f4f-bfc63a88835d}"
             },
             {
               "$type": "Bookmark",
@@ -808,6 +804,10 @@
               "ToolTip": "E:\\StudioProjects\\lixi_tracker\\SEP490-G31\\be\\PRN232_be\\appsettings.json",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
               "WhenOpened": "2026-06-13T10:10:57.248Z"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{e1b7d1f8-9b3c-49b1-8f4f-bfc63a88835d}"
             },
             {
               "$type": "Bookmark",

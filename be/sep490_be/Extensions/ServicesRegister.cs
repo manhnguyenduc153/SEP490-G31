@@ -55,6 +55,7 @@ namespace sep490_be.Extensions
             services.AddScoped<ISemesterService, SemesterService>();
             services.AddScoped<IDashboardService, DashboardService>();
             services.AddScoped<IStudentGradeService, StudentGradeService>();
+            services.AddScoped<IReportService, ReportService>();
         }
     }
 }
