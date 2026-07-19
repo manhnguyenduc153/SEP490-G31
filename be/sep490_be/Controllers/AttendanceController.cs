@@ -50,6 +50,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Attendance/my
         [HttpGet("my")]
+        [HasPermission(Permissions.Attendance.Attendance_View)]
         public async Task<IActionResult> GetMyAttendance()
         {
             var identifiers = User.Claims
@@ -73,6 +74,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Attendance/my/class/5
         [HttpGet("my/class/{classId}")]
+        [HasPermission(Permissions.Attendance.Attendance_View)]
         public async Task<IActionResult> GetMyAttendanceDetails(int classId)
         {
             var identifiers = User.Claims
