@@ -14,6 +14,7 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<bool>> DeactiveAsync(int id);
         Task<ApiResponse<List<ClassScheduleDto>>> GetTeacherSchedulesAsync(string username);
         Task<ApiResponse<List<ClassScheduleDto>>> GetStudentSchedulesAsync(string username);
+        Task<ApiResponse<List<ClassScheduleDto>>> GetChildSchedulesAsync(string username, int studentId);
         Task<ApiResponse<List<ClassScheduleDto>>> GetClassSchedulesAsync();
         Task<ApiResponse<PagingResponse<ClassDto>>> GetTeacherClassesAsync(string username, ClassSearchDto searchDto);
         Task<ApiResponse<PagingResponse<ClassDto>>> GetStudentClassesAsync(string username, ClassSearchDto searchDto);

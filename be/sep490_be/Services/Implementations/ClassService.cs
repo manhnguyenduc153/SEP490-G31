@@ -10,6 +10,7 @@ using sep490_be.Helpers;
 using sep490_be.Enums;
 using sep490_be.Repositories.Common;
 using Microsoft.AspNetCore.Identity;
+using sep490_be.DTO.Common;
 
 namespace sep490_be.Services.Implementations
 {
@@ -25,6 +26,7 @@ namespace sep490_be.Services.Implementations
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly ApplicationDbContext _dbContext;
         private readonly IScheduleOptimizationService _optService;
+        private readonly INotificationService _notificationService;
  
         public ClassService(
             IClassRepository repository,
@@ -36,7 +38,8 @@ namespace sep490_be.Services.Implementations
             UserManager<IdentityUser> userManager,
             RoleManager<IdentityRole> roleManager,
             ApplicationDbContext dbContext,
-            IScheduleOptimizationService optService)
+            IScheduleOptimizationService optService,
+            INotificationService notificationService)
         {
             _repository = repository;
             _courseRepository = courseRepository;
@@ -48,6 +51,7 @@ namespace sep490_be.Services.Implementations
             _roleManager = roleManager;
             _dbContext = dbContext;
             _optService = optService;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<PagingResponse<ClassDto>>> GetAllAsync(ClassSearchDto searchDto)
@@ -77,6 +81,7 @@ namespace sep490_be.Services.Implementations
                     query = query.Where(c => c.TeacherId == searchDto.TeacherId.Value);
                 }
 
+                query = query.OrderByDescending(c => c.Id);
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(searchDto);
 
@@ -120,10 +125,35 @@ namespace sep490_be.Services.Implementations
                     var user = await _userManager.FindByNameAsync(username);
                     if (user != null)
                     {
+                        var userClaims = await _userManager.GetClaimsAsync(user);
+                        var permissions = userClaims
+                            .Where(c => c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase))
+                            .Select(c => c.Value)
+                            .ToList();
+
                         var roles = await _userManager.GetRolesAsync(user);
-                        if (!roles.Contains("Admin"))
+                        foreach (var roleName in roles)
                         {
-                            if (roles.Contains("Teacher"))
+                            var role = await _roleManager.FindByNameAsync(roleName);
+                            if (role != null)
+                            {
+                                var roleClaims = await _roleManager.GetClaimsAsync(role);
+                                foreach (var claim in roleClaims)
+                                {
+                                    if (claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        permissions.Add(claim.Value);
+                                    }
+                                }
+                            }
+                        }
+
+                        bool isViewAll = permissions.Contains(Permissions.Class.Class_View) || 
+                                         permissions.Contains(Permissions.Class.ClassPage);
+
+                        if (!isViewAll)
+                        {
+                            if (permissions.Contains(Permissions.Class.Class_TeacherView))
                             {
                                 var teacher = await _teacherRepository.FindAll()
                                     .FirstOrDefaultAsync(t => t.Email == user.Email || t.Email == username);
@@ -132,7 +162,7 @@ namespace sep490_be.Services.Implementations
                                     return ApiResponse<ClassDto>.Fail("ERR_FORBIDDEN", StatusCodes.Status403Forbidden);
                                 }
                             }
-                            else if (roles.Contains("Student"))
+                            else if (permissions.Contains(Permissions.Class.Class_StudentView))
                             {
                                 var student = await _studentRepository.FindAll()
                                     .FirstOrDefaultAsync(s => s.Email == user.Email || s.Email == username);
@@ -205,6 +235,12 @@ namespace sep490_be.Services.Implementations
                     .Include(c => c.StudentClasses)
                     .FirstOrDefaultAsync(c => c.Id == entity.Id);
 
+                // Trigger SignalR Notification
+                if (createdClass != null)
+                {
+                    await _notificationService.SendClassCreatedNotificationAsync(createdClass);
+                }
+
                 return ApiResponse<ClassDto>.Created(MapToDto(createdClass ?? entity), "CREATE_CLASS_SUCCESS");
             }
             catch (Exception ex)
@@ -241,6 +277,9 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ClassDto>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                int oldStatus = existingEntity.Status;
+                int? oldTeacherId = existingEntity.TeacherId;
+
                 // Delete old schedules first to avoid orphans
                 if (existingEntity.ClassSchedules != null && existingEntity.ClassSchedules.Any())
                 {
@@ -253,9 +292,9 @@ namespace sep490_be.Services.Implementations
 
                 // Remove students that are no longer assigned
                 var studentsToRemove = existingEntity.StudentClasses.Where(sc => !newStudentIds.Contains(sc.StudentId)).ToList();
-                foreach (var sc in studentsToRemove)
+                if (studentsToRemove.Any())
                 {
-                    existingEntity.StudentClasses.Remove(sc);
+                    _dbContext.StudentClasses.RemoveRange(studentsToRemove);
                 }
 
                 // Add new students
@@ -288,6 +327,25 @@ namespace sep490_be.Services.Implementations
                     .Include(c => c.StudentClasses)
                     .FirstOrDefaultAsync(c => c.Id == existingEntity.Id);
 
+                // Trigger SignalR Notification if class status changed
+                if (updatedClass != null && oldStatus != updatedClass.Status)
+                {
+                    await _notificationService.SendClassStatusChangedNotificationAsync(updatedClass, oldStatus, updatedClass.Status);
+                }
+
+                // Trigger SignalR Notification for newly added students
+                if (updatedClass != null && studentsToAdd.Any())
+                {
+                    await _notificationService.SendStudentsAddedToClassNotificationAsync(updatedClass, studentsToAdd);
+                }
+
+                // Trigger SignalR Notification if teacher changed or newly assigned
+                if (updatedClass != null && updatedClass.TeacherId.HasValue
+                    && updatedClass.TeacherId != oldTeacherId)
+                {
+                    await _notificationService.SendTeacherAssignedToClassNotificationAsync(updatedClass, updatedClass.TeacherId.Value);
+                }
+
                 return ApiResponse<ClassDto>.Ok(MapToDto(updatedClass ?? existingEntity), "UPDATE_CLASS_SUCCESS");
             }
             catch (Exception ex)
@@ -306,6 +364,11 @@ namespace sep490_be.Services.Implementations
                 if (existingEntity == null)
                 {
                     return ApiResponse<bool>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (existingEntity.Status != (int)ClassStatus.Planning)
+                {
+                    return ApiResponse<bool>.Fail("ERR_CLASS_ALREADY_STARTED", StatusCodes.Status400BadRequest);
                 }
 
                 // 1. Get student IDs enrolled in this class
@@ -353,11 +416,11 @@ namespace sep490_be.Services.Implementations
                     }
                 }
 
-                // Remove StudentClasses relations to avoid orphans
-                if (studentClasses.Any())
-                {
-                    _dbContext.StudentClasses.RemoveRange(studentClasses);
-                }
+                 // Remove StudentClasses relations to avoid orphans
+                 if (studentClasses.Any())
+                 {
+                     _dbContext.StudentClasses.RemoveRange(studentClasses);
+                 }
 
                 // Delete the class itself
                 await _repository.DeleteAsync(existingEntity);
@@ -432,6 +495,7 @@ namespace sep490_be.Services.Implementations
                     query = query.Where(c => c.CourseId == searchDto.CourseId.Value);
                 }
 
+                query = query.OrderByDescending(c => c.Id);
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(searchDto);
 
@@ -489,6 +553,7 @@ namespace sep490_be.Services.Implementations
                     query = query.Where(c => c.CourseId == searchDto.CourseId.Value);
                 }
 
+                query = query.OrderByDescending(c => c.Id);
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(searchDto);
 
@@ -1011,7 +1076,113 @@ namespace sep490_be.Services.Implementations
                     })
                     .ToListAsync();
 
+                if (schedules.Any())
+                {
+                    var scheduleIds = schedules.Select(s => s.Id).ToList();
+                    var attendances = await _dbContext.Attendances
+                        .AsNoTracking()
+                        .Where(a => a.StudentId == student.Id && a.ScheduleId.HasValue && scheduleIds.Contains(a.ScheduleId.Value) && !a.IsDeleted)
+                        .ToDictionaryAsync(a => a.ScheduleId!.Value, a => a.Status);
+
+                    foreach (var s in schedules)
+                    {
+                        if (attendances.TryGetValue(s.Id, out var attStatus))
+                        {
+                            s.AttendanceStatus = attStatus;
+                        }
+                    }
+                }
+
                 return ApiResponse<List<ClassScheduleDto>>.Ok(schedules, "GET_STUDENT_SCHEDULES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ClassScheduleDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<ClassScheduleDto>>> GetChildSchedulesAsync(string username, int studentId)
+        {
+            try
+            {
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
+                {
+                    return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                // Check permissions: parent must be mapped to this studentId, or admin/teacher
+                var roles = await _userManager.GetRolesAsync(user);
+                var isAdminOrTeacher = roles.Contains("Admin") || roles.Contains("Teacher");
+                if (!isAdminOrTeacher)
+                {
+                    var isParentOfStudent = await _dbContext.ParentStudentLinks.AnyAsync(l => l.Parent.Email == user.Email && l.StudentId == studentId);
+                    if (!isParentOfStudent)
+                    {
+                        return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_UNAUTHORIZED", StatusCodes.Status403Forbidden);
+                    }
+                }
+
+                var student = await _studentRepository.FindAll()
+                    .Include(s => s.StudentClasses)
+                    .FirstOrDefaultAsync(s => s.Id == studentId);
+                if (student == null)
+                {
+                    return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var classIds = student.StudentClasses
+                    .Where(sc => sc.Status == (int)StudentClassStatus.Enrolled || sc.Status == (int)StudentClassStatus.Studying)
+                    .Select(sc => sc.ClassId)
+                    .ToList();
+
+                var schedules = await _scheduleRepository.FindAll()
+                    .Include(cs => cs.TimeSlot)
+                    .Include(cs => cs.Room)
+                    .Include(cs => cs.Class)
+                    .Include(cs => cs.Teacher)
+                    .Where(cs => cs.ClassId.HasValue && classIds.Contains(cs.ClassId.Value) && cs.Class != null && !cs.Class.IsDeleted)
+                    .OrderBy(cs => cs.ScheduleDate)
+                    .Select(cs => new ClassScheduleDto
+                    {
+                        Id = cs.Id,
+                        ClassId = cs.ClassId,
+                        ClassCode = cs.Class != null ? cs.Class.Code : null,
+                        ClassName = cs.Class != null ? cs.Class.Name : null,
+                        LessonNo = cs.LessonNo,
+                        ScheduleDate = cs.ScheduleDate,
+                        SlotId = cs.SlotId,
+                        SlotName = cs.TimeSlot != null ? cs.TimeSlot.Name : null,
+                        StartTime = cs.TimeSlot != null ? cs.TimeSlot.StartTime.ToString(@"hh\:mm") : null,
+                        EndTime = cs.TimeSlot != null ? cs.TimeSlot.EndTime.ToString(@"hh\:mm") : null,
+                        RoomId = cs.RoomId,
+                        RoomName = cs.Room != null ? cs.Room.Name : null,
+                        TeacherId = cs.TeacherId,
+                        TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
+                        TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
+                        Status = cs.Status,
+                        Note = cs.Note
+                    })
+                    .ToListAsync();
+
+                if (schedules.Any())
+                {
+                    var scheduleIds = schedules.Select(s => s.Id).ToList();
+                    var attendances = await _dbContext.Attendances
+                        .AsNoTracking()
+                        .Where(a => a.StudentId == student.Id && a.ScheduleId.HasValue && scheduleIds.Contains(a.ScheduleId.Value) && !a.IsDeleted)
+                        .ToDictionaryAsync(a => a.ScheduleId!.Value, a => a.Status);
+
+                    foreach (var s in schedules)
+                    {
+                        if (attendances.TryGetValue(s.Id, out var attStatus))
+                        {
+                            s.AttendanceStatus = attStatus;
+                        }
+                    }
+                }
+
+                return ApiResponse<List<ClassScheduleDto>>.Ok(schedules, "GET_CHILD_SCHEDULES_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -1256,8 +1427,11 @@ namespace sep490_be.Services.Implementations
                              && today >= c.StartDate.Value.Date)
                     .ToListAsync();
 
+                var statusChanges = new List<(Class Class, int Old, int New)>();
+
                 foreach (var c in planningClasses)
                 {
+                    statusChanges.Add((c, (int)ClassStatus.Planning, (int)ClassStatus.Active));
                     c.Status = (int)ClassStatus.Active;
                 }
 
@@ -1269,12 +1443,18 @@ namespace sep490_be.Services.Implementations
 
                 foreach (var c in activeClasses)
                 {
+                    statusChanges.Add((c, (int)ClassStatus.Active, (int)ClassStatus.Completed));
                     c.Status = (int)ClassStatus.Completed;
                 }
 
                 if (planningClasses.Any() || activeClasses.Any())
                 {
                     await _repository.SaveChangesAsync();
+
+                    foreach (var change in statusChanges)
+                    {
+                        await _notificationService.SendClassStatusChangedNotificationAsync(change.Class, change.Old, change.New);
+                    }
                 }
             }
             catch (Exception)

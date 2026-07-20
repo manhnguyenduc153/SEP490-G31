@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace sep490_be.DTO.Class
 {
@@ -21,6 +21,8 @@ namespace sep490_be.DTO.Class
         public string? TeacherAvatar { get; set; }
         public int Status { get; set; }
         public string? Note { get; set; }
+        public int? AttendanceStatus { get; set; }
     }
 }
+
 

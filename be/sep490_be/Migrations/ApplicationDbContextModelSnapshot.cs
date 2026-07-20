@@ -1281,14 +1281,7 @@ namespace sep490_be.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<string>("Relationship")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int>("StudentId")
                         .HasColumnType("int");
 
                     b.Property<string>("TextSearch")
@@ -1307,9 +1300,58 @@ namespace sep490_be.Migrations
 
                     b.HasKey("Id");
 
+                    b.ToTable("parent_students", (string)null);
+                });
+
+            modelBuilder.Entity("sep490_be.Models.ParentStudentLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("ParentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Relationship")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentId");
+
                     b.HasIndex("StudentId");
 
-                    b.ToTable("parent_students", (string)null);
+                    b.ToTable("parent_student_links", (string)null);
                 });
 
             modelBuilder.Entity("sep490_be.Models.Product", b =>
@@ -1625,11 +1667,6 @@ namespace sep490_be.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("Image")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
-                        .HasColumnName("RoomImg");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -1637,9 +1674,6 @@ namespace sep490_be.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("RoomType")
-                        .HasColumnType("int");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -2195,7 +2229,7 @@ namespace sep490_be.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("sep490_be.Models.Semester", "Semester")
-                        .WithMany()
+                        .WithMany("Classes")
                         .HasForeignKey("SemesterId")
                         .OnDelete(DeleteBehavior.Restrict);
 
@@ -2463,13 +2497,21 @@ namespace sep490_be.Migrations
                     b.Navigation("Class");
                 });
 
-            modelBuilder.Entity("sep490_be.Models.ParentStudent", b =>
+            modelBuilder.Entity("sep490_be.Models.ParentStudentLink", b =>
                 {
+                    b.HasOne("sep490_be.Models.ParentStudent", "Parent")
+                        .WithMany("ParentStudentLinks")
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("sep490_be.Models.Student", "Student")
-                        .WithMany("ParentStudents")
+                        .WithMany("ParentStudentLinks")
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Parent");
 
                     b.Navigation("Student");
                 });
@@ -2670,6 +2712,11 @@ namespace sep490_be.Migrations
                     b.Navigation("HomeworkSubmissions");
                 });
 
+            modelBuilder.Entity("sep490_be.Models.ParentStudent", b =>
+                {
+                    b.Navigation("ParentStudentLinks");
+                });
+
             modelBuilder.Entity("sep490_be.Models.Question", b =>
                 {
                     b.Navigation("ExamAnswers");
@@ -2693,6 +2740,8 @@ namespace sep490_be.Migrations
 
             modelBuilder.Entity("sep490_be.Models.Semester", b =>
                 {
+                    b.Navigation("Classes");
+
                     b.Navigation("StudentRegistrations");
 
                     b.Navigation("TeacherAvailabilities");
@@ -2706,7 +2755,7 @@ namespace sep490_be.Migrations
 
                     b.Navigation("ExamStudents");
 
-                    b.Navigation("ParentStudents");
+                    b.Navigation("ParentStudentLinks");
 
                     b.Navigation("StudentClasses");
                 });

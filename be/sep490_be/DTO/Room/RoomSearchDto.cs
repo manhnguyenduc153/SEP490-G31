@@ -1,13 +1,10 @@
-﻿using sep490_be.Enums;
+using sep490_be.Enums;
 using sep490_be.DTO;
 
 namespace sep490_be.DTO.Room
 {
     public class RoomSearchDto : BaseSearchDto
     {
-        /// <summary>Lọc theo loại phòng (Theory / Pratice)</summary>
-        public RoomType? RoomType { get; set; }
-
         /// <summary>Lọc theo tòa nhà</summary>
         public string? Building { get; set; }
 

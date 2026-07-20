@@ -1,4 +1,4 @@
-﻿using sep490_be.Helpers;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace sep490_be.DTO.ParentStudent
@@ -6,9 +6,6 @@ namespace sep490_be.DTO.ParentStudent
     public class ParentStudentSaveDto
     {
         public int Id { get; set; }   // 0 = tạo mới, >0 = cập nhật
-
-        [Required(ErrorMessage = "StudentId là bắt buộc")]
-        public int StudentId { get; set; }
 
         [Required(ErrorMessage = "Tên phụ huynh là bắt buộc")]
         [MaxLength(200, ErrorMessage = "Tên phụ huynh không vượt quá 200 ký tự")]
@@ -24,6 +21,8 @@ namespace sep490_be.DTO.ParentStudent
 
         [MaxLength(50, ErrorMessage = "Mối quan hệ không vượt quá 50 ký tự")]
         public string? Relationship { get; set; }
+
+        // Danh sách ID con được liên kết
+        public List<int> StudentIds { get; set; } = new List<int>();
     }
 }
-

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using sep490_be.DTO;
 using sep490_be.DTO.StudentGrade;
@@ -10,10 +11,12 @@ namespace sep490_be.Services.Implementations
     public class StudentGradeService : IStudentGradeService
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly UserManager<IdentityUser> _userManager;
 
-        public StudentGradeService(ApplicationDbContext dbContext)
+        public StudentGradeService(ApplicationDbContext dbContext, UserManager<IdentityUser> userManager)
         {
             _dbContext = dbContext;
+            _userManager = userManager;
         }
 
         public async Task<ApiResponse<ClassGradeSettingsDto>> GetSettingsAsync(int classId)
@@ -81,6 +84,87 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        private async Task<List<MyGradeClassDto>> GetGradesForStudentAsync(int studentId)
+        {
+            var enrollments = await _dbContext.StudentClasses
+                .AsNoTracking()
+                .Include(sc => sc.Class)
+                    .ThenInclude(c => c.Course)
+                .Where(sc => sc.StudentId == studentId && !sc.Class.IsDeleted)
+                .OrderByDescending(sc => sc.EnrollDate)
+                .ThenBy(sc => sc.Class.Name)
+                .ToListAsync();
+
+            var result = new List<MyGradeClassDto>();
+
+            foreach (var enrollment in enrollments)
+            {
+                var classInfo = enrollment.Class;
+                if (!classInfo.CourseId.HasValue)
+                {
+                    continue;
+                }
+
+                var courseId = classInfo.CourseId.Value;
+                await EnsureDefaultComponentsAsync(courseId);
+
+                var components = await _dbContext.GradeComponents
+                    .AsNoTracking()
+                    .Where(x => x.CourseId == courseId)
+                    .OrderBy(x => x.SortOrder)
+                    .ThenBy(x => x.Id)
+                    .ToListAsync();
+
+                var componentIds = components.Select(x => x.Id).ToList();
+                var overrides = await _dbContext.StudentGradeOverrides
+                    .AsNoTracking()
+                    .Where(x => x.StudentClassId == enrollment.Id && componentIds.Contains(x.GradeComponentId))
+                    .ToDictionaryAsync(x => x.GradeComponentId, x => x.Score);
+
+                var rawScores = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["attendance"] = await CalculateAttendanceScoreAsync(classInfo.Id, studentId),
+                    ["homework"] = await CalculateHomeworkScoreAsync(classInfo.Id, studentId),
+                    ["exam"] = await CalculateExamScoreAsync(classInfo.Id, studentId)
+                };
+
+                var scoreComponents = components.Select(component =>
+                {
+                    var rawScore = rawScores.TryGetValue(component.Code, out var value) ? value : 0m;
+                    var hasOverride = overrides.TryGetValue(component.Id, out var overrideScore);
+                    return new MyGradeComponentScoreDto
+                    {
+                        GradeComponentId = component.Id,
+                        ComponentCode = component.Code,
+                        ComponentName = component.Name,
+                        Weight = component.Weight,
+                        RawScore = Round1(rawScore),
+                        Score = Round1(hasOverride ? overrideScore : rawScore),
+                        IsOverride = hasOverride
+                    };
+                }).ToList();
+
+                var totalWeight = scoreComponents.Sum(x => Math.Max(0m, x.Weight));
+                var average = totalWeight > 0
+                    ? scoreComponents.Sum(x => x.Score * Math.Max(0m, x.Weight)) / totalWeight
+                    : 0m;
+
+                result.Add(new MyGradeClassDto
+                {
+                    ClassId = classInfo.Id,
+                    ClassCode = classInfo.Code,
+                    ClassName = classInfo.Name,
+                    CourseId = classInfo.CourseId,
+                    CourseCode = classInfo.Course?.Code,
+                    CourseName = classInfo.Course?.Name,
+                    AverageScore = Round1(average),
+                    Components = scoreComponents
+                });
+            }
+
+            return result;
+        }
+
         public async Task<ApiResponse<List<MyGradeClassDto>>> GetMyGradesAsync(IEnumerable<string> identifiers)
         {
             try
@@ -121,83 +205,45 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<MyGradeClassDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                var enrollments = await _dbContext.StudentClasses
-                    .AsNoTracking()
-                    .Include(sc => sc.Class)
-                        .ThenInclude(c => c.Course)
-                    .Where(sc => sc.StudentId == student.Id && !sc.Class.IsDeleted)
-                    .OrderByDescending(sc => sc.EnrollDate)
-                    .ThenBy(sc => sc.Class.Name)
-                    .ToListAsync();
+                var result = await GetGradesForStudentAsync(student.Id);
+                return ApiResponse<List<MyGradeClassDto>>.Ok(result, "GET_MY_GRADES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<MyGradeClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
 
-                var result = new List<MyGradeClassDto>();
-
-                foreach (var enrollment in enrollments)
+        public async Task<ApiResponse<List<MyGradeClassDto>>> GetChildGradesAsync(string username, int studentId)
+        {
+            try
+            {
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
                 {
-                    var classInfo = enrollment.Class;
-                    if (!classInfo.CourseId.HasValue)
-                    {
-                        continue;
-                    }
-
-                    var courseId = classInfo.CourseId.Value;
-                    await EnsureDefaultComponentsAsync(courseId);
-
-                    var components = await _dbContext.GradeComponents
-                        .AsNoTracking()
-                        .Where(x => x.CourseId == courseId)
-                        .OrderBy(x => x.SortOrder)
-                        .ThenBy(x => x.Id)
-                        .ToListAsync();
-
-                    var componentIds = components.Select(x => x.Id).ToList();
-                    var overrides = await _dbContext.StudentGradeOverrides
-                        .AsNoTracking()
-                        .Where(x => x.StudentClassId == enrollment.Id && componentIds.Contains(x.GradeComponentId))
-                        .ToDictionaryAsync(x => x.GradeComponentId, x => x.Score);
-
-                    var rawScores = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        ["attendance"] = await CalculateAttendanceScoreAsync(classInfo.Id, student.Id),
-                        ["homework"] = await CalculateHomeworkScoreAsync(classInfo.Id, student.Id),
-                        ["exam"] = await CalculateExamScoreAsync(classInfo.Id, student.Id)
-                    };
-
-                    var scoreComponents = components.Select(component =>
-                    {
-                        var rawScore = rawScores.TryGetValue(component.Code, out var value) ? value : 0m;
-                        var hasOverride = overrides.TryGetValue(component.Id, out var overrideScore);
-                        return new MyGradeComponentScoreDto
-                        {
-                            GradeComponentId = component.Id,
-                            ComponentCode = component.Code,
-                            ComponentName = component.Name,
-                            Weight = component.Weight,
-                            RawScore = Round1(rawScore),
-                            Score = Round1(hasOverride ? overrideScore : rawScore),
-                            IsOverride = hasOverride
-                        };
-                    }).ToList();
-
-                    var totalWeight = scoreComponents.Sum(x => Math.Max(0m, x.Weight));
-                    var average = totalWeight > 0
-                        ? scoreComponents.Sum(x => x.Score * Math.Max(0m, x.Weight)) / totalWeight
-                        : 0m;
-
-                    result.Add(new MyGradeClassDto
-                    {
-                        ClassId = classInfo.Id,
-                        ClassCode = classInfo.Code,
-                        ClassName = classInfo.Name,
-                        CourseId = classInfo.CourseId,
-                        CourseCode = classInfo.Course?.Code,
-                        CourseName = classInfo.Course?.Name,
-                        AverageScore = Round1(average),
-                        Components = scoreComponents
-                    });
+                    return ApiResponse<List<MyGradeClassDto>>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                return ApiResponse<List<MyGradeClassDto>>.Ok(result, "GET_MY_GRADES_SUCCESS");
+                // Kiểm tra quyền: phụ huynh phải được liên kết với học sinh này, hoặc là admin/giáo viên
+                var roles = await _userManager.GetRolesAsync(user);
+                var isAdminOrTeacher = roles.Contains("Admin") || roles.Contains("Teacher");
+                if (!isAdminOrTeacher)
+                {
+                    var isParentOfStudent = await _dbContext.ParentStudentLinks.AnyAsync(l => l.Parent.Email == user.Email && l.StudentId == studentId);
+                    if (!isParentOfStudent)
+                    {
+                        return ApiResponse<List<MyGradeClassDto>>.Fail("ERR_UNAUTHORIZED", StatusCodes.Status403Forbidden);
+                    }
+                }
+
+                var studentExists = await _dbContext.Students.AnyAsync(s => s.Id == studentId);
+                if (!studentExists)
+                {
+                    return ApiResponse<List<MyGradeClassDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var result = await GetGradesForStudentAsync(studentId);
+                return ApiResponse<List<MyGradeClassDto>>.Ok(result, "GET_CHILD_GRADES_SUCCESS");
             }
             catch (Exception ex)
             {
