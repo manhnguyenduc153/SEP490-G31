@@ -646,7 +646,7 @@ namespace sep490_be.Services.Implementations
                     Name = $"Lượt làm bài của {student.Name} cho {exam.Title}",
                     ExamId = examId,
                     StudentId = student.Id,
-                    StartTime = DateTime.Now,
+                    StartTime = DateTime.UtcNow,
                     Status = 1 // In Progress
                 };
 
@@ -709,7 +709,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ExamAttemptDto>.Fail("Bài làm này đã được nộp trước đó.");
                 }
 
-                attempt.SubmitTime = DateTime.Now;
+                attempt.SubmitTime = DateTime.UtcNow;
                 attempt.Status = 2; // Submitted
                 attempt.TabExitsCount = submitDto.TabExitsCount;
                 attempt.Log = submitDto.Log;
