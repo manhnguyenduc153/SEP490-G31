@@ -23,6 +23,8 @@ builder.Services.AddControllers().AddJsonOptions(x =>
 {
     x.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     x.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    x.JsonSerializerOptions.Converters.Add(new sep490_be.Helpers.DateTimeJsonConverter());
+    x.JsonSerializerOptions.Converters.Add(new sep490_be.Helpers.NullableDateTimeJsonConverter());
 });
 
 builder.Services.AddEndpointsApiExplorer();
