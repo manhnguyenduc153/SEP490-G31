@@ -115,6 +115,27 @@ namespace sep490_be.Helpers
                     await roleManager.AddClaimAsync(studentRole!, new Claim("Permission", perm));
                 }
             }
+
+            // 5. Seed các vai trò bổ sung yêu cầu (Học sinh, Giáo viên, Ban vận hành, Ban chuyên môn, Quản lý trung tâm, Phụ huynh)
+            var newRolesToSeed = new List<string>
+            {
+                "Học sinh",
+                "Giáo viên",
+                "Ban vận hành",
+                "Ban chuyên môn",
+                "Quản lý trung tâm",
+                "Phụ huynh"
+            };
+
+            foreach (var roleName in newRolesToSeed)
+            {
+                var role = await roleManager.FindByNameAsync(roleName);
+                if (role == null)
+                {
+                    role = new IdentityRole(roleName);
+                    await roleManager.CreateAsync(role);
+                }
+            }
         }
     }
 }
