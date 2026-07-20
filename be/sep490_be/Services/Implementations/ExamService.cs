@@ -444,6 +444,8 @@ namespace sep490_be.Services.Implementations
                         Score = a.Score,
                         Status = a.Status,
                         Duration = exam.Duration,
+                        TabExitsCount = a.TabExitsCount,
+                        Log = a.Log,
                         Answers = a.ExamAnswers.Select(ans => new ExamAnswerDto
                         {
                             Id = ans.Id,
@@ -529,6 +531,8 @@ namespace sep490_be.Services.Implementations
                         Score = a.Score,
                         Status = a.Status,
                         Duration = exam.Duration,
+                        TabExitsCount = a.TabExitsCount,
+                        Log = a.Log,
                         Answers = a.ExamAnswers.Select(ans => new ExamAnswerDto
                         {
                             Id = ans.Id,
@@ -630,7 +634,9 @@ namespace sep490_be.Services.Implementations
                         SubmitTime = inProgressAttempt.SubmitTime,
                         Score = inProgressAttempt.Score,
                         Status = inProgressAttempt.Status,
-                        Duration = exam.Duration
+                        Duration = exam.Duration,
+                        TabExitsCount = inProgressAttempt.TabExitsCount,
+                        Log = inProgressAttempt.Log
                     }, "EXAM_ATTEMPT_CONTINUE");
                 }
 
@@ -657,7 +663,9 @@ namespace sep490_be.Services.Implementations
                     StudentCode = student.Code ?? string.Empty,
                     StartTime = attempt.StartTime,
                     Status = attempt.Status,
-                    Duration = exam.Duration
+                    Duration = exam.Duration,
+                    TabExitsCount = 0,
+                    Log = null
                 }, "EXAM_ATTEMPT_STARTED");
             }
             catch (Exception ex)
@@ -703,6 +711,8 @@ namespace sep490_be.Services.Implementations
 
                 attempt.SubmitTime = DateTime.Now;
                 attempt.Status = 2; // Submitted
+                attempt.TabExitsCount = submitDto.TabExitsCount;
+                attempt.Log = submitDto.Log;
 
                 decimal totalScore = 0;
                 var listAnswers = new List<ExamAnswerDto>();
@@ -784,6 +794,8 @@ namespace sep490_be.Services.Implementations
                     Score = attempt.Score,
                     Status = attempt.Status,
                     Duration = exam.Duration,
+                    TabExitsCount = attempt.TabExitsCount,
+                    Log = attempt.Log,
                     Answers = listAnswers
                 }, "SUBMIT_EXAM_SUCCESS");
             }
