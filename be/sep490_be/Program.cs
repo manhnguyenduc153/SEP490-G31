@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
 using sep490_be.Extensions;
@@ -108,6 +108,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers().RequireRateLimiting("fixed");
+
+app.MapHub<sep490_be.Hubs.NotificationHub>("/hubs/notification");
 
 app.MapGet("/server123", () =>
 {
