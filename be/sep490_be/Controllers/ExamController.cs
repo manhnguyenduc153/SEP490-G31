@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Threading.Tasks;
 using sep490_be.DTO.Exam;
@@ -88,6 +88,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Exam/{id}/student-detail - for students to read exam without Exam_View permission
         [HttpGet("{id}/student-detail")]
+        [HasPermission(Permissions.Exam.Exam_StudentView)]
         public async Task<IActionResult> GetStudentExamDetail(int id)
         {
             var response = await _service.GetByIdAsync(id);
@@ -96,6 +97,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Exam/student
         [HttpGet("student")]
+        [HasPermission(Permissions.Exam.Exam_StudentView)]
         public async Task<IActionResult> GetStudentExams()
         {
             var userEmailOrCode = GetCurrentUserEmailOrCode();
@@ -109,6 +111,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Exam/5/attempts
         [HttpGet("{id}/attempts")]
+        [HasPermission(Permissions.Exam.Exam_StudentView)]
         public async Task<IActionResult> GetStudentAttempts(int id)
         {
             var userEmailOrCode = GetCurrentUserEmailOrCode();
@@ -122,6 +125,7 @@ namespace sep490_be.Controllers
 
         // POST: api/Exam/5/start
         [HttpPost("{id}/start")]
+        [HasPermission(Permissions.Exam.Exam_StudentView)]
         public async Task<IActionResult> StartAttempt(int id)
         {
             var userEmailOrCode = GetCurrentUserEmailOrCode();
@@ -135,6 +139,7 @@ namespace sep490_be.Controllers
 
         // POST: api/Exam/5/submit
         [HttpPost("{id}/submit")]
+        [HasPermission(Permissions.Exam.Exam_StudentView)]
         public async Task<IActionResult> SubmitAttempt(int id, [FromBody] ExamSubmitDto submitDto)
         {
             var userEmailOrCode = GetCurrentUserEmailOrCode();
