@@ -26,6 +26,7 @@ namespace sep490_be.Services.Implementations
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly ApplicationDbContext _dbContext;
         private readonly IScheduleOptimizationService _optService;
+        private readonly INotificationService _notificationService;
  
         public ClassService(
             IClassRepository repository,
@@ -37,7 +38,8 @@ namespace sep490_be.Services.Implementations
             UserManager<IdentityUser> userManager,
             RoleManager<IdentityRole> roleManager,
             ApplicationDbContext dbContext,
-            IScheduleOptimizationService optService)
+            IScheduleOptimizationService optService,
+            INotificationService notificationService)
         {
             _repository = repository;
             _courseRepository = courseRepository;
@@ -49,6 +51,7 @@ namespace sep490_be.Services.Implementations
             _roleManager = roleManager;
             _dbContext = dbContext;
             _optService = optService;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<PagingResponse<ClassDto>>> GetAllAsync(ClassSearchDto searchDto)
@@ -232,6 +235,12 @@ namespace sep490_be.Services.Implementations
                     .Include(c => c.StudentClasses)
                     .FirstOrDefaultAsync(c => c.Id == entity.Id);
 
+                // Trigger SignalR Notification
+                if (createdClass != null)
+                {
+                    await _notificationService.SendClassCreatedNotificationAsync(createdClass);
+                }
+
                 return ApiResponse<ClassDto>.Created(MapToDto(createdClass ?? entity), "CREATE_CLASS_SUCCESS");
             }
             catch (Exception ex)
@@ -268,6 +277,9 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ClassDto>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                int oldStatus = existingEntity.Status;
+                int? oldTeacherId = existingEntity.TeacherId;
+
                 // Delete old schedules first to avoid orphans
                 if (existingEntity.ClassSchedules != null && existingEntity.ClassSchedules.Any())
                 {
@@ -280,9 +292,9 @@ namespace sep490_be.Services.Implementations
 
                 // Remove students that are no longer assigned
                 var studentsToRemove = existingEntity.StudentClasses.Where(sc => !newStudentIds.Contains(sc.StudentId)).ToList();
-                foreach (var sc in studentsToRemove)
+                if (studentsToRemove.Any())
                 {
-                    existingEntity.StudentClasses.Remove(sc);
+                    _dbContext.StudentClasses.RemoveRange(studentsToRemove);
                 }
 
                 // Add new students
@@ -314,6 +326,25 @@ namespace sep490_be.Services.Implementations
                     .Include(c => c.Semester)
                     .Include(c => c.StudentClasses)
                     .FirstOrDefaultAsync(c => c.Id == existingEntity.Id);
+
+                // Trigger SignalR Notification if class status changed
+                if (updatedClass != null && oldStatus != updatedClass.Status)
+                {
+                    await _notificationService.SendClassStatusChangedNotificationAsync(updatedClass, oldStatus, updatedClass.Status);
+                }
+
+                // Trigger SignalR Notification for newly added students
+                if (updatedClass != null && studentsToAdd.Any())
+                {
+                    await _notificationService.SendStudentsAddedToClassNotificationAsync(updatedClass, studentsToAdd);
+                }
+
+                // Trigger SignalR Notification if teacher changed or newly assigned
+                if (updatedClass != null && updatedClass.TeacherId.HasValue
+                    && updatedClass.TeacherId != oldTeacherId)
+                {
+                    await _notificationService.SendTeacherAssignedToClassNotificationAsync(updatedClass, updatedClass.TeacherId.Value);
+                }
 
                 return ApiResponse<ClassDto>.Ok(MapToDto(updatedClass ?? existingEntity), "UPDATE_CLASS_SUCCESS");
             }
@@ -1396,8 +1427,11 @@ namespace sep490_be.Services.Implementations
                              && today >= c.StartDate.Value.Date)
                     .ToListAsync();
 
+                var statusChanges = new List<(Class Class, int Old, int New)>();
+
                 foreach (var c in planningClasses)
                 {
+                    statusChanges.Add((c, (int)ClassStatus.Planning, (int)ClassStatus.Active));
                     c.Status = (int)ClassStatus.Active;
                 }
 
@@ -1409,12 +1443,18 @@ namespace sep490_be.Services.Implementations
 
                 foreach (var c in activeClasses)
                 {
+                    statusChanges.Add((c, (int)ClassStatus.Active, (int)ClassStatus.Completed));
                     c.Status = (int)ClassStatus.Completed;
                 }
 
                 if (planningClasses.Any() || activeClasses.Any())
                 {
                     await _repository.SaveChangesAsync();
+
+                    foreach (var change in statusChanges)
+                    {
+                        await _notificationService.SendClassStatusChangedNotificationAsync(change.Class, change.Old, change.New);
+                    }
                 }
             }
             catch (Exception)
