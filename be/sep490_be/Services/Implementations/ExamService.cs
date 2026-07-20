@@ -415,7 +415,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var student = await _dbContext.Students.FirstOrDefaultAsync(s => s.Email == userEmailOrCode || s.Code == userEmailOrCode);
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
                 if (student == null)
                 {
                     return ApiResponse<List<ExamAttemptDto>>.Fail("Học sinh không tồn tại.");
@@ -588,7 +588,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var student = await _dbContext.Students.FirstOrDefaultAsync(s => s.Email == userEmailOrCode || s.Code == userEmailOrCode);
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
                 if (student == null)
                 {
                     return ApiResponse<ExamAttemptDto>.Fail("Học sinh không tồn tại.");
@@ -671,7 +671,7 @@ namespace sep490_be.Services.Implementations
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
-                var student = await _dbContext.Students.FirstOrDefaultAsync(s => s.Email == userEmailOrCode || s.Code == userEmailOrCode);
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
                 if (student == null)
                 {
                     return ApiResponse<ExamAttemptDto>.Fail("Học sinh không tồn tại.");
@@ -799,9 +799,7 @@ namespace sep490_be.Services.Implementations
             try
             {
                 // Find student by email or code — same pattern as StartAttemptAsync
-                var student = await _dbContext.Students
-                    .Include(s => s.StudentClasses)
-                    .FirstOrDefaultAsync(s => (s.Email == userEmailOrCode || s.Code == userEmailOrCode) && !s.IsDeleted);
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
 
                 if (student == null)
                 {
@@ -860,6 +858,33 @@ namespace sep490_be.Services.Implementations
             {
                 return ApiResponse<List<ExamDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
+        }
+
+        private async Task<Student?> GetStudentByIdentifierAsync(string identifier)
+        {
+            if (string.IsNullOrWhiteSpace(identifier)) return null;
+
+            // 1. Try finding by Email or Code directly
+            var student = await _dbContext.Students
+                .Include(s => s.StudentClasses)
+                .FirstOrDefaultAsync(s => (s.Email == identifier || s.Code == identifier) && !s.IsDeleted);
+
+            if (student != null) return student;
+
+            // 2. Try looking up Identity User by UserName, Email, or Id
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => 
+                u.UserName == identifier || 
+                u.Email == identifier || 
+                u.Id == identifier);
+
+            if (user != null)
+            {
+                student = await _dbContext.Students
+                    .Include(s => s.StudentClasses)
+                    .FirstOrDefaultAsync(s => (s.Email == user.Email || s.Email == user.UserName || s.Code == user.UserName) && !s.IsDeleted);
+            }
+
+            return student;
         }
     }
 }
