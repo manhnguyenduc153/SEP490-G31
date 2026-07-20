@@ -24,6 +24,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class
         [HttpGet]
+        [HasPermission(Permissions.Class.Class_View)]
         public async Task<IActionResult> GetAll([FromQuery] ClassSearchDto searchDto)
         {
             var response = await _service.GetAllAsync(searchDto);
@@ -106,6 +107,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/TeacherSchedules
         [HttpGet("TeacherSchedules")]
+        [HasPermission(Permissions.ClassSchedule.ClassSchedule_TeacherView)]
         public async Task<IActionResult> GetTeacherSchedules()
         {
             var username = User.Identity?.Name;
@@ -119,6 +121,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/StudentSchedules
         [HttpGet("StudentSchedules")]
+        [HasPermission(Permissions.ClassSchedule.ClassSchedule_StudentView)]
         public async Task<IActionResult> GetStudentSchedules()
         {
             var username = User.Identity?.Name;
@@ -132,6 +135,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/ChildSchedules?studentId=5
         [HttpGet("ChildSchedules")]
+        [HasPermission(Permissions.ParentStudent.ParentStudent_View)]
         public async Task<IActionResult> GetChildSchedules([FromQuery] int studentId)
         {
             var username = User.Identity?.Name;

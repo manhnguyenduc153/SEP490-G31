@@ -113,6 +113,8 @@ namespace sep490_be.DTO.Common
             public const string ClassSchedule_Create = "ClassSchedule.Create";
             public const string ClassSchedule_Edit = "ClassSchedule.Edit";
             public const string ClassSchedule_Delete = "ClassSchedule.Delete";
+            public const string ClassSchedule_StudentView = "ClassSchedule.StudentView";
+            public const string ClassSchedule_TeacherView = "ClassSchedule.TeacherView";
         }
 
         public static class Attendance

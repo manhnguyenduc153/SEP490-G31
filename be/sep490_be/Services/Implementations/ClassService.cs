@@ -10,6 +10,7 @@ using sep490_be.Helpers;
 using sep490_be.Enums;
 using sep490_be.Repositories.Common;
 using Microsoft.AspNetCore.Identity;
+using sep490_be.DTO.Common;
 
 namespace sep490_be.Services.Implementations
 {
@@ -121,10 +122,35 @@ namespace sep490_be.Services.Implementations
                     var user = await _userManager.FindByNameAsync(username);
                     if (user != null)
                     {
+                        var userClaims = await _userManager.GetClaimsAsync(user);
+                        var permissions = userClaims
+                            .Where(c => c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase))
+                            .Select(c => c.Value)
+                            .ToList();
+
                         var roles = await _userManager.GetRolesAsync(user);
-                        if (!roles.Contains("Admin"))
+                        foreach (var roleName in roles)
                         {
-                            if (roles.Contains("Teacher"))
+                            var role = await _roleManager.FindByNameAsync(roleName);
+                            if (role != null)
+                            {
+                                var roleClaims = await _roleManager.GetClaimsAsync(role);
+                                foreach (var claim in roleClaims)
+                                {
+                                    if (claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        permissions.Add(claim.Value);
+                                    }
+                                }
+                            }
+                        }
+
+                        bool isViewAll = permissions.Contains(Permissions.Class.Class_View) || 
+                                         permissions.Contains(Permissions.Class.ClassPage);
+
+                        if (!isViewAll)
+                        {
+                            if (permissions.Contains(Permissions.Class.Class_TeacherView))
                             {
                                 var teacher = await _teacherRepository.FindAll()
                                     .FirstOrDefaultAsync(t => t.Email == user.Email || t.Email == username);
@@ -133,7 +159,7 @@ namespace sep490_be.Services.Implementations
                                     return ApiResponse<ClassDto>.Fail("ERR_FORBIDDEN", StatusCodes.Status403Forbidden);
                                 }
                             }
-                            else if (roles.Contains("Student"))
+                            else if (permissions.Contains(Permissions.Class.Class_StudentView))
                             {
                                 var student = await _studentRepository.FindAll()
                                     .FirstOrDefaultAsync(s => s.Email == user.Email || s.Email == username);
