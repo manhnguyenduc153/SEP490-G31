@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using sep490_be.Models.BaseEntities;
 
@@ -12,6 +12,9 @@ namespace sep490_be.Models
         public DateTime? SubmitTime { get; set; }
         public decimal? Score { get; set; }
         public int Status { get; set; }
+
+        public int TabExitsCount { get; set; }
+        public string? Log { get; set; }
 
         public virtual Exam Exam { get; set; } = null!;
         public virtual Student Student { get; set; } = null!;

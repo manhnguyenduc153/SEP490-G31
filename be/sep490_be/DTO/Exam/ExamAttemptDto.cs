@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace sep490_be.DTO.Exam
@@ -16,6 +16,8 @@ namespace sep490_be.DTO.Exam
         public decimal? Score { get; set; }
         public int Status { get; set; } // 1 = In Progress, 2 = Submitted
         public int? Duration { get; set; }
+        public int TabExitsCount { get; set; }
+        public string? Log { get; set; }
         public List<ExamAnswerDto> Answers { get; set; } = new List<ExamAnswerDto>();
     }
 

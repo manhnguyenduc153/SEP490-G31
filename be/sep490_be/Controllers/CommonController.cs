@@ -6,6 +6,8 @@ using sep490_be.DTO.Course;
 using sep490_be.DTO.Student;
 using sep490_be.DTO.Teacher;
 using sep490_be.DTO.Room;
+using sep490_be.DTO.Class;
+using sep490_be.DTO.QuestionCategory;
 
 namespace sep490_be.Controllers
 {
@@ -19,19 +21,25 @@ namespace sep490_be.Controllers
         private readonly IStudentService _studentService;
         private readonly ITeacherService _teacherService;
         private readonly IRoomService _roomService;
+        private readonly IClassService _classService;
+        private readonly IQuestionCategoryService _questionCategoryService;
 
         public CommonController(
             ISemesterService semesterService,
             ICourseService courseService,
             IStudentService studentService,
             ITeacherService teacherService,
-            IRoomService roomService)
+            IRoomService roomService,
+            IClassService classService,
+            IQuestionCategoryService questionCategoryService)
         {
             _semesterService = semesterService;
             _courseService = courseService;
             _studentService = studentService;
             _teacherService = teacherService;
             _roomService = roomService;
+            _classService = classService;
+            _questionCategoryService = questionCategoryService;
         }
 
         // GET: api/Common/semesters
@@ -71,6 +79,22 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> GetRooms([FromQuery] RoomSearchDto searchDto)
         {
             var response = await _roomService.GetAllAsync(searchDto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Common/classes
+        [HttpGet("classes")]
+        public async Task<IActionResult> GetClasses([FromQuery] ClassSearchDto searchDto)
+        {
+            var response = await _classService.GetAllAsync(searchDto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Common/question-categories
+        [HttpGet("question-categories")]
+        public async Task<IActionResult> GetQuestionCategories([FromQuery] QuestionCategorySearchDto searchDto)
+        {
+            var response = await _questionCategoryService.GetAllAsync(searchDto);
             return StatusCode(response.StatusCode, response);
         }
     }
