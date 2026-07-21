@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -41,38 +41,6 @@ namespace sep490_be.Services.Implementations
                     .Include(x => x.Teacher)
                     .AsQueryable();
 
-                // Phân quyền cho Học sinh (Student)
-                if (roles.Contains("Student"))
-                {
-                    // Lấy thông tin Student bằng email hoặc username
-                    var student = await _dbContext.Students
-                        .FirstOrDefaultAsync(s => s.Email == username || s.Code == username);
-
-                    if (student == null)
-                    {
-                        return ApiResponse<PagingResponse<LearningMaterialDto>>.Fail(
-                            "ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
-                    }
-
-                    // Lấy danh sách ClassId của học sinh đang theo học
-                    var enrolledClassIds = await _dbContext.StudentClasses
-                        .Where(sc => sc.StudentId == student.Id && sc.Status == 1) // 1 là Active / Studying
-                        .Select(sc => sc.ClassId)
-                        .ToListAsync();
-
-                    // Lấy danh sách CourseId tương ứng với các lớp học sinh học
-                    var enrolledCourseIds = await _dbContext.Classes
-                        .Where(c => enrolledClassIds.Contains(c.Id) && c.CourseId != null)
-                        .Select(c => c.CourseId!.Value)
-                        .Distinct()
-                        .ToListAsync();
-
-                    // Học sinh chỉ được xem tài liệu gán cho lớp học hoặc khóa học của mình
-                    query = query.Where(x => 
-                        (x.ClassId != null && enrolledClassIds.Contains(x.ClassId.Value)) || 
-                        (x.CourseId != null && enrolledCourseIds.Contains(x.CourseId.Value))
-                    );
-                }
 
                 // Lọc theo keyword (tiêu đề, tên, mã, mô tả thông qua TextSearch)
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
