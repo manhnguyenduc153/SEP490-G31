@@ -21,7 +21,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("class/{classId}/settings")]
-        [HasPermission(Permissions.StudentGrade.StudentGrade_View)]
+        [HasPermission(Permissions.StudentGrade.StudentGrade_ViewSettings)]
         public async Task<IActionResult> GetSettings(int classId)
         {
             var response = await _service.GetSettingsAsync(classId);
@@ -29,6 +29,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("my")]
+        [HasPermission(Permissions.StudentGrade.StudentGrade_ViewOwnGrades)]
         public async Task<IActionResult> GetMyGrades()
         {
             var identifiers = User.Claims
@@ -59,7 +60,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("course/{courseId}/components")]
-        [HasPermission(Permissions.StudentGrade.StudentGrade_View)]
+        [HasPermission(Permissions.StudentGrade.StudentGrade_ViewSettings)]
         public async Task<IActionResult> GetCourseComponents(int courseId)
         {
             var response = await _service.GetCourseComponentsAsync(courseId);
