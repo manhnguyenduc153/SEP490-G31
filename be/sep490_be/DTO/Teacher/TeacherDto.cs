@@ -18,7 +18,7 @@ namespace sep490_be.DTO.Teacher
         public GradeLevel? GradeLevel { get; set; }
         public string? GradeLevelName { get; set; }
         public string? Avatar { get; set; }
-        public string? Certificate { get; set; }
+        public List<string> Certificates { get; set; } = new();
         public bool HasAccount { get; set; }
     }
 }

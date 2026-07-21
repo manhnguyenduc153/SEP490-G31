@@ -8,6 +8,8 @@ using sep490_be.DTO.Teacher;
 using sep490_be.DTO.Room;
 using sep490_be.DTO.Class;
 using sep490_be.DTO.QuestionCategory;
+using sep490_be.DTO.Common;
+using sep490_be.Helpers.Authorization;
 
 namespace sep490_be.Controllers
 {
@@ -88,6 +90,32 @@ namespace sep490_be.Controllers
         {
             var response = await _classService.GetAllAsync(searchDto);
             return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Common/classes/accessible
+        // Returns only classes the current student/teacher can access; privileged roles receive all classes.
+        [HttpGet("classes/accessible")]
+        [HasPermission(Permissions.Homework.Homework_View)]
+        public async Task<IActionResult> GetAccessibleClasses([FromQuery] ClassSearchDto searchDto)
+        {
+            var username = User.Identity?.Name;
+
+            if (User.IsInRole("Student"))
+            {
+                if (string.IsNullOrWhiteSpace(username)) return Unauthorized();
+                var response = await _classService.GetStudentClassesAsync(username, searchDto);
+                return StatusCode(response.StatusCode, response);
+            }
+
+            if (User.IsInRole("Teacher"))
+            {
+                if (string.IsNullOrWhiteSpace(username)) return Unauthorized();
+                var response = await _classService.GetTeacherClassesAsync(username, searchDto);
+                return StatusCode(response.StatusCode, response);
+            }
+
+            var allClassesResponse = await _classService.GetAllAsync(searchDto);
+            return StatusCode(allClassesResponse.StatusCode, allClassesResponse);
         }
 
         // GET: api/Common/question-categories

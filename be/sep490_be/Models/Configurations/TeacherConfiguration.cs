@@ -16,7 +16,7 @@ namespace sep490_be.Models.Configurations
             builder.Property(x => x.Email).HasMaxLength(150);
             builder.Property(x => x.Phone).HasMaxLength(20);
             builder.Property(x => x.Address).HasMaxLength(500);
-            builder.Property(x => x.Certificate).HasMaxLength(500);
+            builder.Property(x => x.Certificate).HasColumnType("nvarchar(max)");
             builder.Property(x => x.Avatar).HasMaxLength(500);
 
             // Soft-delete global filter

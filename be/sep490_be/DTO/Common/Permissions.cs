@@ -231,7 +231,8 @@ namespace sep490_be.DTO.Common
         public static class StudentGrade
         {
             public const string StudentGradePage = "StudentGrade";
-            public const string StudentGrade_View = "StudentGrade.View";
+            public const string StudentGrade_ViewSettings = "StudentGrade.ViewSettings";
+            public const string StudentGrade_ViewOwnGrades = "StudentGrade.ViewOwnGrades";
             public const string StudentGrade_Create = "StudentGrade.Create";
             public const string StudentGrade_Edit = "StudentGrade.Edit";
             public const string StudentGrade_Delete = "StudentGrade.Delete";
