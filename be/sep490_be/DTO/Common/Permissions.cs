@@ -179,6 +179,8 @@ namespace sep490_be.DTO.Common
             public const string Exam_Create = "Exam.Create";
             public const string Exam_Edit = "Exam.Edit";
             public const string Exam_Delete = "Exam.Delete";
+            public const string Exam_StudentView = "Exam.StudentView";
+            public const string Exam_TeacherView = "Exam.TeacherView";
         }
 
         public static class ExamQuestion

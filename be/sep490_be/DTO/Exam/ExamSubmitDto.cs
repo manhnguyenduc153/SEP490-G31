@@ -1,10 +1,12 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace sep490_be.DTO.Exam
 {
     public class ExamSubmitDto
     {
         public int AttemptId { get; set; }
+        public int TabExitsCount { get; set; }
+        public string? Log { get; set; }
         public List<ExamSubmitAnswerDto> Answers { get; set; } = new List<ExamSubmitAnswerDto>();
     }
 

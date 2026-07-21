@@ -415,7 +415,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var student = await _dbContext.Students.FirstOrDefaultAsync(s => s.Email == userEmailOrCode || s.Code == userEmailOrCode);
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
                 if (student == null)
                 {
                     return ApiResponse<List<ExamAttemptDto>>.Fail("Học sinh không tồn tại.");
@@ -444,6 +444,8 @@ namespace sep490_be.Services.Implementations
                         Score = a.Score,
                         Status = a.Status,
                         Duration = exam.Duration,
+                        TabExitsCount = a.TabExitsCount,
+                        Log = a.Log,
                         Answers = a.ExamAnswers.Select(ans => new ExamAnswerDto
                         {
                             Id = ans.Id,
@@ -529,6 +531,8 @@ namespace sep490_be.Services.Implementations
                         Score = a.Score,
                         Status = a.Status,
                         Duration = exam.Duration,
+                        TabExitsCount = a.TabExitsCount,
+                        Log = a.Log,
                         Answers = a.ExamAnswers.Select(ans => new ExamAnswerDto
                         {
                             Id = ans.Id,
@@ -588,7 +592,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var student = await _dbContext.Students.FirstOrDefaultAsync(s => s.Email == userEmailOrCode || s.Code == userEmailOrCode);
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
                 if (student == null)
                 {
                     return ApiResponse<ExamAttemptDto>.Fail("Học sinh không tồn tại.");
@@ -630,7 +634,9 @@ namespace sep490_be.Services.Implementations
                         SubmitTime = inProgressAttempt.SubmitTime,
                         Score = inProgressAttempt.Score,
                         Status = inProgressAttempt.Status,
-                        Duration = exam.Duration
+                        Duration = exam.Duration,
+                        TabExitsCount = inProgressAttempt.TabExitsCount,
+                        Log = inProgressAttempt.Log
                     }, "EXAM_ATTEMPT_CONTINUE");
                 }
 
@@ -640,7 +646,7 @@ namespace sep490_be.Services.Implementations
                     Name = $"Lượt làm bài của {student.Name} cho {exam.Title}",
                     ExamId = examId,
                     StudentId = student.Id,
-                    StartTime = DateTime.Now,
+                    StartTime = DateTime.UtcNow,
                     Status = 1 // In Progress
                 };
 
@@ -657,7 +663,9 @@ namespace sep490_be.Services.Implementations
                     StudentCode = student.Code ?? string.Empty,
                     StartTime = attempt.StartTime,
                     Status = attempt.Status,
-                    Duration = exam.Duration
+                    Duration = exam.Duration,
+                    TabExitsCount = 0,
+                    Log = null
                 }, "EXAM_ATTEMPT_STARTED");
             }
             catch (Exception ex)
@@ -671,7 +679,7 @@ namespace sep490_be.Services.Implementations
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
-                var student = await _dbContext.Students.FirstOrDefaultAsync(s => s.Email == userEmailOrCode || s.Code == userEmailOrCode);
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
                 if (student == null)
                 {
                     return ApiResponse<ExamAttemptDto>.Fail("Học sinh không tồn tại.");
@@ -701,8 +709,10 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ExamAttemptDto>.Fail("Bài làm này đã được nộp trước đó.");
                 }
 
-                attempt.SubmitTime = DateTime.Now;
+                attempt.SubmitTime = DateTime.UtcNow;
                 attempt.Status = 2; // Submitted
+                attempt.TabExitsCount = submitDto.TabExitsCount;
+                attempt.Log = submitDto.Log;
 
                 decimal totalScore = 0;
                 var listAnswers = new List<ExamAnswerDto>();
@@ -784,6 +794,8 @@ namespace sep490_be.Services.Implementations
                     Score = attempt.Score,
                     Status = attempt.Status,
                     Duration = exam.Duration,
+                    TabExitsCount = attempt.TabExitsCount,
+                    Log = attempt.Log,
                     Answers = listAnswers
                 }, "SUBMIT_EXAM_SUCCESS");
             }
@@ -799,9 +811,7 @@ namespace sep490_be.Services.Implementations
             try
             {
                 // Find student by email or code — same pattern as StartAttemptAsync
-                var student = await _dbContext.Students
-                    .Include(s => s.StudentClasses)
-                    .FirstOrDefaultAsync(s => (s.Email == userEmailOrCode || s.Code == userEmailOrCode) && !s.IsDeleted);
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
 
                 if (student == null)
                 {
@@ -860,6 +870,33 @@ namespace sep490_be.Services.Implementations
             {
                 return ApiResponse<List<ExamDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
+        }
+
+        private async Task<Student?> GetStudentByIdentifierAsync(string identifier)
+        {
+            if (string.IsNullOrWhiteSpace(identifier)) return null;
+
+            // 1. Try finding by Email or Code directly
+            var student = await _dbContext.Students
+                .Include(s => s.StudentClasses)
+                .FirstOrDefaultAsync(s => (s.Email == identifier || s.Code == identifier) && !s.IsDeleted);
+
+            if (student != null) return student;
+
+            // 2. Try looking up Identity User by UserName, Email, or Id
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => 
+                u.UserName == identifier || 
+                u.Email == identifier || 
+                u.Id == identifier);
+
+            if (user != null)
+            {
+                student = await _dbContext.Students
+                    .Include(s => s.StudentClasses)
+                    .FirstOrDefaultAsync(s => (s.Email == user.Email || s.Email == user.UserName || s.Code == user.UserName) && !s.IsDeleted);
+            }
+
+            return student;
         }
     }
 }
