@@ -2012,8 +2012,7 @@ namespace sep490_be.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Certificate")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Code")
                         .IsRequired()

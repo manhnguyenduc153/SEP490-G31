@@ -10,6 +10,7 @@ using sep490_be.Services.Interfaces;
 using sep490_be.Helpers;
 using sep490_be.Enums;
 using Microsoft.AspNetCore.Identity;
+using System.Text.Json;
 
 namespace sep490_be.Services.Implementations
 {
@@ -119,6 +120,7 @@ namespace sep490_be.Services.Implementations
 
                 var entity = dto.Adapt<Teacher>();
                 entity.Id = 0;
+                entity.Certificate = SerializeCertificates(dto.Certificates);
                 
                 // Mặc định Status khi mới tạo là 1
                 entity.Status = dto.Status != 0 ? dto.Status : 1;
@@ -159,6 +161,7 @@ namespace sep490_be.Services.Implementations
 
                 var oldEmail = existingEntity.Email;
                 dto.Adapt(existingEntity);
+                existingEntity.Certificate = SerializeCertificates(dto.Certificates);
                 existingEntity.TextSearch = dto.TextSearch;
 
                 await _repository.UpdateAsync(existingEntity);
@@ -229,6 +232,7 @@ namespace sep490_be.Services.Implementations
 
                     var entity = dto.Adapt<Teacher>();
                     entity.Id = 0;
+                    entity.Certificate = SerializeCertificates(dto.Certificates);
                     entity.Status = dto.Status != 0 ? dto.Status : 1;
                     entity.TextSearch = dto.TextSearch;
 
@@ -336,8 +340,36 @@ namespace sep490_be.Services.Implementations
             GradeLevel = entity.GradeLevel,
             GradeLevelName = entity.GradeLevel?.GetStringValue(),
             Avatar = entity.Avatar,
-            Certificate = entity.Certificate
+            Certificates = DeserializeCertificates(entity.Certificate)
         };
+
+        private static string? SerializeCertificates(IEnumerable<string>? certificates)
+        {
+            var values = certificates?
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? new List<string>();
+
+            return values.Count == 0 ? null : JsonSerializer.Serialize(values);
+        }
+
+        private static List<string> DeserializeCertificates(string? certificate)
+        {
+            if (string.IsNullOrWhiteSpace(certificate)) return new List<string>();
+
+            try
+            {
+                var values = JsonSerializer.Deserialize<List<string>>(certificate);
+                if (values != null) return values.Where(value => !string.IsNullOrWhiteSpace(value)).ToList();
+            }
+            catch (JsonException)
+            {
+                // Existing records stored one certificate URL as plain text.
+            }
+
+            return new List<string> { certificate };
+        }
 
         public async Task<ApiResponse<bool>> BulkProvisionAccountsAsync(List<int> teacherIds)
         {
