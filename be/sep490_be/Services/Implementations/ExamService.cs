@@ -442,13 +442,13 @@ namespace sep490_be.Services.Implementations
                 var student = await GetStudentByIdentifierAsync(userEmailOrCode);
                 if (student == null)
                 {
-                    return ApiResponse<List<ExamAttemptDto>>.Fail("Học sinh không tồn tại.");
+                    return ApiResponse<List<ExamAttemptDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 var exam = await _dbContext.Exams.FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
                 if (exam == null)
                 {
-                    return ApiResponse<List<ExamAttemptDto>>.Fail("Bài kiểm tra không tồn tại.");
+                    return ApiResponse<List<ExamAttemptDto>>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 var attempts = await _dbContext.ExamAttempts
@@ -532,7 +532,7 @@ namespace sep490_be.Services.Implementations
                 var exam = await _dbContext.Exams.FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
                 if (exam == null)
                 {
-                    return ApiResponse<List<ExamAttemptDto>>.Fail("Bai kiem tra khong ton tai.");
+                    return ApiResponse<List<ExamAttemptDto>>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 var attempts = await _dbContext.ExamAttempts
@@ -619,7 +619,7 @@ namespace sep490_be.Services.Implementations
                 var student = await GetStudentByIdentifierAsync(userEmailOrCode);
                 if (student == null)
                 {
-                    return ApiResponse<ExamAttemptDto>.Fail("Học sinh không tồn tại.");
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 var exam = await _dbContext.Exams
@@ -627,18 +627,18 @@ namespace sep490_be.Services.Implementations
                     .FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
                 if (exam == null)
                 {
-                    return ApiResponse<ExamAttemptDto>.Fail("Bài kiểm tra không tồn tại.");
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 if (exam.Status != 1)
                 {
-                    return ApiResponse<ExamAttemptDto>.Fail("Bài kiểm tra chưa được xuất bản.");
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_NOT_PUBLISHED", StatusCodes.Status400BadRequest);
                 }
 
                 var existingAttempts = exam.ExamAttempts.Where(a => a.StudentId == student.Id && !a.IsDeleted).ToList();
                 if (exam.MaxAttempts.HasValue && existingAttempts.Count >= exam.MaxAttempts.Value)
                 {
-                    return ApiResponse<ExamAttemptDto>.Fail("Bạn đã vượt quá số lần làm bài cho phép.");
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_MAX_ATTEMPTS_EXCEEDED", StatusCodes.Status400BadRequest);
                 }
 
                 // Check if there is already an In Progress attempt
@@ -706,7 +706,7 @@ namespace sep490_be.Services.Implementations
                 var student = await GetStudentByIdentifierAsync(userEmailOrCode);
                 if (student == null)
                 {
-                    return ApiResponse<ExamAttemptDto>.Fail("Học sinh không tồn tại.");
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 var exam = await _dbContext.Exams
@@ -717,7 +717,7 @@ namespace sep490_be.Services.Implementations
 
                 if (exam == null)
                 {
-                    return ApiResponse<ExamAttemptDto>.Fail("Bài kiểm tra không tồn tại.");
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 var attempt = await _dbContext.ExamAttempts
@@ -725,12 +725,12 @@ namespace sep490_be.Services.Implementations
 
                 if (attempt == null)
                 {
-                    return ApiResponse<ExamAttemptDto>.Fail("Không tìm thấy lượt làm bài tương ứng.");
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_ATTEMPT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 if (attempt.Status == 2)
                 {
-                    return ApiResponse<ExamAttemptDto>.Fail("Bài làm này đã được nộp trước đó.");
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_ATTEMPT_ALREADY_SUBMITTED", StatusCodes.Status400BadRequest);
                 }
 
                 attempt.SubmitTime = DateTime.UtcNow;
