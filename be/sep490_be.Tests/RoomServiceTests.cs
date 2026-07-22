@@ -50,8 +50,8 @@ namespace sep490_be.Tests.Services
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
                 context.Rooms.AddRange(
-                    new Room { Code = "R101", Name = "Room 101", Status = (int)RoomStatus.Active, RoomType = RoomType.Theory, TextSearch = "R101 Room 101" },
-                    new Room { Code = "R102", Name = "Room 102", Status = (int)RoomStatus.Inactive, RoomType = RoomType.Pratice, TextSearch = "R102 Room 102" }
+                    new Room { Code = "R101", Name = "Room 101", Status = (int)RoomStatus.Active, TextSearch = "R101 Room 101" },
+                    new Room { Code = "R102", Name = "Room 102", Status = (int)RoomStatus.Inactive, TextSearch = "R102 Room 102" }
                 );
                 await context.SaveChangesAsync();
             }
@@ -87,10 +87,8 @@ namespace sep490_be.Tests.Services
                 Name = "New Room",
                 Capacity = 30,
                 Status = (int)RoomStatus.Active,
-                RoomType = RoomType.Theory,
                 Building = "A",
                 Floor = "1",
-                Image = "url_image"
             };
 
             // Act
@@ -119,7 +117,7 @@ namespace sep490_be.Tests.Services
 
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var room = new Room { Code = "R1", Name = "Room 1", Capacity = 20, RoomType = RoomType.Theory, Building = "A", Floor = "1", Image = "i" };
+                var room = new Room { Code = "R1", Name = "Room 1", Capacity = 20, Building = "A", Floor = "1" };
                 context.Rooms.Add(room);
                 await context.SaveChangesAsync();
                 roomId = room.Id;
@@ -132,10 +130,8 @@ namespace sep490_be.Tests.Services
                 Name = "Room 1 Updated",
                 Capacity = 40,
                 Status = (int)RoomStatus.Active,
-                RoomType = RoomType.Theory,
                 Building = "A",
                 Floor = "2",
-                Image = "img"
             };
 
             // Act
@@ -233,7 +229,7 @@ namespace sep490_be.Tests.Services
                 await context.SaveChangesAsync();
             }
 
-            var dto = new RoomSaveDto { Code = "R2", Name = "DUP_NAME", Capacity = 10, Building = "A", Floor = "1", Image = "i" };
+            var dto = new RoomSaveDto { Code = "R2", Name = "DUP_NAME", Capacity = 10, Building = "A", Floor = "1" };
 
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
@@ -261,7 +257,7 @@ namespace sep490_be.Tests.Services
                 await context.SaveChangesAsync();
             }
 
-            var dto = new RoomSaveDto { Code = "DUP_CODE", Name = "R2", Capacity = 10, Building = "A", Floor = "1", Image = "i" };
+            var dto = new RoomSaveDto { Code = "DUP_CODE", Name = "R2", Capacity = 10, Building = "A", Floor = "1" };
 
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
