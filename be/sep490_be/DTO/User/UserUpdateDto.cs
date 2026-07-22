@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace sep490_be.DTO.User
 {
@@ -13,8 +13,7 @@ namespace sep490_be.DTO.User
 
         public string Phone { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "ERR_ROLE_REQUIRED")]
-        public string RoleName { get; set; } = string.Empty;
+        public string? RoleName { get; set; }
     }
 }
 

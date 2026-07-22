@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using sep490_be.DTO.Common;
 using sep490_be.DTO.ParentStudent;
@@ -55,9 +55,31 @@ namespace sep490_be.Controllers
         // PUT: api/parent-student/5
         // Cập nhật thông tin phụ huynh (không thay đổi email/account)
         [HttpPut("{id}")]
-        [HasPermission(Permissions.ParentStudent.ParentStudent_Edit)]
         public async Task<IActionResult> Edit(int id, [FromBody] ParentStudentSaveDto dto)
         {
+            var username = User.Identity?.Name;
+            var hasEditPermission = User.Claims.Any(c => 
+                c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) && 
+                c.Value.Equals(Permissions.ParentStudent.ParentStudent_Edit, StringComparison.OrdinalIgnoreCase));
+
+            var isEditingSelf = false;
+            if (!string.IsNullOrEmpty(username))
+            {
+                var parentResponse = await _service.GetByIdAsync(id);
+                if (parentResponse.StatusCode == 200 && parentResponse.Data != null)
+                {
+                    if (string.Equals(parentResponse.Data.Email, username, StringComparison.OrdinalIgnoreCase))
+                    {
+                        isEditingSelf = true;
+                    }
+                }
+            }
+
+            if (!hasEditPermission && !isEditingSelf)
+            {
+                return Forbid();
+            }
+
             dto.Id = id;
             var response = await _service.EditAsync(dto);
             return StatusCode(response.StatusCode, response);

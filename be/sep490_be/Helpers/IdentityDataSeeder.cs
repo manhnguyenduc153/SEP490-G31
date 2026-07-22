@@ -47,6 +47,31 @@ namespace sep490_be.Helpers
                 }
             }
 
+            // Chuyển quyền xem điểm cũ sang hai quyền chuyên biệt mà không làm mất quyền của các role hiện có.
+            const string legacyStudentGradeView = "StudentGrade.View";
+            foreach (var role in roleManager.Roles.ToList())
+            {
+                var roleClaims = await roleManager.GetClaimsAsync(role);
+                var legacyClaim = roleClaims.FirstOrDefault(claim =>
+                    claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
+                    claim.Value.Equals(legacyStudentGradeView, StringComparison.OrdinalIgnoreCase));
+
+                if (legacyClaim == null) continue;
+
+                var replacementPermission = role.Name?.Equals("Student", StringComparison.OrdinalIgnoreCase) == true
+                    ? Permissions.StudentGrade.StudentGrade_ViewOwnGrades
+                    : Permissions.StudentGrade.StudentGrade_ViewSettings;
+
+                if (!roleClaims.Any(claim =>
+                    claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
+                    claim.Value.Equals(replacementPermission, StringComparison.OrdinalIgnoreCase)))
+                {
+                    await roleManager.AddClaimAsync(role, new Claim("Permission", replacementPermission));
+                }
+
+                await roleManager.RemoveClaimAsync(role, legacyClaim);
+            }
+
             // 3. Tạo tài khoản admin nếu chưa tồn tại
             const string adminUsername = "admin";
             var adminUser = await userManager.FindByNameAsync(adminUsername);

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using sep490_be.DTO.Teacher;
 using sep490_be.DTO.Common;
@@ -57,9 +57,31 @@ namespace sep490_be.Controllers
 
         // PUT: api/Teacher/5
         [HttpPut("{id}")]
-        [HasPermission(Permissions.Teacher.Teacher_Edit)]
         public async Task<IActionResult> Edit(int id, [FromBody] TeacherSaveDto dto)
         {
+            var username = User.Identity?.Name;
+            var hasEditPermission = User.Claims.Any(c => 
+                c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) && 
+                c.Value.Equals(Permissions.Teacher.Teacher_Edit, StringComparison.OrdinalIgnoreCase));
+
+            var isEditingSelf = false;
+            if (!string.IsNullOrEmpty(username))
+            {
+                var teacherResponse = await _service.GetByIdAsync(id);
+                if (teacherResponse.StatusCode == 200 && teacherResponse.Data != null)
+                {
+                    if (string.Equals(teacherResponse.Data.Email, username, StringComparison.OrdinalIgnoreCase))
+                    {
+                        isEditingSelf = true;
+                    }
+                }
+            }
+
+            if (!hasEditPermission && !isEditingSelf)
+            {
+                return Forbid();
+            }
+
             dto.Id = id;
             var response = await _service.EditAsync(dto);
             return StatusCode(response.StatusCode, response);

@@ -32,7 +32,7 @@ namespace sep490_be.Controllers
         }
 
         // GET: api/Class/5
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         public async Task<IActionResult> GetById(int id)
         {
             var username = User.Identity?.Name;
