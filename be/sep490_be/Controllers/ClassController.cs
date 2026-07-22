@@ -107,7 +107,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/TeacherSchedules
         [HttpGet("TeacherSchedules")]
-        [HasPermission(Permissions.ClassSchedule.ClassSchedule_TeacherView)]
+        [HasPermission(Permissions.TeachingSchedule.TeachingSchedulePage)]
         public async Task<IActionResult> GetTeacherSchedules()
         {
             var username = User.Identity?.Name;
@@ -121,7 +121,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/StudentSchedules
         [HttpGet("StudentSchedules")]
-        [HasPermission(Permissions.ClassSchedule.ClassSchedule_StudentView)]
+        [HasPermission(Permissions.Timetable.TimetablePage)]
         public async Task<IActionResult> GetStudentSchedules()
         {
             var username = User.Identity?.Name;
@@ -167,7 +167,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/Schedules
         [HttpGet("Schedules")]
-        [HasPermission(Permissions.ClassSchedule.ClassSchedule_View)]
+        [HasPermission(Permissions.Schedule.SchedulePage)]
         public async Task<IActionResult> GetClassSchedules()
         {
             var response = await _service.GetClassSchedulesAsync();
@@ -191,7 +191,7 @@ namespace sep490_be.Controllers
 
         // POST: api/Class/auto-schedule-semester
         [HttpPost("auto-schedule-semester")]
-        [HasPermission(Permissions.Class.Class_Edit)]
+        [HasPermission(Permissions.Semester.Semester_Scheduling)]
         public async Task<IActionResult> AutoScheduleSemester([FromBody] AutoScheduleSemesterRequestDto request)
         {
             var response = await _optService.AutoScheduleSemesterAsync(request);
