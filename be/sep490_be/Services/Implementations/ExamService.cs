@@ -184,6 +184,18 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<ExamDto>> CreateAsync(ExamSaveDto dto)
         {
+            if (dto.Duration.HasValue && dto.Duration.Value <= 0)
+            {
+                return ApiResponse<ExamDto>.Fail("ERR_DURATION_INVALID", StatusCodes.Status400BadRequest);
+            }
+
+            if ((dto.PassingScore.HasValue && dto.PassingScore.Value < 0) || 
+                (dto.TotalScore.HasValue && dto.TotalScore.Value <= 0) || 
+                (dto.PassingScore.HasValue && dto.TotalScore.HasValue && dto.PassingScore.Value > dto.TotalScore.Value))
+            {
+                return ApiResponse<ExamDto>.Fail("ERR_SCORE_INVALID", StatusCodes.Status400BadRequest);
+            }
+
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
@@ -249,6 +261,18 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<ExamDto>> EditAsync(ExamSaveDto dto)
         {
+            if (dto.Duration.HasValue && dto.Duration.Value <= 0)
+            {
+                return ApiResponse<ExamDto>.Fail("ERR_DURATION_INVALID", StatusCodes.Status400BadRequest);
+            }
+
+            if ((dto.PassingScore.HasValue && dto.PassingScore.Value < 0) || 
+                (dto.TotalScore.HasValue && dto.TotalScore.Value <= 0) || 
+                (dto.PassingScore.HasValue && dto.TotalScore.HasValue && dto.PassingScore.Value > dto.TotalScore.Value))
+            {
+                return ApiResponse<ExamDto>.Fail("ERR_SCORE_INVALID", StatusCodes.Status400BadRequest);
+            }
+
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
