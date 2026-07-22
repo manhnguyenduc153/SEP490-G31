@@ -68,7 +68,7 @@ namespace sep490_be.Tests.Services
         #region Normal Test Cases (Kiểm thử giá trị thông thường)
 
         [Fact]
-        public async Task GetAllAsync_WithKeywordAndFilters_ShouldReturnMatchingTeachers()
+        public async Task GetAllAsync_WithKeywordStatusAndGender_ShouldReturnMatchingTeachers()
         {
             var options = CreateNewContextOptions();
             var mockHttp = GetMockHttpContextAccessor();
@@ -83,7 +83,6 @@ namespace sep490_be.Tests.Services
                         Email = "a@test.com",
                         TextSearch = "TC001 Nguyen Van A a@test.com",
                         Status = (int)TeacherStatus.Active,
-                        GradeLevel = GradeLevel.Foundation,
                         Gender = true
                     },
                     new Teacher
@@ -93,7 +92,6 @@ namespace sep490_be.Tests.Services
                         Email = "b@test.com",
                         TextSearch = "TC002 Tran Van B b@test.com",
                         Status = (int)TeacherStatus.Inactive,
-                        GradeLevel = GradeLevel.Ielts5_6,
                         Gender = false
                     });
                 await context.SaveChangesAsync();
@@ -106,7 +104,6 @@ namespace sep490_be.Tests.Services
                 {
                     Keyword = "Nguyen",
                     TeacherStatus = (int)TeacherStatus.Active,
-                    GradeLevel = GradeLevel.Foundation,
                     Gender = true,
                     PageIndex = 1,
                     PageSize = 10
@@ -132,13 +129,11 @@ namespace sep490_be.Tests.Services
                 Name = "Teacher One",
                 Email = "teacher1@test.com",
                 Phone = "0900000001",
-                GradeLevel = GradeLevel.PreIelts
             });
 
             response.Success.Should().BeTrue();
             response.Data!.Code.Should().Be("TC001");
             response.Data.Status.Should().Be((int)TeacherStatus.Active);
-            response.Data.GradeLevelName.Should().Be("Pre-IELTS");
         }
         [Fact]
         public async Task EditAsync_WhenEmailChanges_ShouldSyncIdentityUser()
@@ -424,6 +419,191 @@ namespace sep490_be.Tests.Services
             deleteResponse.StatusCode.Should().Be(StatusCodes.Status404NotFound);
             deactivateResponse.Success.Should().BeFalse();
             deactivateResponse.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        }
+
+        [Theory]
+        [InlineData("empty-code", "ERR_CODE_EMPTY")]
+        [InlineData("long-code", "ERR_CODE_MAX_LENGTH")]
+        [InlineData("empty-name", "ERR_NAME_EMPTY")]
+        [InlineData("long-name", "ERR_NAME_MAX_LENGTH")]
+        [InlineData("long-email", "ERR_EMAIL_MAX_LENGTH")]
+        [InlineData("long-phone", "ERR_PHONE_MAX_LENGTH")]
+        public async Task CreateAsync_WithInvalidField_ShouldReturnExpectedValidationError(string scenario, string expectedError)
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var dto = new TeacherSaveDto { Code = "TC_VALID", Name = "Valid Teacher", Email = "valid@test.com", Phone = "0900000000" };
+            switch (scenario)
+            {
+                case "empty-code": dto.Code = " "; break;
+                case "long-code": dto.Code = new string('C', 51); break;
+                case "empty-name": dto.Name = " "; break;
+                case "long-name": dto.Name = new string('N', 201); break;
+                case "long-email": dto.Email = new string('e', 151); break;
+                case "long-phone": dto.Phone = new string('1', 21); break;
+            }
+
+            var response = await CreateService(context).CreateAsync(dto);
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be(expectedError);
+            (await context.Teachers.CountAsync()).Should().Be(0);
+        }
+
+        [Fact]
+        public async Task CreateAsync_WithMultipleCertificates_ShouldSerializeAndReturnAllCertificates()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+
+            var response = await CreateService(context).CreateAsync(new TeacherSaveDto
+            {
+                Code = "TC_CERT", Name = "Certificate Teacher", Email = "cert@test.com",
+                Certificates = new List<string> { "/cert/a.png", "/cert/b.pdf", "  /cert/c.docx  " }
+            });
+
+            response.Success.Should().BeTrue();
+            response.Data!.Certificates.Should().Equal("/cert/a.png", "/cert/b.pdf", "/cert/c.docx");
+            var entity = await context.Teachers.SingleAsync();
+            entity.Certificate.Should().Contain("/cert/a.png").And.Contain("/cert/b.pdf").And.Contain("/cert/c.docx");
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_WithLegacySingleCertificate_ShouldReturnOneCertificate()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var teacher = new Teacher { Code = "TC_LEGACY", Name = "Legacy", Certificate = "/legacy/cert.png" };
+            context.Teachers.Add(teacher);
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).GetByIdAsync(teacher.Id);
+
+            response.Success.Should().BeTrue();
+            response.Data!.Certificates.Should().Equal("/legacy/cert.png");
+        }
+
+        [Fact]
+        public async Task GetAllAsync_WithPaging_ShouldReturnRequestedPageAndTotals()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            for (var i = 1; i <= 5; i++)
+            {
+                context.Teachers.Add(new Teacher { Code = $"TC{i:000}", Name = $"Teacher {i}", TextSearch = $"TC{i:000} Teacher {i}", Status = 1 });
+            }
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).GetAllAsync(new TeacherSearchDto { PageIndex = 2, PageSize = 2 });
+
+            response.Success.Should().BeTrue();
+            response.Data!.Items.Should().HaveCount(2);
+            response.Data.TotalRecords.Should().Be(5);
+            response.Data.TotalPages.Should().Be(3);
+            response.Data.PageIndex.Should().Be(2);
+        }
+
+        [Fact]
+        public async Task GetAllAsync_WithGenderFilter_ShouldReturnOnlyMatchingGender()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            context.Teachers.AddRange(
+                new Teacher { Code = "M", Name = "Male", Gender = true, Status = 1 },
+                new Teacher { Code = "F", Name = "Female", Gender = false, Status = 1 },
+                new Teacher { Code = "U", Name = "Unknown", Gender = null, Status = 1 });
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).GetAllAsync(new TeacherSearchDto { Gender = false, PageIndex = 1, PageSize = 10 });
+
+            response.Data!.Items.Should().ContainSingle(x => x.Code == "F");
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_WhenTeacherHasNoEmail_ShouldReturnHasAccountFalse()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var teacher = new Teacher { Code = "NO_EMAIL", Name = "No Email", Email = null };
+            context.Teachers.Add(teacher);
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).GetByIdAsync(teacher.Id);
+
+            response.Success.Should().BeTrue();
+            response.Data!.HasAccount.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task EditAsync_WhenTeacherDoesNotExist_ShouldReturnNotFound()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+
+            var response = await CreateService(context).EditAsync(new TeacherSaveDto { Id = 9999, Code = "MISSING", Name = "Missing" });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("ERR_TEACHER_NOT_FOUND");
+        }
+
+        [Fact]
+        public async Task EditAsync_WithAnotherTeachersCode_ShouldReturnDuplicateCode()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var first = new Teacher { Code = "TC_ONE", Name = "One" };
+            var second = new Teacher { Code = "TC_TWO", Name = "Two" };
+            context.Teachers.AddRange(first, second);
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).EditAsync(new TeacherSaveDto { Id = second.Id, Code = first.Code, Name = second.Name });
+
+            response.Success.Should().BeFalse();
+            response.Message.Should().Be("ERR_CODE_DUPLICATE");
+        }
+
+        [Fact]
+        public async Task EditAsync_WithAnotherTeachersEmail_ShouldReturnDuplicateEmail()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var first = new Teacher { Code = "TC_ONE", Name = "One", Email = "one@test.com" };
+            var second = new Teacher { Code = "TC_TWO", Name = "Two", Email = "two@test.com" };
+            context.Teachers.AddRange(first, second);
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).EditAsync(new TeacherSaveDto { Id = second.Id, Code = second.Code, Name = second.Name, Email = first.Email });
+
+            response.Success.Should().BeFalse();
+            response.Message.Should().Be("ERR_EMAIL_DUPLICATE");
+        }
+
+        [Fact]
+        public async Task ImportAsync_WithEmptyList_ShouldReturnCreatedEmptyList()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+
+            var response = await CreateService(context).ImportAsync(new List<TeacherSaveDto>());
+
+            response.Success.Should().BeTrue();
+            response.StatusCode.Should().Be(StatusCodes.Status201Created);
+            response.Data.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task BulkProvisionAccountsAsync_WhenIdsDoNotExist_ShouldReturnNotFound()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+
+            var response = await CreateService(context).BulkProvisionAccountsAsync(new List<int> { 9999 });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("ERR_TEACHERS_NOT_FOUND");
         }
 
         #endregion
