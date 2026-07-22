@@ -88,15 +88,6 @@ namespace sep490_be.DTO.Common
             public const string Room_Delete = "Room.Delete";
         }
 
-        public static class TimeSlot
-        {
-            public const string TimeSlotPage = "TimeSlot";
-            public const string TimeSlot_View = "TimeSlot.View";
-            public const string TimeSlot_Create = "TimeSlot.Create";
-            public const string TimeSlot_Edit = "TimeSlot.Edit";
-            public const string TimeSlot_Delete = "TimeSlot.Delete";
-        }
-
         public static class StudentClass
         {
             public const string StudentClassPage = "StudentClass";
@@ -106,15 +97,19 @@ namespace sep490_be.DTO.Common
             public const string StudentClass_Delete = "StudentClass.Delete";
         }
 
-        public static class ClassSchedule
+        public static class Schedule
         {
-            public const string ClassSchedulePage = "ClassSchedule";
-            public const string ClassSchedule_View = "ClassSchedule.View";
-            public const string ClassSchedule_Create = "ClassSchedule.Create";
-            public const string ClassSchedule_Edit = "ClassSchedule.Edit";
-            public const string ClassSchedule_Delete = "ClassSchedule.Delete";
-            public const string ClassSchedule_StudentView = "ClassSchedule.StudentView";
-            public const string ClassSchedule_TeacherView = "ClassSchedule.TeacherView";
+            public const string SchedulePage = "Schedule";
+        }
+
+        public static class TeachingSchedule
+        {
+            public const string TeachingSchedulePage = "TeachingSchedule";
+        }
+
+        public static class Timetable
+        {
+            public const string TimetablePage = "Timetable";
         }
 
         public static class Attendance
@@ -255,6 +250,7 @@ namespace sep490_be.DTO.Common
             public const string Semester_Create = "Semester.Create";
             public const string Semester_Edit = "Semester.Edit";
             public const string Semester_Delete = "Semester.Delete";
+            public const string Semester_Scheduling = "Semester.Scheduling";
         }
 
         public static class StudentRegistration
@@ -300,8 +296,9 @@ namespace sep490_be.DTO.Common
             { "Student", "academicOperations" },
             { "Room", "academicOperations" },
             
-            { "ClassSchedule", "schedule" },
-            { "TimeSlot", "schedule" },
+            { "Schedule", "schedule" },
+            { "TeachingSchedule", "schedule" },
+            { "Timetable", "schedule" },
             
             { "Exam", "assessments" },
             { "ExamQuestion", "assessments" },
