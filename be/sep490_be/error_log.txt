@@ -427,3 +427,114 @@ Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
 [2026-07-19 21:54:48] [CLIENT ERROR 401] GET /api/Class
 Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
 ------------------------------------------------------------
+[2026-07-19 22:20:51] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:51] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:51] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:51] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:52] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:52] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 21:49:36] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 21:49:46] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:23:06] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:23:06] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:23:06] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:51:51] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:51:51] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:51:51] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-21 22:09:17] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-21 22:09:17] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 19:25:17] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 20:21:25] [CLIENT ERROR 401] GET /api/Room
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 20:21:44] [CLIENT ERROR 401] POST /api/Room
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:04:48] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-22 21:19:34] [CLIENT ERROR 415] PUT /api/Room/4
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-22 21:21:20] [CLIENT ERROR 401] PUT /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:21:35] [CLIENT ERROR 401] GET /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:21:39] [CLIENT ERROR 401] GET /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:21:44] [CLIENT ERROR 401] GET /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:21:54] [CLIENT ERROR 401] GET /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:22:20] [CLIENT ERROR 415] PUT /api/Room/4
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-22 21:23:03] [CLIENT ERROR 401] GET /api/Room/stats
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:33:19] [CLIENT ERROR 401] DELETE /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 22:41:16] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 22:41:16] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 22:41:16] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 22:41:16] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 20:07:46] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 20:07:50] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 20:07:50] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 20:07:50] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
