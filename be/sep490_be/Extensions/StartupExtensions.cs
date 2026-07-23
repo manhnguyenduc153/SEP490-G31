@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -72,12 +72,30 @@ namespace sep490_be.Extensions
                             Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!)
                         )
                     };
+
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnMessageReceived = context =>
+                        {
+                            var accessToken = context.Request.Query["access_token"];
+                            var path = context.HttpContext.Request.Path;
+                            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                            {
+                                context.Token = accessToken;
+                            }
+                            return Task.CompletedTask;
+                        }
+                    };
                 });
 
             // 3. Cấu hình Custom Authorization cho Permission-Based
             services.AddAuthorization();
             services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
             services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
+
+            // 4. Cấu hình SignalR
+            services.AddSignalR();
+            services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, sep490_be.Hubs.NameUserIdProvider>();
 
             return services;
         }

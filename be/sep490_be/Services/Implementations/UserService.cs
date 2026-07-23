@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -199,10 +199,13 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<UserDto>.Fail(validationError, StatusCodes.Status400BadRequest);
                 }
 
-                var roleExists = await _roleManager.RoleExistsAsync(dto.RoleName);
-                if (!roleExists)
+                if (!string.IsNullOrWhiteSpace(dto.RoleName))
                 {
-                    return ApiResponse<UserDto>.Fail("ERR_ROLE_NOT_FOUND", StatusCodes.Status400BadRequest);
+                    var roleExists = await _roleManager.RoleExistsAsync(dto.RoleName);
+                    if (!roleExists)
+                    {
+                        return ApiResponse<UserDto>.Fail("ERR_ROLE_NOT_FOUND", StatusCodes.Status400BadRequest);
+                    }
                 }
 
                 user.Email = dto.Email;
@@ -215,34 +218,38 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<UserDto>.Fail($"ERR_UPDATE_USER_FAILED: {errors}", StatusCodes.Status400BadRequest);
                 }
 
-                var currentRoles = await _userManager.GetRolesAsync(user);
-                if (!currentRoles.Contains(dto.RoleName))
+                if (!string.IsNullOrWhiteSpace(dto.RoleName))
                 {
-                    if (currentRoles.Any())
+                    var currentRoles = await _userManager.GetRolesAsync(user);
+                    if (!currentRoles.Contains(dto.RoleName))
                     {
-                        var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
-                        if (!removeResult.Succeeded)
+                        if (currentRoles.Any())
                         {
-                            var errors = string.Join(", ", removeResult.Errors.Select(e => e.Description));
-                            return ApiResponse<UserDto>.Fail($"ERR_REMOVE_ROLES_FAILED: {errors}", StatusCodes.Status400BadRequest);
+                            var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
+                            if (!removeResult.Succeeded)
+                            {
+                                var errors = string.Join(", ", removeResult.Errors.Select(e => e.Description));
+                                return ApiResponse<UserDto>.Fail($"ERR_REMOVE_ROLES_FAILED: {errors}", StatusCodes.Status400BadRequest);
+                            }
                         }
-                    }
 
-                    var addRoleResult = await _userManager.AddToRoleAsync(user, dto.RoleName);
-                    if (!addRoleResult.Succeeded)
-                    {
-                        var errors = string.Join(", ", addRoleResult.Errors.Select(e => e.Description));
-                        return ApiResponse<UserDto>.Fail($"ERR_ASSIGN_ROLE_FAILED: {errors}", StatusCodes.Status400BadRequest);
+                        var addRoleResult = await _userManager.AddToRoleAsync(user, dto.RoleName);
+                        if (!addRoleResult.Succeeded)
+                        {
+                            var errors = string.Join(", ", addRoleResult.Errors.Select(e => e.Description));
+                            return ApiResponse<UserDto>.Fail($"ERR_ASSIGN_ROLE_FAILED: {errors}", StatusCodes.Status400BadRequest);
+                        }
                     }
                 }
 
+                var finalRoles = await _userManager.GetRolesAsync(user);
                 var userDto = new UserDto
                 {
                     Id = user.Id,
                     Username = user.UserName!,
                     Email = user.Email,
                     Phone = user.PhoneNumber ?? string.Empty,
-                    Roles = new List<string> { dto.RoleName },
+                    Roles = finalRoles.ToList(),
                     Status = (user.LockoutEnd != null && user.LockoutEnd > DateTimeOffset.UtcNow) ? 0 : 1
                 };
 
@@ -309,8 +316,18 @@ namespace sep490_be.Services.Implementations
             if (string.IsNullOrWhiteSpace(dto.Email))
                 return "ERR_EMAIL_EMPTY";
 
-            if (dto.RoleName.Equals("Admin", StringComparison.OrdinalIgnoreCase))
-                return "ERR_CANNOT_ASSIGN_ADMIN_ROLE";
+            if (!string.IsNullOrWhiteSpace(dto.RoleName) && dto.RoleName.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+            {
+                var user = await _userManager.FindByIdAsync(dto.Id);
+                if (user != null)
+                {
+                    var userRoles = await _userManager.GetRolesAsync(user);
+                    if (!userRoles.Any(r => r.Equals("Admin", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return "ERR_CANNOT_ASSIGN_ADMIN_ROLE";
+                    }
+                }
+            }
 
             var existingUserByEmail = await _userManager.FindByEmailAsync(dto.Email);
             if (existingUserByEmail != null && existingUserByEmail.Id != dto.Id)

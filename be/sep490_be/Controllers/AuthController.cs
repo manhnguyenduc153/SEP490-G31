@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using sep490_be.DTO.Auth;
 using sep490_be.Services.Interfaces;
@@ -116,6 +116,19 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> GetRolePermissions(string roleName)
         {
             var response = await _authService.GetRolePermissionsAsync(roleName);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        [HttpPost("ChangePassword")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        {
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                return Unauthorized();
+            }
+            var response = await _authService.ChangePasswordAsync(username, dto);
             return StatusCode(response.StatusCode, response);
         }
     }

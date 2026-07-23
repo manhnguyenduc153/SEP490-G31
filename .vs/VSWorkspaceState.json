@@ -1,10 +1,10 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\be",
+    "\\be\\sep490_be",
+    "\\be\\sep490_be\\Models"
   ],
-<<<<<<< HEAD
-  "SelectedNode": "\\be\\sep490_be.sln",
-=======
->>>>>>> c22c4ba6d4fd59b08af649e32b74dbdebe92ecba
+  "SelectedNode": "\\be\\sep490_be\\Models\\Attendance.cs",
   "PreviewInSolutionExplorer": false
 }

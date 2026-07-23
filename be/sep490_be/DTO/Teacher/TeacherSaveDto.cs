@@ -1,6 +1,5 @@
 ﻿using System;
 using sep490_be.Helpers;
-using sep490_be.Enums;
 
 namespace sep490_be.DTO.Teacher
 {
@@ -16,9 +15,8 @@ namespace sep490_be.DTO.Teacher
         public string? Address { get; set; }
         public int Status { get; set; }
         public string? Description { get; set; }
-        public GradeLevel? GradeLevel { get; set; }
         public string? Avatar { get; set; }
-        public string? Certificate { get; set; }
+        public List<string> Certificates { get; set; } = new();
 
         public string TextSearch => StringHelper.GenerateTextSearch(Code, Name, Email, Phone);
     }

@@ -47,6 +47,31 @@ namespace sep490_be.Helpers
                 }
             }
 
+            // Chuyển quyền xem điểm cũ sang hai quyền chuyên biệt mà không làm mất quyền của các role hiện có.
+            const string legacyStudentGradeView = "StudentGrade.View";
+            foreach (var role in roleManager.Roles.ToList())
+            {
+                var roleClaims = await roleManager.GetClaimsAsync(role);
+                var legacyClaim = roleClaims.FirstOrDefault(claim =>
+                    claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
+                    claim.Value.Equals(legacyStudentGradeView, StringComparison.OrdinalIgnoreCase));
+
+                if (legacyClaim == null) continue;
+
+                var replacementPermission = role.Name?.Equals("Student", StringComparison.OrdinalIgnoreCase) == true
+                    ? Permissions.StudentGrade.StudentGrade_ViewOwnGrades
+                    : Permissions.StudentGrade.StudentGrade_ViewSettings;
+
+                if (!roleClaims.Any(claim =>
+                    claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
+                    claim.Value.Equals(replacementPermission, StringComparison.OrdinalIgnoreCase)))
+                {
+                    await roleManager.AddClaimAsync(role, new Claim("Permission", replacementPermission));
+                }
+
+                await roleManager.RemoveClaimAsync(role, legacyClaim);
+            }
+
             // 3. Tạo tài khoản admin nếu chưa tồn tại
             const string adminUsername = "admin";
             var adminUser = await userManager.FindByNameAsync(adminUsername);
@@ -79,40 +104,24 @@ namespace sep490_be.Helpers
                 }
             }
 
-            // 4. Tạo vai trò Student nếu chưa tồn tại và cấp permissions cần thiết
-            const string studentRoleName = "Student";
-            var studentRole = await roleManager.FindByNameAsync(studentRoleName);
-            if (studentRole == null)
+            // 5. Seed các vai trò bổ sung yêu cầu (Student, Teacher, Parent, Operation staff, Academic staff, Center manager)
+            var newRolesToSeed = new List<string>
             {
-                studentRole = new IdentityRole(studentRoleName);
-                await roleManager.CreateAsync(studentRole);
-                studentRole = await roleManager.FindByNameAsync(studentRoleName);
-            }
-
-            // Danh sách permissions dành cho Student
-            var studentPermissions = new List<string>
-            {
-                Permissions.Class.Class_StudentView,
-                Permissions.Homework.Homework_View,
-                Permissions.Homework.Homework_Create,
-                Permissions.Attendance.Attendance_View,
-                Permissions.StudentGrade.StudentGrade_View,
-                Permissions.ClassSchedule.ClassSchedule_View,
-                Permissions.Notification.Notification_View,
-                Permissions.LearningMaterial.LearningMaterial_View,
+                "Student",
+                "Teacher",
+                "Parent",
+                "Operation staff",
+                "Academic staff",
+                "Center manager"
             };
 
-            var existingStudentClaims = await roleManager.GetClaimsAsync(studentRole!);
-            var existingStudentPermissions = existingStudentClaims
-                .Where(c => c.Type.Equals("Permission", System.StringComparison.OrdinalIgnoreCase))
-                .Select(c => c.Value)
-                .ToList();
-
-            foreach (var perm in studentPermissions)
+            foreach (var roleName in newRolesToSeed)
             {
-                if (!existingStudentPermissions.Contains(perm))
+                var role = await roleManager.FindByNameAsync(roleName);
+                if (role == null)
                 {
-                    await roleManager.AddClaimAsync(studentRole!, new Claim("Permission", perm));
+                    role = new IdentityRole(roleName);
+                    await roleManager.CreateAsync(role);
                 }
             }
         }

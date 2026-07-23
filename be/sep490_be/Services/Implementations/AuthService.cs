@@ -613,6 +613,40 @@ namespace sep490_be.Services.Implementations
                 return ApiResponse<List<string>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
+
+        public async Task<ApiResponse<bool>> ChangePasswordAsync(string username, ChangePasswordDto dto)
+        {
+            try
+            {
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
+                {
+                    return ApiResponse<bool>.Fail("ERR_USER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (dto.NewPassword != dto.ConfirmPassword)
+                {
+                    return ApiResponse<bool>.Fail("ERR_PASSWORD_MISMATCH", StatusCodes.Status400BadRequest);
+                }
+
+                var result = await _userManager.ChangePasswordAsync(user, dto.OldPassword, dto.NewPassword);
+                if (!result.Succeeded)
+                {
+                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                    if (errors.Contains("PasswordMismatch") || errors.Contains("Incorrect password"))
+                    {
+                        return ApiResponse<bool>.Fail("ERR_OLD_PASSWORD_INCORRECT", StatusCodes.Status400BadRequest);
+                    }
+                    return ApiResponse<bool>.Fail(errors, StatusCodes.Status400BadRequest);
+                }
+
+                return ApiResponse<bool>.Ok(true, "CHANGE_PASSWORD_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
     }
 }
 
