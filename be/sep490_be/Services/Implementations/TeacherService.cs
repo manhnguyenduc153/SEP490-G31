@@ -47,11 +47,6 @@ namespace sep490_be.Services.Implementations
                     query = query.Where(c => c.Status == searchDto.TeacherStatus.Value);
                 }
 
-                if (searchDto.GradeLevel.HasValue)
-                {
-                    query = query.Where(c => c.GradeLevel == searchDto.GradeLevel.Value);
-                }
-
                 if (searchDto.Gender.HasValue)
                 {
                     query = query.Where(c => c.Gender == searchDto.Gender.Value);
@@ -337,8 +332,6 @@ namespace sep490_be.Services.Implementations
             Address = entity.Address,
             Status = entity.Status,
             Description = entity.Description,
-            GradeLevel = entity.GradeLevel,
-            GradeLevelName = entity.GradeLevel?.GetStringValue(),
             Avatar = entity.Avatar,
             Certificates = DeserializeCertificates(entity.Certificate)
         };

@@ -381,6 +381,144 @@ namespace sep490_be.Tests.Services
             response.Message.Should().Be("Không tìm thấy bài nộp");
         }
 
+        [Fact]
+        public async Task GetHomeworkByClassAsync_WhenClassHasNoHomework_ShouldReturnEmptyList()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var response = await CreateService(context).GetHomeworkByClassAsync(123);
+            response.Success.Should().BeTrue();
+            response.Data.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task GetHomeworkByClassAsync_ShouldNotReturnHomeworkFromAnotherClass()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (classId, teacherId, _) = await SeedActorsAsync(context);
+            var otherClass = new ModelClass { Code = "OTHER", Name = "Other", Status = (int)ClassStatus.Active };
+            context.Classes.Add(otherClass);
+            await context.SaveChangesAsync();
+            await SeedHomeworkAsync(context, classId, teacherId);
+            await SeedHomeworkAsync(context, otherClass.Id, teacherId);
+            var response = await CreateService(context).GetHomeworkByClassAsync(classId);
+            response.Data.Should().ContainSingle(x => x.ClassId == classId);
+        }
+
+        [Fact]
+        public async Task CreateHomeworkAsync_WithAttachmentsAndSkill_ShouldRoundTripAllFields()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (classId, teacherId, _) = await SeedActorsAsync(context);
+            var dueDate = DateTime.UtcNow.AddDays(3);
+            var response = await CreateService(context).CreateHomeworkAsync(new HomeworkSaveDto
+            {
+                ClassId = classId, TeacherId = teacherId, Title = "Listening files",
+                Description = "Listen and answer", AttachmentUrls = new List<string> { "/a.mp3", "/b.pdf" },
+                Skill = "Listening", DueDate = dueDate, TotalScore = 20, Status = 1
+            });
+            response.Success.Should().BeTrue();
+            response.Data!.AttachmentUrls.Should().Equal("/a.mp3", "/b.pdf");
+            response.Data.Skill.Should().Be("Listening");
+            response.Data.DueDate.Should().Be(dueDate);
+            response.Data.TotalScore.Should().Be(20);
+        }
+
+        [Fact]
+        public async Task UpdateHomeworkAsync_WhenHomeworkWasDeleted_ShouldReturnNotFound()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (classId, teacherId, _) = await SeedActorsAsync(context);
+            var homework = await SeedHomeworkAsync(context, classId, teacherId);
+            homework.IsDeleted = true;
+            await context.SaveChangesAsync();
+            var response = await CreateService(context).UpdateHomeworkAsync(homework.Id, new HomeworkSaveDto { Title = "Updated" });
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        }
+
+        [Fact]
+        public async Task DeleteHomeworkAsync_WhenHomeworkDoesNotExist_ShouldReturnNotFound()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var response = await CreateService(context).DeleteHomeworkAsync(9999);
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        }
+
+        [Fact]
+        public async Task DeleteHomeworkAsync_WhenCalledTwice_ShouldReturnNotFoundOnSecondCall()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (classId, teacherId, _) = await SeedActorsAsync(context);
+            var homework = await SeedHomeworkAsync(context, classId, teacherId);
+            var service = CreateService(context);
+            (await service.DeleteHomeworkAsync(homework.Id)).Success.Should().BeTrue();
+            var second = await service.DeleteHomeworkAsync(homework.Id);
+            second.Success.Should().BeFalse();
+            second.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        }
+
+        [Fact]
+        public async Task GetSubmissionsByHomeworkAsync_WhenNoOneSubmitted_ShouldReturnEmptyList()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var response = await CreateService(context).GetSubmissionsByHomeworkAsync(123);
+            response.Success.Should().BeTrue();
+            response.Data.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task SubmitHomeworkAsync_WithZeroStudentId_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var response = await CreateService(context).SubmitHomeworkAsync(new HomeworkSubmissionSaveDto { HomeworkId = 1, StudentId = 0 });
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        }
+
+        [Fact]
+        public async Task SubmitHomeworkAsync_WithContentAndAttachments_ShouldPersistSubmission()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (classId, teacherId, studentId) = await SeedActorsAsync(context);
+            var homework = await SeedHomeworkAsync(context, classId, teacherId, DateTime.UtcNow.AddDays(1));
+            var response = await CreateService(context).SubmitHomeworkAsync(new HomeworkSubmissionSaveDto
+            {
+                HomeworkId = homework.Id, StudentId = studentId, Content = "My answer",
+                AttachmentUrls = new List<string> { "/answer.docx", "/audio.mp3" }
+            });
+            response.Success.Should().BeTrue();
+            response.Data!.Content.Should().Be("My answer");
+            response.Data.AttachmentUrls.Should().HaveCount(2);
+            (await context.HomeworkSubmissions.SingleAsync()).AttachmentUrls.Should().Equal("/answer.docx", "/audio.mp3");
+        }
+
+        [Fact]
+        public async Task GradeSubmissionAsync_WithScoreExactlyAtMaximum_ShouldSucceed()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (classId, teacherId, studentId) = await SeedActorsAsync(context);
+            var homework = await SeedHomeworkAsync(context, classId, teacherId, totalScore: 10);
+            var submission = new HomeworkSubmission { HomeworkId = homework.Id, StudentId = studentId, SubmitTime = DateTime.UtcNow, Status = 1 };
+            context.HomeworkSubmissions.Add(submission);
+            await context.SaveChangesAsync();
+            var response = await CreateService(context).GradeSubmissionAsync(submission.Id, new HomeworkSubmissionGradeDto { Score = 10, TeacherFeedback = "Perfect" });
+            response.Success.Should().BeTrue();
+            response.Data!.Score.Should().Be(10);
+            response.Data.Status.Should().Be(2);
+            response.Data.TeacherFeedback.Should().Be("Perfect");
+        }
+
         #endregion
 
     }

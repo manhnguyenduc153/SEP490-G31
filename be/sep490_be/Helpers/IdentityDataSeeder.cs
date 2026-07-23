@@ -233,14 +233,15 @@ namespace sep490_be.Helpers
             }
 
             // 5. Seed các vai trò bổ sung yêu cầu (Học sinh, Giáo viên, Ban vận hành, Ban chuyên môn, Quản lý trung tâm, Phụ huynh)
+            // 5. Seed các vai trò bổ sung yêu cầu (Student, Teacher, Parent, Operation staff, Academic staff, Center manager)
             var newRolesToSeed = new List<string>
             {
-                "Học sinh",
-                "Giáo viên",
-                "Ban vận hành",
-                "Ban chuyên môn",
-                "Quản lý trung tâm",
-                "Phụ huynh"
+                "Student",
+                "Teacher",
+                "Parent",
+                "Operation staff",
+                "Academic staff",
+                "Center manager"
             };
 
             foreach (var roleName in newRolesToSeed)
