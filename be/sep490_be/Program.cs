@@ -125,3 +125,5 @@ app.MapGet("/server123", () =>
 
 app.Run();
 
+public partial class Program { }
+

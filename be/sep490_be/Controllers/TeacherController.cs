@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using sep490_be.DTO.Teacher;
 using sep490_be.DTO.Common;
 using sep490_be.Services.Interfaces;
@@ -13,27 +14,86 @@ namespace sep490_be.Controllers
     public class TeacherController : ControllerBase
     {
         private readonly ITeacherService _service;
+        private readonly UserManager<IdentityUser> _userManager;
 
-        public TeacherController(ITeacherService service)
+        public TeacherController(ITeacherService service, UserManager<IdentityUser> userManager)
         {
             _service = service;
+            _userManager = userManager;
         }
 
         // GET: api/Teacher
         [HttpGet]
-        [HasPermission(Permissions.Teacher.Teacher_View)]
         public async Task<IActionResult> GetAll([FromQuery] TeacherSearchDto searchDto)
         {
+            var username = User.Identity?.Name;
+            var hasViewPermission = User.Claims.Any(c => 
+                c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) && 
+                c.Value.Equals(Permissions.Teacher.Teacher_View, StringComparison.OrdinalIgnoreCase));
+
+            if (!hasViewPermission)
+            {
+                if (string.IsNullOrEmpty(username))
+                {
+                    return Forbid();
+                }
+
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
+                {
+                    return Forbid();
+                }
+
+                var isSearchingSelf = !string.IsNullOrEmpty(searchDto.Keyword) && 
+                    (string.Equals(searchDto.Keyword, user.UserName, StringComparison.OrdinalIgnoreCase) || 
+                     string.Equals(searchDto.Keyword, user.Email, StringComparison.OrdinalIgnoreCase));
+
+                if (!isSearchingSelf)
+                {
+                    if (string.IsNullOrEmpty(searchDto.Keyword))
+                    {
+                        searchDto.Keyword = user.Email;
+                    }
+                    else
+                    {
+                        return Forbid();
+                    }
+                }
+                else
+                {
+                    searchDto.Keyword = user.Email;
+                }
+            }
+
             var response = await _service.GetAllAsync(searchDto);
             return StatusCode(response.StatusCode, response);
         }
 
         // GET: api/Teacher/5
         [HttpGet("{id}")]
-        [HasPermission(Permissions.Teacher.Teacher_View)]
         public async Task<IActionResult> GetById(int id)
         {
+            var username = User.Identity?.Name;
+            var hasViewPermission = User.Claims.Any(c => 
+                c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) && 
+                c.Value.Equals(Permissions.Teacher.Teacher_View, StringComparison.OrdinalIgnoreCase));
+
+            var isViewingSelf = false;
             var response = await _service.GetByIdAsync(id);
+            if (response.StatusCode == 200 && response.Data != null && !string.IsNullOrEmpty(username))
+            {
+                var user = await _userManager.FindByNameAsync(username);
+                if (user != null && string.Equals(response.Data.Email, user.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    isViewingSelf = true;
+                }
+            }
+
+            if (!hasViewPermission && !isViewingSelf)
+            {
+                return Forbid();
+            }
+
             return StatusCode(response.StatusCode, response);
         }
 
@@ -70,7 +130,8 @@ namespace sep490_be.Controllers
                 var teacherResponse = await _service.GetByIdAsync(id);
                 if (teacherResponse.StatusCode == 200 && teacherResponse.Data != null)
                 {
-                    if (string.Equals(teacherResponse.Data.Email, username, StringComparison.OrdinalIgnoreCase))
+                    var user = await _userManager.FindByNameAsync(username);
+                    if (user != null && string.Equals(teacherResponse.Data.Email, user.Email, StringComparison.OrdinalIgnoreCase))
                     {
                         isEditingSelf = true;
                     }

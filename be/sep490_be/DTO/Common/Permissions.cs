@@ -40,6 +40,13 @@ namespace sep490_be.DTO.Common
             public const string Student_Delete = "Student.Delete";
         }
 
+        public static class StudentProfile
+        {
+            public const string StudentProfilePage = "StudentProfile";
+            public const string StudentProfile_View = "StudentProfile.View";
+            public const string StudentProfile_Edit = "StudentProfile.Edit";
+        }
+
         public static class Teacher
         {
             public const string TeacherPage = "Teacher";
@@ -47,6 +54,13 @@ namespace sep490_be.DTO.Common
             public const string Teacher_Create = "Teacher.Create";
             public const string Teacher_Edit = "Teacher.Edit";
             public const string Teacher_Delete = "Teacher.Delete";
+        }
+
+        public static class TeacherProfile
+        {
+            public const string TeacherProfilePage = "TeacherProfile";
+            public const string TeacherProfile_View = "TeacherProfile.View";
+            public const string TeacherProfile_Edit = "TeacherProfile.Edit";
         }
 
         public static class ParentStudent
@@ -321,6 +335,8 @@ namespace sep490_be.DTO.Common
             { "Notification", "administration" },
             
             { "ParentStudent", "parentServices" },
+            { "StudentProfile", "parentServices" },
+            { "TeacherProfile", "parentServices" },
             
             { "Product", "others" }
         };

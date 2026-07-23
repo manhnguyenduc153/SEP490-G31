@@ -1,0 +1,333 @@
+[2026-07-22 11:33:48] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:06:23] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:06:58] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:09:02] [CLIENT ERROR 415] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:10:59] [CLIENT ERROR 405] POST /api/Auth/GetCurrentRoles
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:11:10] [CLIENT ERROR 401] GET /api/Auth/GetCurrentRoles
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:12:50] [CLIENT ERROR 405] GET /api/Auth/ChangePassword
+Details: Query: None | User: vanc
+------------------------------------------------------------
+[2026-07-23 00:14:09] [CLIENT ERROR 400] POST /api/Auth/ChangePassword
+Details: Query: None | User: vanc
+------------------------------------------------------------
+[2026-07-23 00:20:40] [CLIENT ERROR 400] POST /api/Auth/ChangePassword
+Details: Query: None | User: vanc
+------------------------------------------------------------
+[2026-07-23 00:33:19] [CLIENT ERROR 401] GET /api/Student/2
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:34:42] [CLIENT ERROR 401] PUT /api/Student/2
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:35:00] [CLIENT ERROR 401] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:37:30] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:37:30] [CLIENT ERROR 401] GET /api/Notification
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:37:30] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:37:30] [CLIENT ERROR 401] GET /api/Notification
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:37:30] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 00:38:57] [CLIENT ERROR 405] GET /api/Auth/Login
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 00:40:41] [CLIENT ERROR 400] PUT /api/Student/35
+Details: Query: None | User: vanm
+------------------------------------------------------------
+[2026-07-23 00:41:46] [CLIENT ERROR 400] PUT /api/Student/35
+Details: Query: None | User: vanm
+------------------------------------------------------------
+[2026-07-23 00:47:22] [CLIENT ERROR 401] POST /api/Auth/Login
+Details: Query: None | User: vanm
+------------------------------------------------------------
+[2026-07-23 00:50:13] [CLIENT ERROR 405] POST /api/Teacher/2
+Details: Query: None | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-23 00:51:04] [CLIENT ERROR 405] POST /api/Teacher/2
+Details: Query: None | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-23 00:51:21] [CLIENT ERROR 403] PUT /api/Teacher/2
+Details: Query: None | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-23 00:53:27] [CLIENT ERROR 405] PUT /api/Auth/Login
+Details: Query: None | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-23 01:03:56] [CLIENT ERROR 400] PUT /api/Student/9999
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 01:04:49] [CLIENT ERROR 400] PUT /api/Student/9999
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 01:04:58] [CLIENT ERROR 400] PUT /api/Student/9999
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 01:05:05] [CLIENT ERROR 404] PUT /api/Student/9999
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 01:15:51] [CLIENT ERROR 405] PUT /api/Auth/CreateRole
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:17:52] [CLIENT ERROR 405] POST /api/Auth/GetAllRoles
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:23:31] [CLIENT ERROR 405] GET /api/Auth/AssignRolePermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:25:41] [CLIENT ERROR 404] POST /api/Auth/AssignUserRole
+Details: Query: ?username=teacher01@gmail.com&roleName=Teacher | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:26:07] [CLIENT ERROR 404] POST /api/Auth/AssignUserRole
+Details: Query: ?username=teacher01@gmail.com&roleName=Teacher | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:32:37] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:32:37] [CLIENT ERROR 401] GET /api/Notification
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:32:37] [CLIENT ERROR 401] GET /api/User
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:32:37] [CLIENT ERROR 401] GET /api/Notification
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:32:37] [CLIENT ERROR 401] GET /api/User
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:39:53] [CLIENT ERROR 400] POST /api/Auth/AssignUserRole
+Details: Query: ?username=admin&roleName=Admin | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:39:57] [CLIENT ERROR 400] POST /api/Auth/AssignUserRole
+Details: Query: ?username=admin&roleName=Admin | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:51:08] [CLIENT ERROR 401] POST /api/User
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:51:55] [CLIENT ERROR 401] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 01:53:01] [CLIENT ERROR 404] POST /api/Auth/https://localhost:49391/api/User
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 01:55:58] [CLIENT ERROR 400] POST /api/User
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 01:58:20] [CLIENT ERROR 400] POST /api/User
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 02:01:35] [CLIENT ERROR 400] POST /api/User
+Details: Query: ?roleName=Teacher&pageIndex=1&pageSize=10 | User: admin
+------------------------------------------------------------
+[2026-07-23 02:09:11] [CLIENT ERROR 405] DELETE /api/User
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 02:14:23] [CLIENT ERROR 405] DELETE /api/User
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 02:14:29] [CLIENT ERROR 401] POST /api/User
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 02:28:42] [CLIENT ERROR 400] POST /api/Course
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 02:32:00] [CLIENT ERROR 400] POST /api/Course
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 02:38:18] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=10 | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 02:38:28] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=10 | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 02:39:42] [CLIENT ERROR 405] GET /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 02:42:35] [CLIENT ERROR 404] GET /api/Course/99999
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 02:47:49] [CLIENT ERROR 400] POST /api/Course
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 02:55:41] [CLIENT ERROR 400] PUT /api/Course/6
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 02:56:21] [CLIENT ERROR 400] PUT /api/Course/6
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 15:38:19] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 15:48:20] [CLIENT ERROR 400] POST /api/LearningMaterial
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 15:49:09] [CLIENT ERROR 400] POST /api/LearningMaterial
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 15:58:50] [CLIENT ERROR 404] DELETE /api/LearningMaterial/2
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-23 16:00:54] [CLIENT ERROR 405] DELETE /api/LearningMaterial/
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:01:06] [CLIENT ERROR 405] DELETE /api/LearningMaterial/
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:01:49] [CLIENT ERROR 401] GET /api/LearningMaterial/
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:02:36] [CLIENT ERROR 401] POST /api/LearningMaterial/
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:02:52] [CLIENT ERROR 401] POST /api/LearningMaterial/
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:04:05] [CLIENT ERROR 401] POST /api/LearningMaterial/
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:04:23] [CLIENT ERROR 401] POST /api/LearningMaterial/
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:06:46] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:06:51] [CLIENT ERROR 401] POST /api/LearningMaterial/
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:08:45] [CLIENT ERROR 401] POST /api/LearningMaterial/
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:09:28] [CLIENT ERROR 401] POST /api/LearningMaterial/
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 16:10:14] [CLIENT ERROR 400] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 00:02:35] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 00:02:54] [CLIENT ERROR 401] GET /api/Notification
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 00:02:54] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 00:02:54] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 00:02:54] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 00:02:54] [CLIENT ERROR 401] GET /api/Notification
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 00:03:10] [CLIENT ERROR 401] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:14:19] [CLIENT ERROR 401] GET /api/Student
+Details: Query: ?pageIndex=1&pageSize=10&keyword=vanc | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:16:42] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:18:17] [CLIENT ERROR 403] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-24 01:18:17] [CLIENT ERROR 403] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-24 01:18:45] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:18:45] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:18:46] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:18:46] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:27:08] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:27:29] [CLIENT ERROR 403] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-24 01:27:30] [CLIENT ERROR 403] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-24 01:30:08] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:30:14] [CLIENT ERROR 403] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-24 01:30:14] [CLIENT ERROR 403] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-24 01:34:42] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:34:58] [CLIENT ERROR 403] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-24 01:34:58] [CLIENT ERROR 403] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-24 01:37:36] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:37:42] [CLIENT ERROR 403] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-24 01:37:42] [CLIENT ERROR 403] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: manhvipyb2
+------------------------------------------------------------
+[2026-07-24 01:42:33] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:42:42] [CLIENT ERROR 401] GET /api/Notification
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:42:42] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:42:42] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:42:42] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=10&keyword=manhvipyb2 | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:42:42] [CLIENT ERROR 401] GET /api/Notification
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:43:07] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:43:07] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-24 01:44:56] [CLIENT ERROR 401] POST /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------

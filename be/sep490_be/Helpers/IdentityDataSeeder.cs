@@ -97,6 +97,10 @@ namespace sep490_be.Helpers
             }
             else
             {
+                // Force reset mật khẩu admin về "123456" để phục vụ việc test
+                await userManager.RemovePasswordAsync(adminUser);
+                await userManager.AddPasswordAsync(adminUser, "123456");
+
                 // Đảm bảo user admin đã có role Admin
                 if (!await userManager.IsInRoleAsync(adminUser, adminRoleName))
                 {
@@ -123,11 +127,14 @@ namespace sep490_be.Helpers
                 Permissions.Attendance.Attendance_View,
                 Permissions.StudentGrade.StudentGrade_ViewOwnGrades,
                 Permissions.ClassSchedule.ClassSchedule_View,
+                Permissions.Timetable.TimetablePage,
                 Permissions.Notification.Notification_View,
                 Permissions.LearningMaterial.LearningMaterial_View,
                 Permissions.Exam.Exam_StudentView,
                 Permissions.ExamAttempt.ExamAttempt_View,
                 Permissions.ExamAttempt.ExamAttempt_Create,
+                Permissions.StudentProfile.StudentProfile_View,
+                Permissions.StudentProfile.StudentProfile_Edit,
             };
 
             var existingStudentClaims = await roleManager.GetClaimsAsync(studentRole!);
@@ -174,6 +181,7 @@ namespace sep490_be.Helpers
                 Permissions.StudentGrade.StudentGrade_SaveGrade,
                 Permissions.ClassSchedule.ClassSchedule_View,
                 Permissions.ClassSchedule.ClassSchedule_TeacherView,
+                Permissions.TeachingSchedule.TeachingSchedulePage,
                 Permissions.Notification.Notification_View,
                 Permissions.Notification.Notification_Create,
                 Permissions.Notification.Notification_Edit,
@@ -205,6 +213,9 @@ namespace sep490_be.Helpers
                 Permissions.QuestionCategory.QuestionCategory_Create,
                 Permissions.QuestionCategory.QuestionCategory_Edit,
                 Permissions.QuestionCategory.QuestionCategory_Delete,
+
+                Permissions.TeacherProfile.TeacherProfile_View,
+                Permissions.TeacherProfile.TeacherProfile_Edit,
             };
 
             var existingTeacherClaims = await roleManager.GetClaimsAsync(teacherRole!);
