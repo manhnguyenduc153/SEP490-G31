@@ -241,20 +241,32 @@ namespace sep490_be.DTO.Common
         {
             public const string StudentGradePage = "StudentGrade";
             public const string StudentGrade_ViewSettings = "StudentGrade.ViewSettings";
-            public const string StudentGrade_ViewOwnGrades = "StudentGrade.ViewOwnGrades";
             public const string StudentGrade_Create = "StudentGrade.Create";
             public const string StudentGrade_Edit = "StudentGrade.Edit";
             public const string StudentGrade_Delete = "StudentGrade.Delete";
             public const string StudentGrade_SaveGrade = "StudentGrade.SaveGrade";
         }
 
-        public static class Homework
+        public static class StudentResult
         {
-            public const string HomeworkPage = "Homework";
-            public const string Homework_View = "Homework.View";
-            public const string Homework_Create = "Homework.Create";
-            public const string Homework_Edit = "Homework.Edit";
-            public const string Homework_Delete = "Homework.Delete";
+            public const string StudentResultPage = "StudentResult";
+            public const string StudentResult_View = "StudentResult.View";
+        }
+
+        public static class HomeworkManagement
+        {
+            public const string HomeworkManagementPage = "HomeworkManagement";
+            public const string HomeworkManagement_View = "HomeworkManagement.View";
+            public const string HomeworkManagement_Create = "HomeworkManagement.Create";
+            public const string HomeworkManagement_Edit = "HomeworkManagement.Edit";
+            public const string HomeworkManagement_Delete = "HomeworkManagement.Delete";
+        }
+
+        public static class StudentHomework
+        {
+            public const string StudentHomeworkPage = "StudentHomework";
+            public const string StudentHomework_View = "StudentHomework.View";
+            public const string StudentHomework_Submit = "StudentHomework.Submit";
         }
 
         public static class Semester
@@ -319,13 +331,15 @@ namespace sep490_be.DTO.Common
             { "ExamAttempt", "assessments" },
             { "ExamAnswer", "assessments" },
             { "ExamStudent", "assessments" },
-            { "Homework", "assessments" },
+            { "HomeworkManagement", "assessments" },
             { "Question", "assessments" },
             { "QuestionCategory", "assessments" },
             { "StudentGrade", "assessments" },
             
             { "LearningMaterial", "learning" },
             { "Attendance", "learning" },
+            { "StudentHomework", "learning" },
+            { "StudentResult", "learning" },
             
             { "User", "administration" },
             { "Role", "administration" },

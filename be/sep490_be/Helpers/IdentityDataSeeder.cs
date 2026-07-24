@@ -59,7 +59,7 @@ namespace sep490_be.Helpers
                 if (legacyClaim == null) continue;
 
                 var replacementPermission = role.Name?.Equals("Student", StringComparison.OrdinalIgnoreCase) == true
-                    ? Permissions.StudentGrade.StudentGrade_ViewOwnGrades
+                    ? Permissions.StudentResult.StudentResult_View
                     : Permissions.StudentGrade.StudentGrade_ViewSettings;
 
                 if (!roleClaims.Any(claim =>
@@ -70,6 +70,41 @@ namespace sep490_be.Helpers
                 }
 
                 await roleManager.RemoveClaimAsync(role, legacyClaim);
+            }
+
+            // Di chuyển các quyền cũ sang đúng feature để màn phân quyền không còn gộp lẫn.
+            foreach (var role in roleManager.Roles.ToList())
+            {
+                var roleClaims = await roleManager.GetClaimsAsync(role);
+                var isStudent = role.Name?.Equals("Student", StringComparison.OrdinalIgnoreCase) == true;
+                var replacements = new Dictionary<string, string>
+                {
+                    ["StudentGrade.ViewOwnGrades"] = Permissions.StudentResult.StudentResult_View,
+                    ["Homework.View"] = isStudent
+                        ? Permissions.StudentHomework.StudentHomework_View
+                        : Permissions.HomeworkManagement.HomeworkManagement_View,
+                    ["Homework.Create"] = isStudent
+                        ? Permissions.StudentHomework.StudentHomework_Submit
+                        : Permissions.HomeworkManagement.HomeworkManagement_Create,
+                    ["Homework.Edit"] = Permissions.HomeworkManagement.HomeworkManagement_Edit,
+                    ["Homework.Delete"] = Permissions.HomeworkManagement.HomeworkManagement_Delete
+                };
+
+                foreach (var replacement in replacements)
+                {
+                    var legacyClaim = roleClaims.FirstOrDefault(claim =>
+                        claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
+                        claim.Value.Equals(replacement.Key, StringComparison.OrdinalIgnoreCase));
+                    if (legacyClaim == null) continue;
+
+                    if (!roleClaims.Any(claim =>
+                        claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
+                        claim.Value.Equals(replacement.Value, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        await roleManager.AddClaimAsync(role, new Claim("Permission", replacement.Value));
+                    }
+                    await roleManager.RemoveClaimAsync(role, legacyClaim);
+                }
             }
 
             // 3. Tạo tài khoản admin nếu chưa tồn tại
@@ -122,10 +157,10 @@ namespace sep490_be.Helpers
             var studentPermissions = new List<string>
             {
                 Permissions.Class.Class_StudentView,
-                Permissions.Homework.Homework_View,
-                Permissions.Homework.Homework_Create,
+                Permissions.StudentHomework.StudentHomework_View,
+                Permissions.StudentHomework.StudentHomework_Submit,
                 Permissions.Attendance.Attendance_View,
-                Permissions.StudentGrade.StudentGrade_ViewOwnGrades,
+                Permissions.StudentResult.StudentResult_View,
                 Permissions.ClassSchedule.ClassSchedule_View,
                 Permissions.Timetable.TimetablePage,
                 Permissions.Notification.Notification_View,
@@ -165,10 +200,10 @@ namespace sep490_be.Helpers
             {
                 Permissions.Class.Class_View,
                 Permissions.Class.Class_TeacherView,
-                Permissions.Homework.Homework_View,
-                Permissions.Homework.Homework_Create,
-                Permissions.Homework.Homework_Edit,
-                Permissions.Homework.Homework_Delete,
+                Permissions.HomeworkManagement.HomeworkManagement_View,
+                Permissions.HomeworkManagement.HomeworkManagement_Create,
+                Permissions.HomeworkManagement.HomeworkManagement_Edit,
+                Permissions.HomeworkManagement.HomeworkManagement_Delete,
                 Permissions.Attendance.Attendance_View,
                 Permissions.Attendance.Attendance_Create,
                 Permissions.Attendance.Attendance_Edit,
