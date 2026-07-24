@@ -350,29 +350,34 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<MyAttendanceSessionDto>>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                var sessions = await _dbContext.Attendances
+                var sessions = await _dbContext.ClassSchedules
                     .AsNoTracking()
-                    .Where(a => a.StudentId == student.Id &&
-                                a.ClassSchedule != null &&
-                                a.ClassSchedule.ClassId == classId)
-                    .OrderBy(a => a.ClassSchedule!.ScheduleDate)
-                    .ThenBy(a => a.ClassSchedule!.LessonNo)
-                    .Select(a => new MyAttendanceSessionDto
+                    .Where(schedule => schedule.ClassId == classId && !schedule.IsDeleted)
+                    .OrderBy(schedule => schedule.ScheduleDate)
+                    .ThenBy(schedule => schedule.LessonNo)
+                    .Select(schedule => new
                     {
-                        ScheduleId = a.ScheduleId ?? 0,
-                        LessonNo = a.ClassSchedule!.LessonNo ?? 0,
-                        Date = a.ClassSchedule.ScheduleDate,
-                        Status = a.Status,
-                        Description = a.Description
+                        Schedule = schedule,
+                        Attendance = schedule.Attendances
+                            .Where(a => a.StudentId == student.Id && !a.IsDeleted)
+                            .OrderByDescending(a => a.UpdatedAt)
+                            .FirstOrDefault()
                     })
                     .ToListAsync();
 
-                foreach (var session in sessions)
+                var result = sessions.Select(x => new MyAttendanceSessionDto
                 {
-                    session.StatusName = ((AttendanceStatus)session.Status).GetStringValue();
-                }
+                    ScheduleId = x.Schedule.Id,
+                    LessonNo = x.Schedule.LessonNo ?? 0,
+                    Date = x.Schedule.ScheduleDate,
+                    Status = x.Attendance?.Status ?? -1,
+                    StatusName = x.Attendance == null
+                        ? "NOT_MARKED"
+                        : ((AttendanceStatus)x.Attendance.Status).GetStringValue(),
+                    Description = x.Attendance?.Description
+                }).ToList();
 
-                return ApiResponse<List<MyAttendanceSessionDto>>.Ok(sessions, "GET_MY_ATTENDANCE_DETAILS_SUCCESS");
+                return ApiResponse<List<MyAttendanceSessionDto>>.Ok(result, "GET_MY_ATTENDANCE_DETAILS_SUCCESS");
             }
             catch (Exception ex)
             {

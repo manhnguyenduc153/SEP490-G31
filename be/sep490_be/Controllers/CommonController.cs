@@ -95,7 +95,7 @@ namespace sep490_be.Controllers
         // GET: api/Common/classes/accessible
         // Returns only classes the current student/teacher can access; privileged roles receive all classes.
         [HttpGet("classes/accessible")]
-        [HasPermission(Permissions.Homework.Homework_View)]
+        [Authorize]
         public async Task<IActionResult> GetAccessibleClasses([FromQuery] ClassSearchDto searchDto)
         {
             var username = User.Identity?.Name;

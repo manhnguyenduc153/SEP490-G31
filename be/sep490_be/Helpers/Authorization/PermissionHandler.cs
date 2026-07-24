@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 
+using System.Security.Claims;
+
 namespace sep490_be.Helpers.Authorization
 {
     public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
@@ -8,6 +10,18 @@ namespace sep490_be.Helpers.Authorization
         {
             if (context.User == null)
             {
+                return Task.CompletedTask;
+            }
+
+            // Admin luôn có toàn quyền, kể cả khi JWT được phát trước lúc có permission mới.
+            var isAdmin = context.User.IsInRole("Admin") ||
+                context.User.Claims.Any(c =>
+                    (c.Type == ClaimTypes.Role || c.Type.Equals("role", StringComparison.OrdinalIgnoreCase)) &&
+                    c.Value.Equals("Admin", StringComparison.OrdinalIgnoreCase));
+
+            if (isAdmin)
+            {
+                context.Succeed(requirement);
                 return Task.CompletedTask;
             }
 

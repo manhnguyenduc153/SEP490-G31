@@ -44,6 +44,7 @@ namespace sep490_be.Services.Implementations
                     Status = h.Status,
                     CreatedAt = h.CreatedAt,
                     CreatedBy = h.CreatedBy,
+                    TeacherName = h.Teacher != null ? h.Teacher.Name : null,
                     ClassName = h.Class != null ? h.Class.Name : null
                 })
                 .ToListAsync();
