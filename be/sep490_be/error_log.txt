@@ -1,3 +1,541 @@
+[2026-07-05 22:17:50] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:18:05] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:23:47] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:23:47] [CLIENT ERROR 401] GET /api/LearningMaterial
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:23:47] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:23:47] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:23:47] [CLIENT ERROR 401] GET /api/LearningMaterial
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:23:47] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:27:37] [CLIENT ERROR 404] GET /favicon.ico
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:34:33] [CLIENT ERROR 400] POST /api/upload/document
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:34:43] [CLIENT ERROR 400] POST /api/upload/document
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:40:04] [CLIENT ERROR 400] POST /api/upload/document
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:44:30] [CLIENT ERROR 401] GET /api/Semester
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:44:30] [CLIENT ERROR 401] GET /api/Semester
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:50:09] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 22:55:25] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:04:45] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:05:03] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:05:03] [CLIENT ERROR 401] GET /api/Semester
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:05:03] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:05:03] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:05:03] [CLIENT ERROR 401] GET /api/Semester
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:05:03] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:05:03] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=100&status=true | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:05:03] [CLIENT ERROR 401] GET /api/Teacher
+Details: Query: ?pageIndex=1&pageSize=100 | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:05:03] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:11:46] [CLIENT ERROR 404] GET /uploads/documents/1feefcd0-2dd7-4938-b67e-dcf78bb386ee_Architecture%20n%20Design%20Workshop%20-%20Summer%202026.pdf
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:11:49] [CLIENT ERROR 404] GET /uploads/documents/1feefcd0-2dd7-4938-b67e-dcf78bb386ee_Architecture%20n%20Design%20Workshop%20-%20Summer%202026.pdf
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-05 23:11:54] [CLIENT ERROR 404] GET /uploads/documents/1feefcd0-2dd7-4938-b67e-dcf78bb386ee_Architecture%20n%20Design%20Workshop%20-%20Summer%202026.pdf
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-06 00:34:55] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 19:15:43] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 19:15:48] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 19:16:09] [CLIENT ERROR 404] GET /swagger/index.cshtml
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 19:16:22] [CLIENT ERROR 404] GET /swagger/index.cshtml
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 19:38:41] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 19:47:28] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 19:47:28] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 22:18:45] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 22:22:00] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 22:22:00] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-07 22:22:00] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-10 22:27:00] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-10 22:27:00] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-10 22:27:34] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-10 22:27:34] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-10 22:34:05] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-15 21:55:05] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-15 21:55:18] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 21:55:18] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 21:56:28] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 21:56:28] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 21:58:17] [CLIENT ERROR 403] POST /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 21:59:25] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-15 22:00:37] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-15 22:01:25] [CLIENT ERROR 403] GET /api/Semester/0/registrations
+Details: Query: ?pageIndex=1&pageSize=10 | User: admin
+------------------------------------------------------------
+[2026-07-15 22:01:25] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 22:01:25] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 22:01:25] [CLIENT ERROR 403] GET /api/Semester/0/registrations
+Details: Query: ?pageIndex=1&pageSize=10 | User: admin
+------------------------------------------------------------
+[2026-07-15 22:01:27] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 22:01:27] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 22:01:40] [CLIENT ERROR 404] GET /api/Class/TeacherSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 22:01:40] [CLIENT ERROR 404] GET /api/Class/TeacherSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 22:01:42] [CLIENT ERROR 404] GET /api/Class/StudentSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 22:01:42] [CLIENT ERROR 404] GET /api/Class/StudentSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 22:06:22] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 22:06:22] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-15 22:06:45] [CLIENT ERROR 403] POST /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:19:21] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 20:19:49] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 20:19:49] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 20:22:39] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/1
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:22:40] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/53
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:22:42] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/54
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:22:43] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/1
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:22:45] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/56
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:22:47] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/1
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:22:50] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/53
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:22:51] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/1
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:23:15] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/53
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:28:02] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/1
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:28:04] [CLIENT ERROR 404] GET /api/Report/AttendanceSheet/53
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 20:28:25] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 20:41:00] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 20:41:00] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 20:48:16] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:11:05] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:11:05] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:16:38] [CLIENT ERROR 404] GET /api/Report/ClassGrades/53
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:16:40] [CLIENT ERROR 404] GET /api/Report/ClassGrades/54
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:16:41] [CLIENT ERROR 404] GET /api/Report/ClassGrades/53
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:16:42] [CLIENT ERROR 404] GET /api/Report/ClassGrades/54
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:28:32] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:34:23] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:34:24] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:34:24] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:34:24] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:34:24] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:34:27] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:34:27] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:43:30] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 21:51:01] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:51:01] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:51:11] [CLIENT ERROR 403] GET /api/Homework/class/53
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:51:11] [CLIENT ERROR 403] GET /api/Homework/class/53
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:51:20] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:51:20] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:09] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:09] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:37] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:37] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:42] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:42] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:52] [CLIENT ERROR 403] GET /api/Homework/class/1
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:52] [CLIENT ERROR 403] GET /api/Homework/class/1
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:54] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:54] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:57] [CLIENT ERROR 403] GET /api/Homework/class/54
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:57] [CLIENT ERROR 403] GET /api/Homework/class/54
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:58] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 21:52:58] [CLIENT ERROR 403] GET /api/Semester
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-16 22:08:01] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 22:08:07] [CLIENT ERROR 401] GET /api/QuestionCategory
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 22:08:07] [CLIENT ERROR 401] GET /api/QuestionCategory
+Details: Query: ?pageIndex=1&pageSize=5 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 22:08:07] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=500 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 22:08:07] [CLIENT ERROR 401] GET /api/Course
+Details: Query: ?pageIndex=1&pageSize=500 | User: Anonymous
+------------------------------------------------------------
+[2026-07-16 22:08:49] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 12:43:34] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 12:46:12] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 12:46:12] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 12:46:12] [CLIENT ERROR 400] POST /api/Auth/RefreshToken
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 13:23:10] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 13:23:17] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 13:23:17] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 14:16:31] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 14:16:31] [CLIENT ERROR 401] GET /api/Exam
+Details: Query: ?pageNumber=1&pageSize=5&type=1 | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 14:16:31] [CLIENT ERROR 401] GET /api/Exam
+Details: Query: ?pageNumber=1&pageSize=5&type=1 | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 14:16:31] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-17 14:25:43] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 21:04:35] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 21:05:08] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 21:05:08] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 21:54:48] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 21:54:48] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:51] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:51] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:51] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:51] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:52] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-19 22:20:52] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 21:49:36] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 21:49:46] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:23:06] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:23:06] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:23:06] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:51:51] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:51:51] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-20 22:51:51] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-21 22:09:17] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-21 22:09:17] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 19:25:17] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 20:21:25] [CLIENT ERROR 401] GET /api/Room
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 20:21:44] [CLIENT ERROR 401] POST /api/Room
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:04:48] [CLIENT ERROR 400] POST /api/Room
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-22 21:19:34] [CLIENT ERROR 415] PUT /api/Room/4
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-22 21:21:20] [CLIENT ERROR 401] PUT /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:21:35] [CLIENT ERROR 401] GET /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:21:39] [CLIENT ERROR 401] GET /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:21:44] [CLIENT ERROR 401] GET /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:21:54] [CLIENT ERROR 401] GET /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:22:20] [CLIENT ERROR 415] PUT /api/Room/4
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-07-22 21:23:03] [CLIENT ERROR 401] GET /api/Room/stats
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 21:33:19] [CLIENT ERROR 401] DELETE /api/Room/4
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 22:41:16] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 22:41:16] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 22:41:16] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-22 22:41:16] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 20:07:46] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 20:07:50] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 20:07:50] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-23 20:07:50] [CLIENT ERROR 401] GET /api/Dashboard
 [2026-07-22 11:33:48] [CLIENT ERROR 404] GET /
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
