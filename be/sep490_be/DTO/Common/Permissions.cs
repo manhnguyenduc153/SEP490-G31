@@ -40,12 +40,7 @@ namespace sep490_be.DTO.Common
             public const string Student_Delete = "Student.Delete";
         }
 
-        public static class StudentProfile
-        {
-            public const string StudentProfilePage = "StudentProfile";
-            public const string StudentProfile_View = "StudentProfile.View";
-            public const string StudentProfile_Edit = "StudentProfile.Edit";
-        }
+
 
         public static class Teacher
         {
@@ -56,12 +51,7 @@ namespace sep490_be.DTO.Common
             public const string Teacher_Delete = "Teacher.Delete";
         }
 
-        public static class TeacherProfile
-        {
-            public const string TeacherProfilePage = "TeacherProfile";
-            public const string TeacherProfile_View = "TeacherProfile.View";
-            public const string TeacherProfile_Edit = "TeacherProfile.Edit";
-        }
+
 
         public static class ParentStudent
         {
@@ -297,6 +287,31 @@ namespace sep490_be.DTO.Common
             public const string StudentRegistration_Import = "StudentRegistration.Import";
         }
 
+        public static class ClassGradeReport
+        {
+            public const string ClassGradeReportPage = "ClassGradeReport";
+        }
+
+        public static class AttendanceReport
+        {
+            public const string AttendanceReportPage = "AttendanceReport";
+        }
+
+        public static class ExamReport
+        {
+            public const string ExamReportPage = "ExamReport";
+        }
+
+        public static class ChildProgress
+        {
+            public const string ChildProgressPage = "ChildProgress";
+        }
+
+        public static class ChildSchedule
+        {
+            public const string ChildSchedulePage = "ChildSchedule";
+        }
+
         public static List<string> GetAllPermissions()
         {
             var permissions = new List<string>();
@@ -356,17 +371,18 @@ namespace sep490_be.DTO.Common
             { "Notification", "administration" },
             
             { "ParentStudent", "parentServices" },
-            { "StudentProfile", "parentServices" },
-            { "TeacherProfile", "parentServices" },
-            
-            { "Product", "others" }
+            { "ChildProgress", "parentServices" },
+            { "ChildSchedule", "parentServices" },
+            { "ClassGradeReport", "reportsMenu" },
+            { "AttendanceReport", "reportsMenu" },
+            { "ExamReport", "reportsMenu" }
         };
 
         public static Dictionary<string, Dictionary<string, List<string>>> GetStructuredPermissions()
         {
             var structured = new Dictionary<string, Dictionary<string, List<string>>>();
             
-            var groups = new[] { "academicOperations", "schedule", "assessments", "learning", "administration", "parentServices", "others" };
+            var groups = new[] { "academicOperations", "schedule", "assessments", "learning", "administration", "reportsMenu", "parentServices" };
             foreach (var g in groups)
             {
                 structured[g] = new Dictionary<string, List<string>>();
@@ -377,6 +393,7 @@ namespace sep490_be.DTO.Common
             {
                 var featureName = type.Name;
                 var groupId = FeatureToGroupMapping.GetValueOrDefault(featureName, "others");
+                if (groupId == "others") continue;
                 var groupNode = structured[groupId];
 
                 var fields = type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
