@@ -155,6 +155,11 @@ namespace sep490_be.Services.Implementations
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
                 };
 
+                if (!string.IsNullOrEmpty(user.Email))
+                {
+                    authClaims.Add(new Claim(ClaimTypes.Email, user.Email));
+                }
+
                 foreach (var roleName in userRoles)
                 {
                     authClaims.Add(new Claim(ClaimTypes.Role, roleName));

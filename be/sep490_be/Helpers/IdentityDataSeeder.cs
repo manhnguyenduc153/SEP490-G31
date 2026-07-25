@@ -156,7 +156,7 @@ namespace sep490_be.Helpers
             // Danh sách permissions dành cho Student
             var studentPermissions = new List<string>
             {
-                Permissions.Class.Class_StudentView,
+                Permissions.MyClass.MyClassPage,
                 Permissions.StudentHomework.StudentHomework_View,
                 Permissions.StudentHomework.StudentHomework_Submit,
                 Permissions.Attendance.Attendance_View,
@@ -198,7 +198,7 @@ namespace sep490_be.Helpers
             var teacherPermissions = new List<string>
             {
                 Permissions.Class.Class_View,
-                Permissions.Class.Class_TeacherView,
+                Permissions.TeachingClass.TeachingClassPage,
                 Permissions.HomeworkManagement.HomeworkManagement_View,
                 Permissions.HomeworkManagement.HomeworkManagement_Create,
                 Permissions.HomeworkManagement.HomeworkManagement_Edit,

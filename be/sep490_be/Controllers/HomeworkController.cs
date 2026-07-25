@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using sep490_be.DTO;
@@ -29,18 +29,28 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("class/{classId}")]
+        [HasPermission(Permissions.HomeworkManagement.HomeworkManagement_View)]
         public async Task<IActionResult> GetHomeworkByClass(int classId)
         {
-            if (!HasAnyPermission(Permissions.StudentHomework.StudentHomework_View, Permissions.HomeworkManagement.HomeworkManagement_View))
-                return Forbid();
-            if (User.IsInRole("Student"))
-            {
-                var student = await ResolveCurrentStudentAsync();
-                var isEnrolled = student != null && await _dbContext.StudentClasses
-                    .AnyAsync(sc => sc.StudentId == student.Id && sc.ClassId == classId);
-                if (!isEnrolled) return Forbid();
-            }
             var result = await _homeworkService.GetHomeworkByClassAsync(classId);
+            return Ok(result);
+        }
+
+        [HttpGet("class/{classId}/student")]
+        [HasPermission(Permissions.StudentHomework.StudentHomework_View)]
+        public async Task<IActionResult> GetStudentHomeworkByClass(int classId)
+        {
+            var student = await ResolveCurrentStudentAsync();
+            if (student == null)
+            {
+                return BadRequest(ApiResponse<IEnumerable<HomeworkDto>>.Fail("Không xác định được sinh viên", 400));
+            }
+
+            var isEnrolled = await _dbContext.StudentClasses
+                .AnyAsync(sc => sc.StudentId == student.Id && sc.ClassId == classId && (sc.Status == 0 || sc.Status == 1 || sc.Status == 2));
+            if (!isEnrolled) return Forbid();
+
+            var result = await _homeworkService.GetStudentHomeworkByClassAsync(classId);
             return Ok(result);
         }
 
@@ -158,29 +168,16 @@ namespace sep490_be.Controllers
 
         private async Task<Student?> ResolveCurrentStudentAsync()
         {
-            var identifiers = User.Claims
-                .Where(c =>
-                    c.Type == ClaimTypes.Email ||
-                    c.Type == ClaimTypes.Name ||
-                    c.Type == ClaimTypes.NameIdentifier ||
-                    c.Type == "email" ||
-                    c.Type == "sub" ||
-                    c.Type == "unique_name" ||
-                    c.Type == "preferred_username")
-                .Select(c => c.Value)
-                .Append(User.Identity?.Name)
-                .Where(v => !string.IsNullOrWhiteSpace(v))
-                .Distinct()
-                .ToList();
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username)) return null;
 
-            if (identifiers.Count == 0)
-            {
-                return null;
-            }
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == username || u.Id == username);
+            var email = user?.Email ?? username;
 
             return await _dbContext.Students.FirstOrDefaultAsync(s =>
-                (s.Email != null && identifiers.Contains(s.Email)) ||
-                (s.Code != null && identifiers.Contains(s.Code)));
+                (s.Email != null && s.Email.ToLower() == email.ToLower()) ||
+                (s.Code != null && s.Code.ToLower() == username.ToLower()) ||
+                (s.Email != null && s.Email.ToLower() == username.ToLower()));
         }
 
         private bool HasAnyPermission(params string[] permissions)

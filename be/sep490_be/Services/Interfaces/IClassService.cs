@@ -18,6 +18,7 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<List<ClassScheduleDto>>> GetClassSchedulesAsync();
         Task<ApiResponse<PagingResponse<ClassDto>>> GetTeacherClassesAsync(string username, ClassSearchDto searchDto);
         Task<ApiResponse<PagingResponse<ClassDto>>> GetStudentClassesAsync(string username, ClassSearchDto searchDto);
+        Task<ApiResponse<PagingResponse<ClassDto>>> GetAccessibleClassesAsync(string username, ClassSearchDto searchDto);
     }
 }
 

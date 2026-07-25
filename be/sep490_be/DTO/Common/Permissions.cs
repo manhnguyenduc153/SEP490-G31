@@ -89,8 +89,16 @@ namespace sep490_be.DTO.Common
             public const string Class_Edit = "Class.Edit";
             public const string Class_Delete = "Class.Delete";
             public const string Class_Import = "Class.Import";
-            public const string Class_StudentView = "Class.StudentView";
-            public const string Class_TeacherView = "Class.TeacherView";
+        }
+
+        public static class MyClass
+        {
+            public const string MyClassPage = "MyClass";
+        }
+
+        public static class TeachingClass
+        {
+            public const string TeachingClassPage = "TeachingClass";
         }
 
         public static class Room
@@ -340,6 +348,8 @@ namespace sep490_be.DTO.Common
             { "Attendance", "learning" },
             { "StudentHomework", "learning" },
             { "StudentResult", "learning" },
+            { "MyClass", "learning" },
+            { "TeachingClass", "learning" },
             
             { "User", "administration" },
             { "Role", "administration" },

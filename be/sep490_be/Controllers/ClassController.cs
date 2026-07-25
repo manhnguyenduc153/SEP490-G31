@@ -42,7 +42,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/teaching-classes
         [HttpGet("teaching-classes")]
-        [HasPermission(Permissions.Class.Class_TeacherView)]
+        [HasPermission(Permissions.TeachingClass.TeachingClassPage)]
         public async Task<IActionResult> GetTeacherClasses([FromQuery] ClassSearchDto searchDto)
         {
             var username = User.Identity?.Name;
@@ -56,7 +56,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/my-classes
         [HttpGet("my-classes")]
-        [HasPermission(Permissions.Class.Class_StudentView)]
+        [HasPermission(Permissions.MyClass.MyClassPage)]
         public async Task<IActionResult> GetStudentClasses([FromQuery] ClassSearchDto searchDto)
         {
             var username = User.Identity?.Name;
