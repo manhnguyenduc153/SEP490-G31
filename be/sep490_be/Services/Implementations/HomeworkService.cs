@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -45,6 +45,34 @@ namespace sep490_be.Services.Implementations
             }
 
             var homeworks = await _homeworkRepository.FindByCondition(h => h.ClassId == classId && !h.IsDeleted)
+                .Include(h => h.Teacher)
+                .Include(h => h.Class)
+                .OrderByDescending(h => h.CreatedAt)
+                .Select(h => new HomeworkDto
+                {
+                    Id = h.Id,
+                    ClassId = h.ClassId,
+                    TeacherId = h.TeacherId,
+                    Title = h.Title,
+                    Description = h.Description,
+                    AttachmentUrls = h.AttachmentUrls,
+                    Skill = h.Skill,
+                    DueDate = h.DueDate,
+                    TotalScore = h.TotalScore,
+                    Status = h.Status,
+                    CreatedAt = h.CreatedAt,
+                    CreatedBy = h.CreatedBy,
+                    TeacherName = h.Teacher != null ? h.Teacher.Name : null,
+                    ClassName = h.Class != null ? h.Class.Name : null
+                })
+                .ToListAsync();
+
+            return ApiResponse<IEnumerable<HomeworkDto>>.Ok(homeworks);
+        }
+
+        public async Task<ApiResponse<IEnumerable<HomeworkDto>>> GetStudentHomeworkByClassAsync(int classId)
+        {
+            var homeworks = await _homeworkRepository.FindByCondition(h => h.ClassId == classId && !h.IsDeleted && h.Status == 1)
                 .Include(h => h.Teacher)
                 .Include(h => h.Class)
                 .OrderByDescending(h => h.CreatedAt)

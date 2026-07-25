@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using sep490_be.Services.Interfaces;
 using System.Threading.Tasks;
+using sep490_be.DTO.Common;
+using sep490_be.Helpers.Authorization;
 
 namespace sep490_be.Controllers
 {
@@ -18,6 +20,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("AttendanceSheet/{classId}")]
+        [HasPermission(Permissions.AttendanceReport.AttendanceReportPage)]
         public async Task<IActionResult> GetClassAttendanceSheet(int classId)
         {
             var response = await _reportService.GetClassAttendanceSheetAsync(classId);
@@ -27,7 +30,9 @@ namespace sep490_be.Controllers
             }
             return Ok(response);
         }
+
         [HttpGet("ExamResult/{examId}")]
+        [HasPermission(Permissions.ExamReport.ExamReportPage)]
         public async Task<IActionResult> GetExamResultAnalysis(int examId)
         {
             var response = await _reportService.GetExamResultAnalysisAsync(examId);
@@ -37,7 +42,9 @@ namespace sep490_be.Controllers
             }
             return Ok(response);
         }
+
         [HttpGet("ClassGrades/{classId}")]
+        [HasPermission(Permissions.ClassGradeReport.ClassGradeReportPage)]
         public async Task<IActionResult> GetClassGradeReport(int classId)
         {
             var response = await _reportService.GetClassGradeReportAsync(classId);

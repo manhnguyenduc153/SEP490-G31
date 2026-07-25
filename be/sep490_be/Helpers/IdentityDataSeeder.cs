@@ -47,65 +47,7 @@ namespace sep490_be.Helpers
                 }
             }
 
-            // Chuyển quyền xem điểm cũ sang hai quyền chuyên biệt mà không làm mất quyền của các role hiện có.
-            const string legacyStudentGradeView = "StudentGrade.View";
-            foreach (var role in roleManager.Roles.ToList())
-            {
-                var roleClaims = await roleManager.GetClaimsAsync(role);
-                var legacyClaim = roleClaims.FirstOrDefault(claim =>
-                    claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
-                    claim.Value.Equals(legacyStudentGradeView, StringComparison.OrdinalIgnoreCase));
 
-                if (legacyClaim == null) continue;
-
-                var replacementPermission = role.Name?.Equals("Student", StringComparison.OrdinalIgnoreCase) == true
-                    ? Permissions.StudentResult.StudentResult_View
-                    : Permissions.StudentGrade.StudentGrade_ViewSettings;
-
-                if (!roleClaims.Any(claim =>
-                    claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
-                    claim.Value.Equals(replacementPermission, StringComparison.OrdinalIgnoreCase)))
-                {
-                    await roleManager.AddClaimAsync(role, new Claim("Permission", replacementPermission));
-                }
-
-                await roleManager.RemoveClaimAsync(role, legacyClaim);
-            }
-
-            // Di chuyển các quyền cũ sang đúng feature để màn phân quyền không còn gộp lẫn.
-            foreach (var role in roleManager.Roles.ToList())
-            {
-                var roleClaims = await roleManager.GetClaimsAsync(role);
-                var isStudent = role.Name?.Equals("Student", StringComparison.OrdinalIgnoreCase) == true;
-                var replacements = new Dictionary<string, string>
-                {
-                    ["StudentGrade.ViewOwnGrades"] = Permissions.StudentResult.StudentResult_View,
-                    ["Homework.View"] = isStudent
-                        ? Permissions.StudentHomework.StudentHomework_View
-                        : Permissions.HomeworkManagement.HomeworkManagement_View,
-                    ["Homework.Create"] = isStudent
-                        ? Permissions.StudentHomework.StudentHomework_Submit
-                        : Permissions.HomeworkManagement.HomeworkManagement_Create,
-                    ["Homework.Edit"] = Permissions.HomeworkManagement.HomeworkManagement_Edit,
-                    ["Homework.Delete"] = Permissions.HomeworkManagement.HomeworkManagement_Delete
-                };
-
-                foreach (var replacement in replacements)
-                {
-                    var legacyClaim = roleClaims.FirstOrDefault(claim =>
-                        claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
-                        claim.Value.Equals(replacement.Key, StringComparison.OrdinalIgnoreCase));
-                    if (legacyClaim == null) continue;
-
-                    if (!roleClaims.Any(claim =>
-                        claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
-                        claim.Value.Equals(replacement.Value, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        await roleManager.AddClaimAsync(role, new Claim("Permission", replacement.Value));
-                    }
-                    await roleManager.RemoveClaimAsync(role, legacyClaim);
-                }
-            }
 
             // 3. Tạo tài khoản admin nếu chưa tồn tại
             const string adminUsername = "admin";
@@ -132,6 +74,10 @@ namespace sep490_be.Helpers
             }
             else
             {
+                // Force reset mật khẩu admin về "123456" để phục vụ việc test
+                await userManager.RemovePasswordAsync(adminUser);
+                await userManager.AddPasswordAsync(adminUser, "123456");
+
                 // Đảm bảo user admin đã có role Admin
                 if (!await userManager.IsInRoleAsync(adminUser, adminRoleName))
                 {
@@ -149,35 +95,6 @@ namespace sep490_be.Helpers
                 studentRole = await roleManager.FindByNameAsync(studentRoleName);
             }
 
-            // Danh sách permissions dành cho Student
-            var studentPermissions = new List<string>
-            {
-                Permissions.Class.Class_StudentView,
-                Permissions.StudentHomework.StudentHomework_View,
-                Permissions.StudentHomework.StudentHomework_Submit,
-                Permissions.Attendance.Attendance_View,
-                Permissions.StudentResult.StudentResult_View,
-                Permissions.ClassSchedule.ClassSchedule_View,
-                Permissions.Notification.Notification_View,
-                Permissions.LearningMaterial.LearningMaterial_View,
-                Permissions.Exam.Exam_StudentView,
-                Permissions.ExamAttempt.ExamAttempt_View,
-                Permissions.ExamAttempt.ExamAttempt_Create,
-            };
-
-            var existingStudentClaims = await roleManager.GetClaimsAsync(studentRole!);
-            var existingStudentPermissions = existingStudentClaims
-                .Where(c => c.Type.Equals("Permission", System.StringComparison.OrdinalIgnoreCase))
-                .Select(c => c.Value)
-                .ToList();
-
-            foreach (var perm in studentPermissions)
-            {
-                if (!existingStudentPermissions.Contains(perm))
-                {
-                    await roleManager.AddClaimAsync(studentRole!, new Claim("Permission", perm));
-                }
-            }
 
             // 4.5. Tạo vai trò Teacher nếu chưa tồn tại và cấp permissions cần thiết
             // Parents share the result-view permission. The service still enforces
@@ -210,82 +127,17 @@ namespace sep490_be.Helpers
                 teacherRole = await roleManager.FindByNameAsync(teacherRoleName);
             }
 
-            var teacherPermissions = new List<string>
-            {
-                Permissions.Class.Class_View,
-                Permissions.Class.Class_TeacherView,
-                Permissions.HomeworkManagement.HomeworkManagement_View,
-                Permissions.HomeworkManagement.HomeworkManagement_Create,
-                Permissions.HomeworkManagement.HomeworkManagement_Edit,
-                Permissions.HomeworkManagement.HomeworkManagement_Delete,
-                Permissions.Attendance.Attendance_View,
-                Permissions.Attendance.Attendance_Create,
-                Permissions.Attendance.Attendance_Edit,
-                Permissions.Attendance.Attendance_Delete,
-                Permissions.Attendance.Attendance_SaveAttendance,
-                Permissions.StudentGrade.StudentGrade_ViewSettings,
-                Permissions.StudentGrade.StudentGrade_Create,
-                Permissions.StudentGrade.StudentGrade_Edit,
-                Permissions.StudentGrade.StudentGrade_Delete,
-                Permissions.StudentGrade.StudentGrade_SaveGrade,
-                Permissions.ClassSchedule.ClassSchedule_View,
-                Permissions.ClassSchedule.ClassSchedule_TeacherView,
-                Permissions.Notification.Notification_View,
-                Permissions.Notification.Notification_Create,
-                Permissions.Notification.Notification_Edit,
-                Permissions.Notification.Notification_Delete,
-                Permissions.LearningMaterial.LearningMaterial_View,
-                Permissions.LearningMaterial.LearningMaterial_Create,
-                Permissions.LearningMaterial.LearningMaterial_Edit,
-                Permissions.LearningMaterial.LearningMaterial_Delete,
-                
-                // Exam permissions
-                Permissions.Exam.ExamPage,
-                Permissions.Exam.Exam_View,
-                Permissions.Exam.Exam_Create,
-                Permissions.Exam.Exam_Edit,
-                Permissions.Exam.Exam_Delete,
-                Permissions.Exam.Exam_TeacherView,
-                
-                Permissions.ExamAttempt.ExamAttempt_View,
-                Permissions.ExamAttempt.ExamAttempt_Create,
-                Permissions.ExamAttempt.ExamAttempt_Edit,
-                Permissions.ExamAttempt.ExamAttempt_Delete,
-                
-                Permissions.Question.Question_View,
-                Permissions.Question.Question_Create,
-                Permissions.Question.Question_Edit,
-                Permissions.Question.Question_Delete,
-                
-                Permissions.QuestionCategory.QuestionCategory_View,
-                Permissions.QuestionCategory.QuestionCategory_Create,
-                Permissions.QuestionCategory.QuestionCategory_Edit,
-                Permissions.QuestionCategory.QuestionCategory_Delete,
-            };
-
-            var existingTeacherClaims = await roleManager.GetClaimsAsync(teacherRole!);
-            var existingTeacherPermissions = existingTeacherClaims
-                .Where(c => c.Type.Equals("Permission", System.StringComparison.OrdinalIgnoreCase))
-                .Select(c => c.Value)
-                .ToList();
-
-            foreach (var perm in teacherPermissions)
-            {
-                if (!existingTeacherPermissions.Contains(perm))
-                {
-                    await roleManager.AddClaimAsync(teacherRole!, new Claim("Permission", perm));
-                }
-            }
 
             // 5. Seed các vai trò bổ sung yêu cầu (Học sinh, Giáo viên, Ban vận hành, Ban chuyên môn, Quản lý trung tâm, Phụ huynh)
+            // 5. Seed các vai trò bổ sung yêu cầu (Student, Teacher, Parent, Operation staff, Academic staff, Center manager)
             var newRolesToSeed = new List<string>
             {
-                "Học sinh",
-                "Giáo viên",
-                "Ban vận hành",
-                "Ban chuyên môn",
-                "Quản lý trung tâm",
-                "Phụ huynh"
+                "Student",
+                "Teacher",
+                "Parent",
+                "Operation staff",
+                "Academic staff",
+                "Center manager"
             };
 
             foreach (var roleName in newRolesToSeed)
