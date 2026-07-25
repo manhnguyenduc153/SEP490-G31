@@ -29,7 +29,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("my")]
-        [HasPermission(Permissions.StudentResult.StudentResult_View)]
+        [HasPermission(Permissions.MyGrade.MyGradePage)]
         public async Task<IActionResult> GetMyGrades()
         {
             var identifiers = User.Claims
