@@ -32,8 +32,26 @@ namespace sep490_be.Controllers
         [HasPermission(Permissions.HomeworkManagement.HomeworkManagement_View)]
         public async Task<IActionResult> GetHomeworkByClass(int classId)
         {
+            if (!HasAnyPermission(Permissions.StudentHomework.StudentHomework_View, Permissions.HomeworkManagement.HomeworkManagement_View))
+                return Forbid();
+            if (classId <= 0)
+                return BadRequest(ApiResponse<IEnumerable<HomeworkDto>>.Fail("ERR_HOMEWORK_CLASS_REQUIRED", 400));
+
+            var classExists = await _dbContext.Classes
+                .AsNoTracking()
+                .AnyAsync(c => c.Id == classId && !c.IsDeleted);
+            if (!classExists)
+                return NotFound(ApiResponse<IEnumerable<HomeworkDto>>.Fail("ERR_HOMEWORK_CLASS_NOT_FOUND", 404));
+
+            if (User.IsInRole("Student"))
+            {
+                var student = await ResolveCurrentStudentAsync();
+                var isEnrolled = student != null && await _dbContext.StudentClasses
+                    .AnyAsync(sc => sc.StudentId == student.Id && sc.ClassId == classId);
+                if (!isEnrolled) return Forbid();
+            }
             var result = await _homeworkService.GetHomeworkByClassAsync(classId);
-            return Ok(result);
+            return StatusCode(result.StatusCode, result);
         }
 
         [HttpGet("class/{classId}/student")]
@@ -64,7 +82,7 @@ namespace sep490_be.Controllers
             }
 
             var result = await _homeworkService.CreateHomeworkAsync(dto);
-            return result.Success ? Ok(result) : BadRequest(result);
+            return StatusCode(result.StatusCode, result);
         }
 
         [HttpPut("{id}")]
@@ -77,7 +95,7 @@ namespace sep490_be.Controllers
             }
 
             var result = await _homeworkService.UpdateHomeworkAsync(id, dto);
-            return result.Success ? Ok(result) : BadRequest(result);
+            return StatusCode(result.StatusCode, result);
         }
 
         [HttpDelete("{id}")]
@@ -85,7 +103,7 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> DeleteHomework(int id)
         {
             var result = await _homeworkService.DeleteHomeworkAsync(id);
-            return result.Success ? Ok(result) : BadRequest(result);
+            return StatusCode(result.StatusCode, result);
         }
 
         [HttpGet("{id}/submissions")]
@@ -93,18 +111,35 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> GetSubmissions(int id)
         {
             var result = await _homeworkService.GetSubmissionsByHomeworkAsync(id);
-            return Ok(result);
+            return StatusCode(result.StatusCode, result);
         }
 
         [HttpGet("{id}/my-submission")]
         [HasPermission(Permissions.StudentHomework.StudentHomework_View)]
         public async Task<IActionResult> GetMySubmission(int id)
         {
+            if (id <= 0)
+            {
+                return BadRequest(ApiResponse<HomeworkSubmissionDto?>.Fail("ERR_HOMEWORK_ID_REQUIRED", 400));
+            }
+
             var student = await ResolveCurrentStudentAsync();
             if (student == null)
             {
                 return BadRequest(ApiResponse<HomeworkSubmissionDto>.Fail("Khong xac dinh duoc sinh vien", 400));
             }
+
+            var homework = await _dbContext.Homeworks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(h => h.Id == id && !h.IsDeleted);
+            if (homework == null)
+            {
+                return NotFound(ApiResponse<HomeworkSubmissionDto?>.Fail("ERR_HOMEWORK_NOT_FOUND", 404));
+            }
+
+            var isEnrolled = await _dbContext.StudentClasses
+                .AnyAsync(sc => sc.StudentId == student.Id && sc.ClassId == homework.ClassId);
+            if (!isEnrolled) return Forbid();
 
             var submission = await _dbContext.HomeworkSubmissions
                 .AsNoTracking()
@@ -136,7 +171,7 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> GradeSubmission(int submissionId, [FromBody] HomeworkSubmissionGradeDto dto)
         {
             var result = await _homeworkService.GradeSubmissionAsync(submissionId, dto);
-            return result.Success ? Ok(result) : BadRequest(result);
+            return StatusCode(result.StatusCode, result);
         }
 
         [HttpPost("submit")]
@@ -163,7 +198,7 @@ namespace sep490_be.Controllers
 
             dto.StudentId = student.Id;
             var result = await _homeworkService.SubmitHomeworkAsync(dto);
-            return result.Success ? Ok(result) : BadRequest(result);
+            return StatusCode(result.StatusCode, result);
         }
 
         private async Task<Student?> ResolveCurrentStudentAsync()

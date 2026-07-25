@@ -97,6 +97,27 @@ namespace sep490_be.Helpers
 
 
             // 4.5. Tạo vai trò Teacher nếu chưa tồn tại và cấp permissions cần thiết
+            // Parents share the result-view permission. The service still enforces
+            // that a parent can only read grades of linked children.
+            const string parentRoleName = "Parent";
+            var parentRole = await roleManager.FindByNameAsync(parentRoleName);
+            if (parentRole == null)
+            {
+                parentRole = new IdentityRole(parentRoleName);
+                await roleManager.CreateAsync(parentRole);
+                parentRole = await roleManager.FindByNameAsync(parentRoleName);
+            }
+
+            var existingParentClaims = await roleManager.GetClaimsAsync(parentRole!);
+            if (!existingParentClaims.Any(c =>
+                    c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase)
+                    && c.Value == Permissions.StudentResult.StudentResult_View))
+            {
+                await roleManager.AddClaimAsync(
+                    parentRole!,
+                    new Claim("Permission", Permissions.StudentResult.StudentResult_View));
+            }
+
             const string teacherRoleName = "Teacher";
             var teacherRole = await roleManager.FindByNameAsync(teacherRoleName);
             if (teacherRole == null)

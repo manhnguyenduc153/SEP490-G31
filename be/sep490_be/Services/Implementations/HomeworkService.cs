@@ -17,15 +17,33 @@ namespace sep490_be.Services.Implementations
     {
         private readonly IHomeworkRepository _homeworkRepository;
         private readonly IHomeworkSubmissionRepository _homeworkSubmissionRepository;
+        private readonly ApplicationDbContext _dbContext;
 
-        public HomeworkService(IHomeworkRepository homeworkRepository, IHomeworkSubmissionRepository homeworkSubmissionRepository)
+        public HomeworkService(
+            IHomeworkRepository homeworkRepository,
+            IHomeworkSubmissionRepository homeworkSubmissionRepository,
+            ApplicationDbContext dbContext)
         {
             _homeworkRepository = homeworkRepository;
             _homeworkSubmissionRepository = homeworkSubmissionRepository;
+            _dbContext = dbContext;
         }
 
         public async Task<ApiResponse<IEnumerable<HomeworkDto>>> GetHomeworkByClassAsync(int classId)
         {
+            if (classId <= 0)
+            {
+                return ApiResponse<IEnumerable<HomeworkDto>>.Fail("ERR_HOMEWORK_CLASS_REQUIRED", StatusCodes.Status400BadRequest);
+            }
+
+            var classExists = await _dbContext.Classes
+                .AsNoTracking()
+                .AnyAsync(c => c.Id == classId && !c.IsDeleted);
+            if (!classExists)
+            {
+                return ApiResponse<IEnumerable<HomeworkDto>>.Fail("ERR_HOMEWORK_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
+            }
+
             var homeworks = await _homeworkRepository.FindByCondition(h => h.ClassId == classId && !h.IsDeleted)
                 .Include(h => h.Teacher)
                 .Include(h => h.Class)
@@ -82,6 +100,12 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<HomeworkDto>> CreateHomeworkAsync(HomeworkSaveDto dto)
         {
+            var validation = await ValidateSaveDtoAsync(dto);
+            if (validation.Error != null)
+            {
+                return ApiResponse<HomeworkDto>.Fail(validation.Error, validation.StatusCode);
+            }
+
             var homework = new Homework
             {
                 ClassId = dto.ClassId,
@@ -119,12 +143,25 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<HomeworkDto>> UpdateHomeworkAsync(int id, HomeworkSaveDto dto)
         {
+            if (id <= 0)
+            {
+                return ApiResponse<HomeworkDto>.Fail("ERR_HOMEWORK_ID_REQUIRED", StatusCodes.Status400BadRequest);
+            }
+
             var homework = await _homeworkRepository.GetByIdAsync(id);
             if (homework == null || homework.IsDeleted)
             {
-                return ApiResponse<HomeworkDto>.Fail("Không tìm thấy bài tập", StatusCodes.Status404NotFound);
+                return ApiResponse<HomeworkDto>.Fail("ERR_HOMEWORK_NOT_FOUND", StatusCodes.Status404NotFound);
             }
 
+            var validation = await ValidateSaveDtoAsync(dto);
+            if (validation.Error != null)
+            {
+                return ApiResponse<HomeworkDto>.Fail(validation.Error, validation.StatusCode);
+            }
+
+            homework.ClassId = dto.ClassId;
+            homework.TeacherId = dto.TeacherId;
             homework.Title = dto.Title;
             homework.Description = dto.Description;
             homework.AttachmentUrls = dto.AttachmentUrls;
@@ -157,10 +194,15 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<bool>> DeleteHomeworkAsync(int id)
         {
+            if (id <= 0)
+            {
+                return ApiResponse<bool>.Fail("ERR_HOMEWORK_ID_REQUIRED", StatusCodes.Status400BadRequest);
+            }
+
             var homework = await _homeworkRepository.GetByIdAsync(id);
             if (homework == null || homework.IsDeleted)
             {
-                return ApiResponse<bool>.Fail("Không tìm thấy bài tập", StatusCodes.Status404NotFound);
+                return ApiResponse<bool>.Fail("ERR_HOMEWORK_NOT_FOUND", StatusCodes.Status404NotFound);
             }
 
             await _homeworkRepository.DeleteAsync(homework);
@@ -171,6 +213,17 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<IEnumerable<HomeworkSubmissionDto>>> GetSubmissionsByHomeworkAsync(int homeworkId)
         {
+            if (homeworkId <= 0)
+            {
+                return ApiResponse<IEnumerable<HomeworkSubmissionDto>>.Fail("ERR_HOMEWORK_ID_REQUIRED", StatusCodes.Status400BadRequest);
+            }
+
+            var homeworkExists = await _homeworkRepository.ExistsAsync(h => h.Id == homeworkId && !h.IsDeleted);
+            if (!homeworkExists)
+            {
+                return ApiResponse<IEnumerable<HomeworkSubmissionDto>>.Fail("ERR_HOMEWORK_NOT_FOUND", StatusCodes.Status404NotFound);
+            }
+
             var submissions = await _homeworkSubmissionRepository.FindByCondition(s => s.HomeworkId == homeworkId && !s.IsDeleted)
                 .Include(s => s.Student)
                 .OrderByDescending(s => s.SubmitTime)
@@ -198,13 +251,44 @@ namespace sep490_be.Services.Implementations
         {
             if (!dto.StudentId.HasValue || dto.StudentId.Value <= 0)
             {
-                return ApiResponse<HomeworkSubmissionDto>.Fail("Khong xac dinh duoc sinh vien", StatusCodes.Status400BadRequest);
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_STUDENT_REQUIRED", StatusCodes.Status400BadRequest);
+            }
+
+            if (dto.HomeworkId <= 0)
+            {
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_ID_REQUIRED", StatusCodes.Status400BadRequest);
             }
 
             var homework = await _homeworkRepository.GetByIdAsync(dto.HomeworkId);
-            if (homework == null || homework.IsDeleted || homework.Status == 0)
+            if (homework == null || homework.IsDeleted)
             {
-                return ApiResponse<HomeworkSubmissionDto>.Fail("Bài tập không khả dụng hoặc đã đóng", StatusCodes.Status400BadRequest);
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_NOT_FOUND", StatusCodes.Status404NotFound);
+            }
+            if (homework.Status == 0)
+            {
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_CLOSED", StatusCodes.Status400BadRequest);
+            }
+
+            var studentExists = await _dbContext.Students
+                .AsNoTracking()
+                .AnyAsync(s => s.Id == dto.StudentId.Value && !s.IsDeleted);
+            if (!studentExists)
+            {
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+            }
+
+            var isEnrolled = await _dbContext.StudentClasses
+                .AsNoTracking()
+                .AnyAsync(sc => sc.StudentId == dto.StudentId.Value && sc.ClassId == homework.ClassId);
+            if (!isEnrolled)
+            {
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_STUDENT_NOT_ENROLLED", StatusCodes.Status403Forbidden);
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Content) &&
+                (dto.AttachmentUrls == null || !dto.AttachmentUrls.Any(url => !string.IsNullOrWhiteSpace(url))))
+            {
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_SUBMISSION_CONTENT_REQUIRED", StatusCodes.Status400BadRequest);
             }
 
             // Check existing
@@ -259,16 +343,29 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<HomeworkSubmissionDto>> GradeSubmissionAsync(int submissionId, HomeworkSubmissionGradeDto dto)
         {
+            if (submissionId <= 0)
+            {
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_SUBMISSION_ID_REQUIRED", StatusCodes.Status400BadRequest);
+            }
+
             var submission = await _homeworkSubmissionRepository.GetByIdAsync(submissionId);
             if (submission == null || submission.IsDeleted)
             {
-                return ApiResponse<HomeworkSubmissionDto>.Fail("Không tìm thấy bài nộp", StatusCodes.Status404NotFound);
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_SUBMISSION_NOT_FOUND", StatusCodes.Status404NotFound);
             }
 
             var homework = await _homeworkRepository.GetByIdAsync(submission.HomeworkId);
+            if (homework == null || homework.IsDeleted)
+            {
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_NOT_FOUND", StatusCodes.Status404NotFound);
+            }
+            if (dto.Score < 0)
+            {
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_SCORE_INVALID", StatusCodes.Status400BadRequest);
+            }
             if (dto.Score > homework?.TotalScore)
             {
-                return ApiResponse<HomeworkSubmissionDto>.Fail($"Điểm không được vượt quá tối đa ({homework.TotalScore})", StatusCodes.Status400BadRequest);
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_SCORE_EXCEEDS_TOTAL", StatusCodes.Status400BadRequest);
             }
 
             submission.Score = dto.Score;
@@ -292,6 +389,46 @@ namespace sep490_be.Services.Implementations
             };
 
             return ApiResponse<HomeworkSubmissionDto>.Ok(result, "Chấm điểm thành công");
+        }
+
+        private async Task<(string? Error, int StatusCode)> ValidateSaveDtoAsync(HomeworkSaveDto dto)
+        {
+            if (dto.ClassId <= 0)
+                return ("ERR_HOMEWORK_CLASS_REQUIRED", StatusCodes.Status400BadRequest);
+            if (dto.TeacherId <= 0)
+                return ("ERR_HOMEWORK_TEACHER_REQUIRED", StatusCodes.Status400BadRequest);
+            if (string.IsNullOrWhiteSpace(dto.Title))
+                return ("ERR_HOMEWORK_TITLE_REQUIRED", StatusCodes.Status400BadRequest);
+            if (dto.Title.Trim().Length > 500)
+                return ("ERR_HOMEWORK_TITLE_MAX_LENGTH", StatusCodes.Status400BadRequest);
+            if (dto.TotalScore < 0 || dto.TotalScore > 1000)
+                return ("ERR_HOMEWORK_TOTAL_SCORE_INVALID", StatusCodes.Status400BadRequest);
+            if (dto.Status is not 0 and not 1)
+                return ("ERR_HOMEWORK_STATUS_INVALID", StatusCodes.Status400BadRequest);
+
+            var classEntity = await _dbContext.Classes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == dto.ClassId && !c.IsDeleted);
+            if (classEntity == null)
+                return ("ERR_HOMEWORK_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
+
+            var teacherExists = await _dbContext.Teachers
+                .AsNoTracking()
+                .AnyAsync(t => t.Id == dto.TeacherId && !t.IsDeleted);
+            if (!teacherExists)
+                return ("ERR_HOMEWORK_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
+
+            if (classEntity.TeacherId.HasValue && classEntity.TeacherId.Value != dto.TeacherId)
+                return ("ERR_HOMEWORK_TEACHER_NOT_ASSIGNED_TO_CLASS", StatusCodes.Status400BadRequest);
+
+            dto.Title = dto.Title.Trim();
+            dto.AttachmentUrls = dto.AttachmentUrls?
+                .Where(url => !string.IsNullOrWhiteSpace(url))
+                .Select(url => url.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return (null, StatusCodes.Status200OK);
         }
     }
 }

@@ -7,14 +7,14 @@ namespace sep490_be.DTO.Homework
     {
         public int Id { get; set; }
         
-        [Required(ErrorMessage = "ClassId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ERR_HOMEWORK_CLASS_REQUIRED")]
         public int ClassId { get; set; }
         
-        [Required(ErrorMessage = "TeacherId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ERR_HOMEWORK_TEACHER_REQUIRED")]
         public int TeacherId { get; set; }
         
-        [Required(ErrorMessage = "Title is required")]
-        [StringLength(500, ErrorMessage = "Title cannot exceed 500 characters")]
+        [Required(ErrorMessage = "ERR_HOMEWORK_TITLE_REQUIRED")]
+        [StringLength(500, ErrorMessage = "ERR_HOMEWORK_TITLE_MAX_LENGTH")]
         public string Title { get; set; } = string.Empty;
         
         public string? Description { get; set; }
@@ -25,9 +25,10 @@ namespace sep490_be.DTO.Homework
         
         public DateTime? DueDate { get; set; }
         
-        [Range(0, 1000, ErrorMessage = "TotalScore must be between 0 and 1000")]
+        [Range(0, 1000, ErrorMessage = "ERR_HOMEWORK_TOTAL_SCORE_INVALID")]
         public decimal TotalScore { get; set; } = 10;
         
+        [Range(0, 1, ErrorMessage = "ERR_HOMEWORK_STATUS_INVALID")]
         public int Status { get; set; } = 1;
     }
 }
