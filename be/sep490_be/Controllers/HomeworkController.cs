@@ -29,15 +29,23 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("class/{classId}")]
-        [HasPermission(Permissions.Homework.Homework_View)]
         public async Task<IActionResult> GetHomeworkByClass(int classId)
         {
+            if (!HasAnyPermission(Permissions.StudentHomework.StudentHomework_View, Permissions.HomeworkManagement.HomeworkManagement_View))
+                return Forbid();
+            if (User.IsInRole("Student"))
+            {
+                var student = await ResolveCurrentStudentAsync();
+                var isEnrolled = student != null && await _dbContext.StudentClasses
+                    .AnyAsync(sc => sc.StudentId == student.Id && sc.ClassId == classId);
+                if (!isEnrolled) return Forbid();
+            }
             var result = await _homeworkService.GetHomeworkByClassAsync(classId);
             return Ok(result);
         }
 
         [HttpPost]
-        [HasPermission(Permissions.Homework.Homework_Create)]
+        [HasPermission(Permissions.HomeworkManagement.HomeworkManagement_Create)]
         public async Task<IActionResult> CreateHomework([FromBody] HomeworkSaveDto dto)
         {
             if (!ModelState.IsValid)
@@ -50,7 +58,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpPut("{id}")]
-        [HasPermission(Permissions.Homework.Homework_Edit)]
+        [HasPermission(Permissions.HomeworkManagement.HomeworkManagement_Edit)]
         public async Task<IActionResult> UpdateHomework(int id, [FromBody] HomeworkSaveDto dto)
         {
             if (!ModelState.IsValid)
@@ -63,7 +71,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpDelete("{id}")]
-        [HasPermission(Permissions.Homework.Homework_Delete)]
+        [HasPermission(Permissions.HomeworkManagement.HomeworkManagement_Delete)]
         public async Task<IActionResult> DeleteHomework(int id)
         {
             var result = await _homeworkService.DeleteHomeworkAsync(id);
@@ -71,7 +79,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("{id}/submissions")]
-        [HasPermission(Permissions.Homework.Homework_View)]
+        [HasPermission(Permissions.HomeworkManagement.HomeworkManagement_View)]
         public async Task<IActionResult> GetSubmissions(int id)
         {
             var result = await _homeworkService.GetSubmissionsByHomeworkAsync(id);
@@ -79,7 +87,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("{id}/my-submission")]
-        [HasPermission(Permissions.Homework.Homework_View)]
+        [HasPermission(Permissions.StudentHomework.StudentHomework_View)]
         public async Task<IActionResult> GetMySubmission(int id)
         {
             var student = await ResolveCurrentStudentAsync();
@@ -114,7 +122,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpPost("submissions/{submissionId}/grade")]
-        [HasPermission(Permissions.Homework.Homework_Edit)]
+        [HasPermission(Permissions.HomeworkManagement.HomeworkManagement_Edit)]
         public async Task<IActionResult> GradeSubmission(int submissionId, [FromBody] HomeworkSubmissionGradeDto dto)
         {
             var result = await _homeworkService.GradeSubmissionAsync(submissionId, dto);
@@ -122,7 +130,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpPost("submit")]
-        [HasPermission(Permissions.Homework.Homework_Create)]
+        [HasPermission(Permissions.StudentHomework.StudentHomework_Submit)]
         public async Task<IActionResult> SubmitHomework([FromBody] HomeworkSubmissionSaveDto dto)
         {
             var student = await ResolveCurrentStudentAsync();
@@ -136,6 +144,12 @@ namespace sep490_be.Controllers
             {
                 return BadRequest(ApiResponse<HomeworkSubmissionDto>.Fail("Khong xac dinh duoc sinh vien", 400));
             }
+
+            var isEnrolled = await _dbContext.Homeworks
+                .Where(homework => homework.Id == dto.HomeworkId && !homework.IsDeleted)
+                .AnyAsync(homework => _dbContext.StudentClasses
+                    .Any(sc => sc.StudentId == student.Id && sc.ClassId == homework.ClassId));
+            if (!isEnrolled) return Forbid();
 
             dto.StudentId = student.Id;
             var result = await _homeworkService.SubmitHomeworkAsync(dto);
@@ -167,6 +181,14 @@ namespace sep490_be.Controllers
             return await _dbContext.Students.FirstOrDefaultAsync(s =>
                 (s.Email != null && identifiers.Contains(s.Email)) ||
                 (s.Code != null && identifiers.Contains(s.Code)));
+        }
+
+        private bool HasAnyPermission(params string[] permissions)
+        {
+            if (User.IsInRole("Admin")) return true;
+            return User.Claims.Any(c =>
+                c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
+                permissions.Contains(c.Value, StringComparer.OrdinalIgnoreCase));
         }
     }
 }
