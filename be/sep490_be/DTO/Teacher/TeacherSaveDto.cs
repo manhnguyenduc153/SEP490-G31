@@ -13,7 +13,7 @@ namespace sep490_be.DTO.Teacher
         public string? Email { get; set; }
         public string? Phone { get; set; }
         public string? Address { get; set; }
-        public int Status { get; set; }
+        public int Status { get; set; } = 1;
         public string? Description { get; set; }
         public string? Avatar { get; set; }
         public List<string> Certificates { get; set; } = new();
