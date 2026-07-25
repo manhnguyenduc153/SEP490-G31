@@ -93,29 +93,15 @@ namespace sep490_be.Controllers
         }
 
         // GET: api/Common/classes/accessible
-        // Returns only classes the current student/teacher can access; privileged roles receive all classes.
         [HttpGet("classes/accessible")]
         [Authorize]
         public async Task<IActionResult> GetAccessibleClasses([FromQuery] ClassSearchDto searchDto)
         {
             var username = User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(username)) return Unauthorized();
 
-            if (User.IsInRole("Student"))
-            {
-                if (string.IsNullOrWhiteSpace(username)) return Unauthorized();
-                var response = await _classService.GetStudentClassesAsync(username, searchDto);
-                return StatusCode(response.StatusCode, response);
-            }
-
-            if (User.IsInRole("Teacher"))
-            {
-                if (string.IsNullOrWhiteSpace(username)) return Unauthorized();
-                var response = await _classService.GetTeacherClassesAsync(username, searchDto);
-                return StatusCode(response.StatusCode, response);
-            }
-
-            var allClassesResponse = await _classService.GetAllAsync(searchDto);
-            return StatusCode(allClassesResponse.StatusCode, allClassesResponse);
+            var response = await _classService.GetAccessibleClassesAsync(username, searchDto);
+            return StatusCode(response.StatusCode, response);
         }
 
         // GET: api/Common/question-categories

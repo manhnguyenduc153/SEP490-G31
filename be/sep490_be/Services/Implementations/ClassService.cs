@@ -153,7 +153,7 @@ namespace sep490_be.Services.Implementations
 
                         if (!isViewAll)
                         {
-                            if (permissions.Contains(Permissions.Class.Class_TeacherView))
+                            if (permissions.Contains(Permissions.TeachingClass.TeachingClassPage))
                             {
                                 var teacher = await _teacherRepository.FindAll()
                                     .FirstOrDefaultAsync(t => t.Email == user.Email || t.Email == username);
@@ -162,7 +162,7 @@ namespace sep490_be.Services.Implementations
                                     return ApiResponse<ClassDto>.Fail("ERR_FORBIDDEN", StatusCodes.Status403Forbidden);
                                 }
                             }
-                            else if (permissions.Contains(Permissions.Class.Class_StudentView))
+                            else if (permissions.Contains(Permissions.MyClass.MyClassPage))
                             {
                                 var student = await _studentRepository.FindAll()
                                     .FirstOrDefaultAsync(s => s.Email == user.Email || s.Email == username);
@@ -561,6 +561,38 @@ namespace sep490_be.Services.Implementations
                 var pagingResponse = dtos.ToPagingResponse(totalRecords, searchDto);
 
                 return ApiResponse<PagingResponse<ClassDto>>.Ok(pagingResponse, "GET_STUDENT_CLASSES_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<PagingResponse<ClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<PagingResponse<ClassDto>>> GetAccessibleClassesAsync(string username, ClassSearchDto searchDto)
+        {
+            try
+            {
+                var user = await _userManager.FindByNameAsync(username);
+                var email = user?.Email ?? username;
+
+                // 1. Check if Teacher
+                var teacher = await _teacherRepository.FindAll()
+                    .FirstOrDefaultAsync(t => t.Email == email || t.Code == username);
+                if (teacher != null)
+                {
+                    return await GetTeacherClassesAsync(username, searchDto);
+                }
+
+                // 2. Check if Student
+                var student = await _studentRepository.FindAll()
+                    .FirstOrDefaultAsync(s => s.Email == email || s.Code == username);
+                if (student != null)
+                {
+                    return await GetStudentClassesAsync(username, searchDto);
+                }
+
+                // 3. Fallback to Admin (All)
+                return await GetAllAsync(searchDto);
             }
             catch (Exception ex)
             {
