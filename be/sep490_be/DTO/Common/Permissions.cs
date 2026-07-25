@@ -245,10 +245,14 @@ namespace sep490_be.DTO.Common
             public const string StudentGrade_SaveGrade = "StudentGrade.SaveGrade";
         }
 
-        public static class StudentResult
+        public static class MyGrade
         {
-            public const string StudentResultPage = "StudentResult";
-            public const string StudentResult_View = "StudentResult.View";
+            public const string MyGradePage = "MyGrade";
+        }
+
+        public static class StudentProgress
+        {
+            public const string StudentProgressPage = "StudentProgress";
         }
 
         public static class HomeworkManagement
@@ -362,7 +366,8 @@ namespace sep490_be.DTO.Common
             { "LearningMaterial", "learning" },
             { "Attendance", "learning" },
             { "StudentHomework", "learning" },
-            { "StudentResult", "learning" },
+            { "MyGrade", "learning" },
+            { "StudentProgress", "learning" },
             { "MyClass", "learning" },
             { "TeachingClass", "learning" },
             
