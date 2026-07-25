@@ -23,6 +23,10 @@ jobs:
             cd ~/SEP490-G31
             git pull origin main
 
+            echo "===== Cleanup Docker before build ====="
+            docker builder prune -af || true
+            docker image prune -af || true
+
             echo "===== Build API ====="
             cd ~/deploy
             docker compose build api
@@ -30,10 +34,8 @@ jobs:
             echo "===== Restart API ====="
             docker compose up -d api
 
-            echo "===== Cleanup Docker cache ====="
-            docker builder prune -af
-
-            echo "===== Remove unused images ====="
-            docker image prune -af
+            echo "===== Cleanup Docker after deploy ====="
+            docker builder prune -af || true
+            docker image prune -af || true
 
             echo "===== Deploy completed ====="
