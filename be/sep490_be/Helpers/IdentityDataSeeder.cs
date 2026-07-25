@@ -167,8 +167,6 @@ namespace sep490_be.Helpers
                 Permissions.Exam.Exam_StudentView,
                 Permissions.ExamAttempt.ExamAttempt_View,
                 Permissions.ExamAttempt.ExamAttempt_Create,
-                Permissions.StudentProfile.StudentProfile_View,
-                Permissions.StudentProfile.StudentProfile_Edit,
             };
 
             var existingStudentClaims = await roleManager.GetClaimsAsync(studentRole!);
@@ -245,9 +243,6 @@ namespace sep490_be.Helpers
                 Permissions.QuestionCategory.QuestionCategory_Create,
                 Permissions.QuestionCategory.QuestionCategory_Edit,
                 Permissions.QuestionCategory.QuestionCategory_Delete,
-
-                Permissions.TeacherProfile.TeacherProfile_View,
-                Permissions.TeacherProfile.TeacherProfile_Edit,
             };
 
             var existingTeacherClaims = await roleManager.GetClaimsAsync(teacherRole!);

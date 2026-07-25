@@ -135,7 +135,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/ChildSchedules?studentId=5
         [HttpGet("ChildSchedules")]
-        [HasPermission(Permissions.ParentStudent.ParentStudent_View)]
+        [HasPermission(Permissions.ChildSchedule.ChildSchedulePage)]
         public async Task<IActionResult> GetChildSchedules([FromQuery] int studentId)
         {
             var username = User.Identity?.Name;

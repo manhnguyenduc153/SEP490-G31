@@ -52,6 +52,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("child-grades")]
+        [HasPermission(Permissions.ChildProgress.ChildProgressPage)]
         public async Task<IActionResult> GetChildGrades([FromQuery] int studentId)
         {
             var username = User.Identity?.Name ?? "";
