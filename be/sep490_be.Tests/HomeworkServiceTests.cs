@@ -263,17 +263,14 @@ namespace sep490_be.Tests.Services
 
         #region Boundary Test Cases (Kiểm thử giá trị biên)
 
-        [Theory]
-        [InlineData(false, 1)]
-        [InlineData(true, 3)]
-        public async Task SubmitHomeworkAsync_ShouldSetSubmissionStatusFromDueDate(bool isLate, int expectedStatus)
+        [Fact]
+        public async Task SubmitHomeworkAsync_BeforeDueDate_ShouldCreateSubmittedSubmission()
         {
             var options = CreateNewContextOptions();
             var mockHttp = GetMockHttpContextAccessor();
             using var context = new ApplicationDbContext(options, mockHttp.Object);
             var (classId, teacherId, studentId) = await SeedActorsAsync(context);
-            var dueDate = isLate ? DateTime.UtcNow.AddHours(-1) : DateTime.UtcNow.AddHours(1);
-            var homework = await SeedHomeworkAsync(context, classId, teacherId, dueDate);
+            var homework = await SeedHomeworkAsync(context, classId, teacherId, DateTime.UtcNow.AddHours(1));
 
             var response = await CreateService(context).SubmitHomeworkAsync(new HomeworkSubmissionSaveDto
             {
@@ -283,9 +280,32 @@ namespace sep490_be.Tests.Services
             });
 
             response.Success.Should().BeTrue();
-            response.Data!.Status.Should().Be(expectedStatus);
+            response.Data!.Status.Should().Be(1);
             (await context.HomeworkSubmissions.SingleAsync()).Content.Should().Be("My answer");
         }
+
+        [Fact]
+        public async Task SubmitHomeworkAsync_AfterDueDate_ShouldReturnSubmissionClosedAndNotPersist()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var (classId, teacherId, studentId) = await SeedActorsAsync(context);
+            var homework = await SeedHomeworkAsync(context, classId, teacherId, DateTime.UtcNow.AddHours(-1));
+
+            var response = await CreateService(context).SubmitHomeworkAsync(new HomeworkSubmissionSaveDto
+            {
+                HomeworkId = homework.Id,
+                StudentId = studentId,
+                Content = "My late answer"
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_SUBMISSION_CLOSED");
+            context.HomeworkSubmissions.Should().BeEmpty();
+        }
+
         [Fact]
         public async Task GradeSubmissionAsync_WhenScoreExceedsTotal_ShouldReturnBadRequestWithoutChangingSubmission()
         {
@@ -596,6 +616,29 @@ namespace sep490_be.Tests.Services
 
             response.Success.Should().BeFalse();
             response.Message.Should().Be("ERR_HOMEWORK_TITLE_REQUIRED");
+        }
+
+        [Fact]
+        public async Task CreateHomeworkAsync_WhenDueDateIsInThePast_ShouldReturnBadRequestAndNotPersist()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (classId, teacherId, _) = await SeedActorsAsync(context);
+
+            var response = await CreateService(context).CreateHomeworkAsync(new HomeworkSaveDto
+            {
+                ClassId = classId,
+                TeacherId = teacherId,
+                Title = "Expired homework",
+                DueDate = DateTime.UtcNow.AddMinutes(-1),
+                TotalScore = 10,
+                Status = 1
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_DUE_DATE_INVALID");
+            context.Homeworks.Should().BeEmpty();
         }
 
         [Fact]

@@ -412,6 +412,87 @@ namespace sep490_be.Tests.Services
         }
 
         [Fact]
+        public async Task SaveCourseComponentsAsync_WhenTotalWeightIsNot100_ShouldReturnBadRequestAndNotUpdate()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var course = new Course { Code = "C_WEIGHT", Name = "Weight Validation", Status = (int)GeneralStatus.Active };
+            context.Courses.Add(course);
+            await context.SaveChangesAsync();
+
+            var existing = new List<GradeComponent>
+            {
+                new() { CourseId = course.Id, Code = "MID", Name = "Midterm", Weight = 40, SortOrder = 1 },
+                new() { CourseId = course.Id, Code = "FIN", Name = "Final", Weight = 60, SortOrder = 2 }
+            };
+            context.GradeComponents.AddRange(existing);
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).SaveCourseComponentsAsync(course.Id, new ClassGradeComponentsSaveDto
+            {
+                Components = new List<GradeComponentSaveDto>
+                {
+                    new() { Id = existing[0].Id, Code = "MID", Name = "Changed Midterm", Weight = 40, SortOrder = 2 },
+                    new() { Id = existing[1].Id, Code = "FIN", Name = "Changed Final", Weight = 40, SortOrder = 1 }
+                }
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_TOTAL_WEIGHT_MUST_BE_100");
+
+            var persisted = await context.GradeComponents
+                .AsNoTracking()
+                .Where(x => x.CourseId == course.Id)
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync();
+            persisted.Select(x => x.Name).Should().Equal("Midterm", "Final");
+            persisted.Select(x => x.Weight).Should().Equal(40, 60);
+            persisted.Select(x => x.SortOrder).Should().Equal(1, 2);
+        }
+
+        [Fact]
+        public async Task SaveCourseComponentsAsync_WithDuplicateCodes_ShouldReturnBadRequestAndNotUpdate()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var course = new Course { Code = "C_DUP", Name = "Duplicate Code", Status = (int)GeneralStatus.Active };
+            context.Courses.Add(course);
+            await context.SaveChangesAsync();
+
+            var existing = new List<GradeComponent>
+            {
+                new() { CourseId = course.Id, Code = "MID", Name = "Midterm", Weight = 40, SortOrder = 1 },
+                new() { CourseId = course.Id, Code = "FIN", Name = "Final", Weight = 60, SortOrder = 2 }
+            };
+            context.GradeComponents.AddRange(existing);
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).SaveCourseComponentsAsync(course.Id, new ClassGradeComponentsSaveDto
+            {
+                Components = new List<GradeComponentSaveDto>
+                {
+                    new() { Id = existing[0].Id, Code = "MID", Name = "Changed Midterm", Weight = 40, SortOrder = 2 },
+                    new() { Id = existing[1].Id, Code = "mid", Name = "Changed Final", Weight = 60, SortOrder = 1 }
+                }
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_COMPONENT_CODE_DUPLICATE");
+
+            var persisted = await context.GradeComponents
+                .AsNoTracking()
+                .Where(x => x.CourseId == course.Id)
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync();
+            persisted.Select(x => x.Code).Should().Equal("MID", "FIN");
+            persisted.Select(x => x.Name).Should().Equal("Midterm", "Final");
+            persisted.Select(x => x.Weight).Should().Equal(40, 60);
+            persisted.Select(x => x.SortOrder).Should().Equal(1, 2);
+        }
+
+        [Fact]
         public async Task SaveCourseComponentsAsync_ShouldKeepOmittedSystemComponents()
         {
             var options = CreateNewContextOptions();
