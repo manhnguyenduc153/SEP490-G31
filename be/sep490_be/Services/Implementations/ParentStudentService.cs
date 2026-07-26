@@ -23,7 +23,7 @@ namespace sep490_be.Services.Implementations
         private readonly ApplicationDbContext _dbContext;
 
         private const string DefaultParentRole = "Parent";
-        private const string DefaultParentPassword = "Parent@123456";
+        private const string DefaultParentPassword = "123456";
 
         public ParentStudentService(
             IParentStudentRepository repository,
