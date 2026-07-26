@@ -95,8 +95,45 @@ namespace sep490_be.Helpers
                 studentRole = await roleManager.FindByNameAsync(studentRoleName);
             }
 
+            var existingStudentClaims = await roleManager.GetClaimsAsync(studentRole!);
+            if (!existingStudentClaims.Any(c =>
+                    c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase)
+                    && c.Value == Permissions.MyGrade.MyGradePage))
+            {
+                await roleManager.AddClaimAsync(
+                    studentRole!,
+                    new Claim("Permission", Permissions.MyGrade.MyGradePage));
+            }
+
 
             // 4.5. Tạo vai trò Teacher nếu chưa tồn tại và cấp permissions cần thiết
+            // Parent grade access uses its own child-progress permission. The
+            // service additionally limits access to linked children.
+            const string parentRoleName = "Parent";
+            var parentRole = await roleManager.FindByNameAsync(parentRoleName);
+            if (parentRole == null)
+            {
+                parentRole = new IdentityRole(parentRoleName);
+                await roleManager.CreateAsync(parentRole);
+                parentRole = await roleManager.FindByNameAsync(parentRoleName);
+            }
+
+            var existingParentClaims = await roleManager.GetClaimsAsync(parentRole!);
+            var parentPermissions = new[]
+            {
+                Permissions.ParentStudent.ParentStudent_View,
+                Permissions.ChildProgress.ChildProgressPage
+            };
+            foreach (var permission in parentPermissions)
+            {
+                if (!existingParentClaims.Any(c =>
+                        c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase)
+                        && c.Value == permission))
+                {
+                    await roleManager.AddClaimAsync(parentRole!, new Claim("Permission", permission));
+                }
+            }
+
             const string teacherRoleName = "Teacher";
             var teacherRole = await roleManager.FindByNameAsync(teacherRoleName);
             if (teacherRole == null)

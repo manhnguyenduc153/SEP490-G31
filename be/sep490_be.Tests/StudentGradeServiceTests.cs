@@ -192,7 +192,7 @@ namespace sep490_be.Tests.Services
         #region Boundary Test Cases (Kiểm thử giá trị biên)
 
         [Fact]
-        public async Task SaveOverridesAsync_ShouldClampScoresAndIgnoreInvalidTargets()
+        public async Task SaveOverridesAsync_WithOutOfRangeScores_ShouldReturnBadRequest()
         {
             var options = CreateNewContextOptions();
             var mockHttp = GetMockHttpContextAccessor();
@@ -209,15 +209,37 @@ namespace sep490_be.Tests.Services
                 Overrides = new List<StudentGradeOverrideSaveDto>
                 {
                     new() { StudentClassId = studentClassId, GradeComponentId = attendanceId, Score = 12 },
-                    new() { StudentClassId = studentClassId, GradeComponentId = examId, Score = -2 },
-                    new() { StudentClassId = 9999, GradeComponentId = attendanceId, Score = 8 }
+                    new() { StudentClassId = studentClassId, GradeComponentId = examId, Score = -2 }
                 }
             });
 
-            response.Success.Should().BeTrue();
-            response.Data.Should().HaveCount(2);
-            response.Data!.First(x => x.GradeComponentId == attendanceId).Score.Should().Be(10);
-            response.Data.First(x => x.GradeComponentId == examId).Score.Should().Be(0);
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_GRADE_SCORE_RANGE");
+            (await context.StudentGradeOverrides.CountAsync()).Should().Be(0);
+        }
+
+        [Fact]
+        public async Task SaveOverridesAsync_WithStudentOutsideClass_ShouldReturnNotFound()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (_, classId, _) = await SeedClassAsync(context);
+            var service = CreateService(context);
+            var settings = await service.GetSettingsAsync(classId);
+            var componentId = settings.Data!.Components.First().Id;
+
+            var response = await service.SaveOverridesAsync(classId, new StudentGradeOverridesSaveDto
+            {
+                Overrides = new List<StudentGradeOverrideSaveDto>
+                {
+                    new() { StudentClassId = 9999, GradeComponentId = componentId, Score = 8 }
+                }
+            });
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("ERR_STUDENT_CLASS_NOT_FOUND");
         }
         [Fact]
         public async Task SaveOverridesAsync_WithNullScore_ShouldRemoveExistingOverride()
@@ -371,7 +393,7 @@ namespace sep490_be.Tests.Services
         }
 
         [Fact]
-        public async Task SaveCourseComponentsAsync_WithNegativeWeightAndBlankCode_ShouldClampAndGenerateCode()
+        public async Task SaveCourseComponentsAsync_WithNegativeWeight_ShouldReturnBadRequest()
         {
             var options = CreateNewContextOptions();
             using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
@@ -384,16 +406,13 @@ namespace sep490_be.Tests.Services
                 Components = new List<GradeComponentSaveDto> { new() { Name = "  Quiz  ", Code = " ", Weight = -5, SortOrder = 0 } }
             });
 
-            response.Success.Should().BeTrue();
-            response.Data.Should().ContainSingle();
-            response.Data![0].Name.Should().Be("Quiz");
-            response.Data[0].Weight.Should().Be(0);
-            response.Data[0].SortOrder.Should().Be(1);
-            response.Data[0].Code.Should().StartWith("custom_");
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_GRADE_COMPONENT_WEIGHT_RANGE");
         }
 
         [Fact]
-        public async Task SaveCourseComponentsAsync_ShouldUpdateKeptComponentAndRemoveOmittedComponent()
+        public async Task SaveCourseComponentsAsync_ShouldKeepOmittedSystemComponents()
         {
             var options = CreateNewContextOptions();
             using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
@@ -408,19 +427,18 @@ namespace sep490_be.Tests.Services
             {
                 Components = new List<GradeComponentSaveDto>
                 {
-                    new() { Id = kept.Id, Code = kept.Code, Name = "Updated attendance", Weight = 100, SortOrder = 1, IsSystem = true }
+                    new() { Id = kept.Id, Code = kept.Code, Name = "Updated attendance", Weight = kept.Weight, SortOrder = 1, IsSystem = true }
                 }
             });
 
             response.Success.Should().BeTrue();
-            response.Data.Should().ContainSingle();
-            response.Data![0].Id.Should().Be(kept.Id);
-            response.Data[0].Name.Should().Be("Updated attendance");
-            (await context.GradeComponents.CountAsync(x => x.CourseId == course.Id)).Should().Be(1);
+            response.Data.Should().HaveCount(3);
+            response.Data!.First(x => x.Id == kept.Id).Name.Should().Be("Updated attendance");
+            (await context.GradeComponents.CountAsync(x => x.CourseId == course.Id)).Should().Be(3);
         }
 
         [Fact]
-        public async Task SaveOverridesAsync_WhenClassDoesNotExist_ShouldReturnCourseError()
+        public async Task SaveOverridesAsync_WhenClassDoesNotExist_ShouldReturnNotFound()
         {
             var options = CreateNewContextOptions();
             using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
@@ -428,8 +446,8 @@ namespace sep490_be.Tests.Services
             var response = await CreateService(context).SaveOverridesAsync(9999, new StudentGradeOverridesSaveDto());
 
             response.Success.Should().BeFalse();
-            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-            response.Message.Should().Be("ERR_CLASS_COURSE_NOT_FOUND");
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("ERR_CLASS_NOT_FOUND");
         }
 
         [Fact]
