@@ -268,6 +268,10 @@ namespace sep490_be.Services.Implementations
             {
                 return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_CLOSED", StatusCodes.Status400BadRequest);
             }
+            if (homework.DueDate.HasValue && homework.DueDate.Value <= DateTime.UtcNow)
+            {
+                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_SUBMISSION_CLOSED", StatusCodes.Status400BadRequest);
+            }
 
             var studentExists = await _dbContext.Students
                 .AsNoTracking()
@@ -295,15 +299,13 @@ namespace sep490_be.Services.Implementations
             var existing = await _homeworkSubmissionRepository
                 .FindByCondition(s => s.HomeworkId == dto.HomeworkId && s.StudentId == dto.StudentId.Value && !s.IsDeleted, true)
                 .FirstOrDefaultAsync();
-            
-            bool isLate = homework.DueDate.HasValue && DateTime.UtcNow > homework.DueDate.Value;
 
             if (existing != null)
             {
                 existing.Content = dto.Content;
                 existing.AttachmentUrls = dto.AttachmentUrls;
                 existing.SubmitTime = DateTime.UtcNow;
-                existing.Status = isLate ? 3 : 1; // 1: Submitted, 3: Late
+                existing.Status = 1; // Submitted
                 existing.Score = null;
                 existing.TeacherFeedback = null;
                 
@@ -318,7 +320,7 @@ namespace sep490_be.Services.Implementations
                     Content = dto.Content,
                     AttachmentUrls = dto.AttachmentUrls,
                     SubmitTime = DateTime.UtcNow,
-                    Status = isLate ? 3 : 1
+                    Status = 1
                 };
                 await _homeworkSubmissionRepository.AddAsync(existing);
             }
@@ -401,6 +403,8 @@ namespace sep490_be.Services.Implementations
                 return ("ERR_HOMEWORK_TITLE_REQUIRED", StatusCodes.Status400BadRequest);
             if (dto.Title.Trim().Length > 500)
                 return ("ERR_HOMEWORK_TITLE_MAX_LENGTH", StatusCodes.Status400BadRequest);
+            if (dto.DueDate.HasValue && dto.DueDate.Value <= DateTime.UtcNow)
+                return ("ERR_DUE_DATE_INVALID", StatusCodes.Status400BadRequest);
             if (dto.TotalScore < 0 || dto.TotalScore > 1000)
                 return ("ERR_HOMEWORK_TOTAL_SCORE_INVALID", StatusCodes.Status400BadRequest);
             if (dto.Status is not 0 and not 1)
