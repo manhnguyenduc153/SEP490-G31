@@ -85,84 +85,128 @@ namespace sep490_be.Helpers
                 }
             }
 
-            // 4. Tạo vai trò Student nếu chưa tồn tại và cấp permissions cần thiết
-            const string studentRoleName = "Student";
-            var studentRole = await roleManager.FindByNameAsync(studentRoleName);
-            if (studentRole == null)
+            // 4. Cấp permissions cho vai trò Student
+            var studentPermissions = new[]
             {
-                studentRole = new IdentityRole(studentRoleName);
-                await roleManager.CreateAsync(studentRole);
-                studentRole = await roleManager.FindByNameAsync(studentRoleName);
-            }
+                Permissions.MyClass.MyClassPage,
+                Permissions.StudentExam.StudentExamPage,
+                Permissions.MyGrade.MyGradePage,
+                Permissions.StudentHomework.StudentHomeworkPage,
+                Permissions.StudentHomework.StudentHomework_View,
+                Permissions.StudentHomework.StudentHomework_Submit,
+                Permissions.StudentProgress.StudentProgressPage,
+                Permissions.Attendance.Attendance_View,
+                Permissions.LearningMaterial.LearningMaterial_View
+            };
+            await EnsureRolePermissionsAsync(roleManager, "Student", studentPermissions);
 
-            var existingStudentClaims = await roleManager.GetClaimsAsync(studentRole!);
-            if (!existingStudentClaims.Any(c =>
-                    c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase)
-                    && c.Value == Permissions.MyGrade.MyGradePage))
-            {
-                await roleManager.AddClaimAsync(
-                    studentRole!,
-                    new Claim("Permission", Permissions.MyGrade.MyGradePage));
-            }
-
-
-            // 4.5. Tạo vai trò Teacher nếu chưa tồn tại và cấp permissions cần thiết
-            // Parent grade access uses its own child-progress permission. The
-            // service additionally limits access to linked children.
-            const string parentRoleName = "Parent";
-            var parentRole = await roleManager.FindByNameAsync(parentRoleName);
-            if (parentRole == null)
-            {
-                parentRole = new IdentityRole(parentRoleName);
-                await roleManager.CreateAsync(parentRole);
-                parentRole = await roleManager.FindByNameAsync(parentRoleName);
-            }
-
-            var existingParentClaims = await roleManager.GetClaimsAsync(parentRole!);
+            // 4.5. Cấp permissions cho vai trò Parent
             var parentPermissions = new[]
             {
                 Permissions.ParentStudent.ParentStudent_View,
-                Permissions.ChildProgress.ChildProgressPage
+                Permissions.ChildProgress.ChildProgressPage,
+                Permissions.ChildSchedule.ChildSchedulePage
             };
-            foreach (var permission in parentPermissions)
+            await EnsureRolePermissionsAsync(roleManager, "Parent", parentPermissions);
+
+            // 4.6. Cấp permissions cho vai trò Teacher
+            var teacherPermissions = new[]
             {
-                if (!existingParentClaims.Any(c =>
-                        c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase)
-                        && c.Value == permission))
+                Permissions.TeachingClass.TeachingClassPage,
+                Permissions.TeachingSchedule.TeachingSchedulePage,
+                Permissions.TeachingExam.TeachingExamPage,
+                Permissions.Course.Course_View,
+                Permissions.Class.Class_View,
+                Permissions.Question.QuestionPage,
+                Permissions.Question.Question_View,
+                Permissions.Question.Question_Create,
+                Permissions.Question.Question_Edit,
+                Permissions.Question.Question_Delete,
+                Permissions.QuestionCategory.QuestionCategoryPage,
+                Permissions.QuestionCategory.QuestionCategory_View,
+                Permissions.QuestionCategory.QuestionCategory_Create,
+                Permissions.QuestionCategory.QuestionCategory_Edit,
+                Permissions.QuestionCategory.QuestionCategory_Delete,
+                Permissions.Attendance.AttendancePage,
+                Permissions.Attendance.Attendance_View,
+                Permissions.Attendance.Attendance_Create,
+                Permissions.Attendance.Attendance_Edit,
+                Permissions.Attendance.Attendance_SaveAttendance,
+                Permissions.LearningMaterial.LearningMaterialPage,
+                Permissions.LearningMaterial.LearningMaterial_View,
+                Permissions.LearningMaterial.LearningMaterial_Create,
+                Permissions.LearningMaterial.LearningMaterial_Edit,
+                Permissions.LearningMaterial.LearningMaterial_Delete,
+                Permissions.HomeworkManagement.HomeworkManagementPage,
+                Permissions.HomeworkManagement.HomeworkManagement_View,
+                Permissions.HomeworkManagement.HomeworkManagement_Create,
+                Permissions.HomeworkManagement.HomeworkManagement_Edit,
+                Permissions.HomeworkManagement.HomeworkManagement_Delete,
+                Permissions.StudentGrade.StudentGradePage,
+                Permissions.StudentGrade.StudentGrade_ViewSettings,
+                Permissions.StudentGrade.StudentGrade_SaveGrade
+            };
+            await EnsureRolePermissionsAsync(roleManager, "Teacher", teacherPermissions);
+
+            // 4.7. Cấp permissions cho Operation staff
+            var opStaffPermissions = new[]
+            {
+                Permissions.Course.CoursePage, Permissions.Course.Course_View, Permissions.Course.Course_Create, Permissions.Course.Course_Edit, Permissions.Course.Course_Delete,
+                Permissions.Class.ClassPage, Permissions.Class.Class_View, Permissions.Class.Class_Create, Permissions.Class.Class_Edit, Permissions.Class.Class_Delete, Permissions.Class.Class_Import,
+                Permissions.Student.StudentPage, Permissions.Student.Student_View, Permissions.Student.Student_Create, Permissions.Student.Student_Edit, Permissions.Student.Student_Delete,
+                Permissions.Teacher.TeacherPage, Permissions.Teacher.Teacher_View, Permissions.Teacher.Teacher_Create, Permissions.Teacher.Teacher_Edit, Permissions.Teacher.Teacher_Delete,
+                Permissions.Room.RoomPage, Permissions.Room.Room_View, Permissions.Room.Room_Create, Permissions.Room.Room_Edit, Permissions.Room.Room_Delete,
+                Permissions.StudentClass.StudentClassPage, Permissions.StudentClass.StudentClass_View, Permissions.StudentClass.StudentClass_Create, Permissions.StudentClass.StudentClass_Edit, Permissions.StudentClass.StudentClass_Delete,
+                Permissions.Schedule.SchedulePage, Permissions.Timetable.TimetablePage,
+                Permissions.Semester.SemesterPage, Permissions.Semester.Semester_View, Permissions.Semester.Semester_Create, Permissions.Semester.Semester_Edit, Permissions.Semester.Semester_Delete, Permissions.Semester.Semester_Scheduling,
+                Permissions.StudentRegistration.StudentRegistrationPage, Permissions.StudentRegistration.StudentRegistration_View, Permissions.StudentRegistration.StudentRegistration_Create, Permissions.StudentRegistration.StudentRegistration_Edit, Permissions.StudentRegistration.StudentRegistration_Delete, Permissions.StudentRegistration.StudentRegistration_Import,
+                Permissions.Exam.ExamPage, Permissions.Exam.Exam_View, Permissions.Exam.Exam_Create, Permissions.Exam.Exam_Edit, Permissions.Exam.Exam_Delete,
+                Permissions.Question.QuestionPage, Permissions.Question.Question_View, Permissions.Question.Question_Create, Permissions.Question.Question_Edit, Permissions.Question.Question_Delete,
+                Permissions.QuestionCategory.QuestionCategoryPage, Permissions.QuestionCategory.QuestionCategory_View, Permissions.QuestionCategory.QuestionCategory_Create, Permissions.QuestionCategory.QuestionCategory_Edit, Permissions.QuestionCategory.QuestionCategory_Delete,
+                Permissions.StudentGrade.StudentGradePage, Permissions.StudentGrade.StudentGrade_ViewSettings, Permissions.StudentGrade.StudentGrade_SaveGrade
+            };
+            await EnsureRolePermissionsAsync(roleManager, "Operation staff", opStaffPermissions);
+
+            // 4.8. Cấp permissions cho Academic staff
+            await EnsureRolePermissionsAsync(roleManager, "Academic staff", opStaffPermissions);
+
+            // 4.9. Cấp permissions cho Center manager
+            await EnsureRolePermissionsAsync(roleManager, "Center manager", allPermissions);
+        }
+
+        private static async Task EnsureRolePermissionsAsync(RoleManager<IdentityRole> roleManager, string roleName, IEnumerable<string> permissions)
+        {
+            var role = await roleManager.FindByNameAsync(roleName);
+            if (role == null)
+            {
+                role = new IdentityRole(roleName);
+                await roleManager.CreateAsync(role);
+                role = await roleManager.FindByNameAsync(roleName);
+            }
+            if (role == null) return;
+
+            var existingClaims = await roleManager.GetClaimsAsync(role);
+            var targetSet = permissions.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Remove permissions no longer in target set for this role
+            foreach (var claim in existingClaims.Where(c => c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (!targetSet.Contains(claim.Value))
                 {
-                    await roleManager.AddClaimAsync(parentRole!, new Claim("Permission", permission));
+                    await roleManager.RemoveClaimAsync(role, claim);
                 }
             }
 
-            const string teacherRoleName = "Teacher";
-            var teacherRole = await roleManager.FindByNameAsync(teacherRoleName);
-            if (teacherRole == null)
-            {
-                teacherRole = new IdentityRole(teacherRoleName);
-                await roleManager.CreateAsync(teacherRole);
-                teacherRole = await roleManager.FindByNameAsync(teacherRoleName);
-            }
+            var existingPermissionValues = existingClaims
+                .Where(c => c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase))
+                .Select(c => c.Value)
+                .ToHashSet();
 
-
-            // 5. Seed các vai trò bổ sung yêu cầu (Học sinh, Giáo viên, Ban vận hành, Ban chuyên môn, Quản lý trung tâm, Phụ huynh)
-            // 5. Seed các vai trò bổ sung yêu cầu (Student, Teacher, Parent, Operation staff, Academic staff, Center manager)
-            var newRolesToSeed = new List<string>
+            foreach (var permission in permissions)
             {
-                "Student",
-                "Teacher",
-                "Parent",
-                "Operation staff",
-                "Academic staff",
-                "Center manager"
-            };
-
-            foreach (var roleName in newRolesToSeed)
-            {
-                var role = await roleManager.FindByNameAsync(roleName);
-                if (role == null)
+                if (!existingPermissionValues.Contains(permission))
                 {
-                    role = new IdentityRole(roleName);
-                    await roleManager.CreateAsync(role);
+                    await roleManager.AddClaimAsync(role, new Claim("Permission", permission));
                 }
             }
         }

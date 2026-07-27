@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using sep490_be.DTO;
 using sep490_be.DTO.Exam;
@@ -8,6 +8,7 @@ namespace sep490_be.Services.Interfaces
     public interface IExamService
     {
         Task<ApiResponse<PagingResponse<ExamDto>>> GetAllAsync(ExamSearchDto searchDto);
+        Task<ApiResponse<PagingResponse<ExamDto>>> GetTeacherExamsAsync(ExamSearchDto searchDto, string teacherEmailOrCode);
         Task<ApiResponse<ExamDto>> GetByIdAsync(int id);
         Task<ApiResponse<ExamDto>> CreateAsync(ExamSaveDto dto);
         Task<ApiResponse<ExamDto>> EditAsync(ExamSaveDto dto);

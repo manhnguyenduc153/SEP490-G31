@@ -24,7 +24,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Exam
         [HttpGet]
-        [HasPermission(Permissions.Exam.Exam_View)]
+        [HasPermission("Exam.View,TeachingExam")]
         public async Task<IActionResult> GetAll([FromQuery] ExamSearchDto searchDto)
         {
             var response = await _service.GetAllAsync(searchDto);
@@ -33,7 +33,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Exam/5
         [HttpGet("{id}")]
-        [HasPermission(Permissions.Exam.Exam_View)]
+        [HasPermission("Exam.View,TeachingExam")]
         public async Task<IActionResult> GetById(int id)
         {
             var response = await _service.GetByIdAsync(id);
@@ -79,16 +79,16 @@ namespace sep490_be.Controllers
 
         // GET: api/Exam/5/all-attempts
         [HttpGet("{id}/all-attempts")]
-        [HasPermission(Permissions.Exam.Exam_View)]
+        [HasPermission("Exam.View,TeachingExam")]
         public async Task<IActionResult> GetAttemptsByExam(int id)
         {
             var response = await _service.GetAttemptsByExamAsync(id);
             return StatusCode(response.StatusCode, response);
         }
 
-        // GET: api/Exam/{id}/student-detail - for students to read exam without Exam_View permission
+        // GET: api/Exam/{id}/student-detail - for students to read exam with StudentExam permission
         [HttpGet("{id}/student-detail")]
-        [HasPermission(Permissions.Exam.Exam_StudentView)]
+        [HasPermission(Permissions.StudentExam.StudentExamPage)]
         public async Task<IActionResult> GetStudentExamDetail(int id)
         {
             var response = await _service.GetByIdAsync(id);
@@ -97,7 +97,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Exam/student
         [HttpGet("student")]
-        [HasPermission(Permissions.Exam.Exam_StudentView)]
+        [HasPermission(Permissions.StudentExam.StudentExamPage)]
         public async Task<IActionResult> GetStudentExams()
         {
             var userEmailOrCode = GetCurrentUserEmailOrCode();
@@ -111,7 +111,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Exam/5/attempts
         [HttpGet("{id}/attempts")]
-        [HasPermission(Permissions.Exam.Exam_StudentView)]
+        [HasPermission(Permissions.StudentExam.StudentExamPage)]
         public async Task<IActionResult> GetStudentAttempts(int id)
         {
             var userEmailOrCode = GetCurrentUserEmailOrCode();
@@ -125,7 +125,7 @@ namespace sep490_be.Controllers
 
         // POST: api/Exam/5/start
         [HttpPost("{id}/start")]
-        [HasPermission(Permissions.Exam.Exam_StudentView)]
+        [HasPermission(Permissions.StudentExam.StudentExamPage)]
         public async Task<IActionResult> StartAttempt(int id)
         {
             var userEmailOrCode = GetCurrentUserEmailOrCode();
@@ -139,7 +139,7 @@ namespace sep490_be.Controllers
 
         // POST: api/Exam/5/submit
         [HttpPost("{id}/submit")]
-        [HasPermission(Permissions.Exam.Exam_StudentView)]
+        [HasPermission(Permissions.StudentExam.StudentExamPage)]
         public async Task<IActionResult> SubmitAttempt(int id, [FromBody] ExamSubmitDto submitDto)
         {
             var userEmailOrCode = GetCurrentUserEmailOrCode();
@@ -148,6 +148,20 @@ namespace sep490_be.Controllers
                 return BadRequest(ApiResponse<ExamAttemptDto>.Fail("Không xác định được người dùng."));
             }
             var response = await _service.SubmitAttemptAsync(id, submitDto, userEmailOrCode);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Exam/teacher - for teachers to view exams in their classes
+        [HttpGet("teacher")]
+        [HasPermission(Permissions.TeachingExam.TeachingExamPage)]
+        public async Task<IActionResult> GetTeacherExams([FromQuery] ExamSearchDto searchDto)
+        {
+            var userEmailOrCode = GetCurrentUserEmailOrCode();
+            if (string.IsNullOrEmpty(userEmailOrCode))
+            {
+                return BadRequest(ApiResponse<PagingResponse<ExamDto>>.Fail("Không xác định được người dùng."));
+            }
+            var response = await _service.GetTeacherExamsAsync(searchDto, userEmailOrCode);
             return StatusCode(response.StatusCode, response);
         }
 

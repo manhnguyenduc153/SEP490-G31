@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 
 using System.Security.Claims;
 
@@ -26,9 +26,13 @@ namespace sep490_be.Helpers.Authorization
             }
 
             // Kiểm tra xem context.User có chứa Claim loại "Permission" và giá trị khớp với yêu cầu hay không
-            var hasPermission = context.User.Claims.Any(c => 
-                c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) && 
-                c.Value.Equals(requirement.Permission, StringComparison.OrdinalIgnoreCase));
+            var requiredPerms = requirement.Permission.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var userPerms = context.User.Claims
+                .Where(c => c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase))
+                .Select(c => c.Value)
+                .ToList();
+
+            var hasPermission = requiredPerms.Any(rp => userPerms.Any(up => up.Equals(rp, StringComparison.OrdinalIgnoreCase)));
 
             if (hasPermission)
             {

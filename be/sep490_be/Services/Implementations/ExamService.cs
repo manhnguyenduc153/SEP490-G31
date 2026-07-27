@@ -104,6 +104,113 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<PagingResponse<ExamDto>>> GetTeacherExamsAsync(ExamSearchDto searchDto, string teacherEmailOrCode)
+        {
+            try
+            {
+                // Find teacher by email or code
+                Teacher? teacher = null;
+                if (!string.IsNullOrWhiteSpace(teacherEmailOrCode))
+                {
+                    teacher = await _dbContext.Teachers
+                        .FirstOrDefaultAsync(t => (t.Email == teacherEmailOrCode || t.Code == teacherEmailOrCode) && !t.IsDeleted);
+
+                    if (teacher == null)
+                    {
+                        // Try via Identity user
+                        var user = await _dbContext.Users.FirstOrDefaultAsync(u =>
+                            u.UserName == teacherEmailOrCode || u.Email == teacherEmailOrCode || u.Id == teacherEmailOrCode);
+                        if (user != null)
+                        {
+                            teacher = await _dbContext.Teachers
+                                .FirstOrDefaultAsync(t => (t.Email == user.Email || t.Email == user.UserName || t.Code == user.UserName) && !t.IsDeleted);
+                        }
+                    }
+                }
+
+                if (teacher == null)
+                {
+                    return ApiResponse<PagingResponse<ExamDto>>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                // Get class IDs for this teacher
+                var classIds = await _dbContext.Classes
+                    .Where(c => c.TeacherId == teacher.Id && !c.IsDeleted)
+                    .Select(c => c.Id)
+                    .ToListAsync();
+
+                var query = _dbContext.Exams
+                    .Include(e => e.Class)
+                    .Include(e => e.ExamQuestions)
+                    .Include(e => e.ExamAttempts)
+                    .Where(e => !e.IsDeleted && e.ClassId.HasValue && classIds.Contains(e.ClassId.Value))
+                    .AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
+                {
+                    query = query.Where(e => e.Title.Contains(searchDto.Keyword)
+                                             || (e.Code != null && e.Code.Contains(searchDto.Keyword)));
+                }
+
+                if (searchDto.ClassId.HasValue)
+                {
+                    query = query.Where(e => e.ClassId == searchDto.ClassId.Value);
+                }
+
+                if (searchDto.Status.HasValue)
+                {
+                    query = query.Where(e => e.Status == searchDto.Status.Value);
+                }
+
+                var totalCount = await query.CountAsync();
+
+                var items = await query
+                    .OrderByDescending(e => e.Id)
+                    .Skip((searchDto.PageNumber - 1) * searchDto.PageSize)
+                    .Take(searchDto.PageSize)
+                    .Select(e => new ExamDto
+                    {
+                        Id = e.Id,
+                        Code = e.Code,
+                        Name = e.Name,
+                        Title = e.Title,
+                        Description = e.Description,
+                        ClassId = e.ClassId,
+                        ClassName = e.Class != null ? e.Class.Name : null,
+                        ScheduleId = e.ScheduleId,
+                        Type = e.Type,
+                        StartTime = e.StartTime,
+                        EndTime = e.EndTime,
+                        Duration = e.Duration,
+                        TotalScore = e.TotalScore,
+                        PassingScore = e.PassingScore,
+                        MaxAttempts = e.MaxAttempts,
+                        AllowLateSubmit = e.AllowLateSubmit,
+                        ShuffleQuestion = e.ShuffleQuestion,
+                        ShowAnswerAfter = e.ShowAnswerAfter,
+                        Status = e.Status,
+                        CreatedAt = e.CreatedAt,
+                        QuestionCount = e.ExamQuestions.Count,
+                        SubmissionCount = e.ExamAttempts.Count
+                    })
+                    .ToListAsync();
+
+                var paging = new PagingResponse<ExamDto>
+                {
+                    Items = items,
+                    TotalRecords = totalCount,
+                    PageIndex = searchDto.PageNumber,
+                    PageSize = searchDto.PageSize
+                };
+
+                return ApiResponse<PagingResponse<ExamDto>>.Ok(paging, "GET_EXAM_LIST_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<PagingResponse<ExamDto>>.Fail("Error retrieving teacher exams: " + ex.Message);
+            }
+        }
+
         public async Task<ApiResponse<ExamDto>> GetByIdAsync(int id)
         {
             try
