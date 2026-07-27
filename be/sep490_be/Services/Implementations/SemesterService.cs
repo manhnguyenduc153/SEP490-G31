@@ -466,6 +466,7 @@ namespace sep490_be.Services.Implementations
                             // Overwrite or update
                             existing.PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>());
                             existing.Status = (int)StudentRegistrationStatus.Pending;
+                            existing.EnrollType = dto.EnrollType;
                             _dbContext.StudentRegistrations.Update(existing);
                             await _dbContext.SaveChangesAsync();
 
@@ -485,7 +486,8 @@ namespace sep490_be.Services.Implementations
                                 CourseId = dto.CourseId,
                                 SemesterId = dto.SemesterId,
                                 PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>()),
-                                Status = (int)StudentRegistrationStatus.Pending
+                                Status = (int)StudentRegistrationStatus.Pending,
+                                EnrollType = dto.EnrollType
                             };
 
                             _dbContext.StudentRegistrations.Add(reg);
@@ -580,7 +582,8 @@ namespace sep490_be.Services.Implementations
                     CourseId = dto.CourseId,
                     SemesterId = dto.SemesterId,
                     PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>()),
-                    Status = dto.Status
+                    Status = dto.Status,
+                    EnrollType = dto.EnrollType
                 };
 
                 _dbContext.StudentRegistrations.Add(reg);
@@ -622,6 +625,7 @@ namespace sep490_be.Services.Implementations
                 existing.SemesterId = dto.SemesterId;
                 existing.PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>());
                 existing.Status = dto.Status;
+                existing.EnrollType = dto.EnrollType;
 
                 _dbContext.StudentRegistrations.Update(existing);
                 await _dbContext.SaveChangesAsync();
@@ -707,7 +711,9 @@ namespace sep490_be.Services.Implementations
                 SemesterName = entity.Semester?.Name,
                 PreferredSlots = preferredSlots,
                 Status = entity.Status,
-                StatusName = ((StudentRegistrationStatus)entity.Status).GetStringValue()
+                StatusName = ((StudentRegistrationStatus)entity.Status).GetStringValue(),
+                EnrollType = entity.EnrollType,
+                EnrollTypeName = entity.EnrollType == 1 ? "Online" : "Offline"
             };
         }
 

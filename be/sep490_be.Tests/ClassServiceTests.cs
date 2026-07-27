@@ -201,7 +201,7 @@ namespace sep490_be.Tests.Services
                 ExpectedLessons = 2,
                 CourseId = 1,
                 TeacherId = 1,
-                StudentIds = new List<int> { 1 },
+                Students = new List<StudentEnrollDto> { new StudentEnrollDto { StudentId = 1 } },
                 WeeklySchedules = new List<WeeklyScheduleDto>
                 {
                     new WeeklyScheduleDto
@@ -287,7 +287,7 @@ namespace sep490_be.Tests.Services
                 ExpectedLessons = 3,
                 CourseId = 1,
                 TeacherId = 1,
-                StudentIds = new List<int> { 1 },
+                Students = new List<StudentEnrollDto> { new StudentEnrollDto { StudentId = 1 } },
                 WeeklySchedules = new List<WeeklyScheduleDto>
                 {
                     new WeeklyScheduleDto

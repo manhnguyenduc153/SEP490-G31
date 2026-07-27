@@ -1,4 +1,4 @@
-﻿using sep490_be.DTO;
+using sep490_be.DTO;
 
 namespace sep490_be.DTO.Class
 {
@@ -6,6 +6,7 @@ namespace sep490_be.DTO.Class
     {
         public int? CourseId { get; set; }
         public int? TeacherId { get; set; }
+        public int? Type { get; set; }
     }
 }
 
