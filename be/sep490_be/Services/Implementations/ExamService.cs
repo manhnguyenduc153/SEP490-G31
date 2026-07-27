@@ -622,6 +622,7 @@ namespace sep490_be.Services.Implementations
                                     }
                                 }
                             }
+                        }
                         if (exam.TotalScore.HasValue && attempt.Answers.Count > 0 && attempt.Answers.All(a => a.IsCorrect == true))
                         {
                             attempt.Score = exam.TotalScore.Value;
@@ -712,6 +713,7 @@ namespace sep490_be.Services.Implementations
                                     }
                                 }
                             }
+                        }
                         if (exam.TotalScore.HasValue && attempt.Answers.Count > 0 && attempt.Answers.All(a => a.IsCorrect == true))
                         {
                             attempt.Score = exam.TotalScore.Value;
