@@ -277,6 +277,191 @@ namespace sep490_be.Tests.Services
             }
         }
 
+        [Fact]
+        public async Task BulkSaveAsync_WhenUpdatingExisting_ShouldPreserveIdentityAndRefreshCheckInTime()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var schedule = new ClassSchedule { LessonNo = 1, ScheduleDate = DateTime.UtcNow.Date };
+            var student = new Student { Code = "ST-UPD", Name = "Update Student", Status = 1 };
+            context.AddRange(schedule, student);
+            await context.SaveChangesAsync();
+            var oldCheckIn = DateTime.UtcNow.AddDays(-1);
+            var attendance = new Attendance
+            {
+                ScheduleId = schedule.Id,
+                StudentId = student.Id,
+                Status = 0,
+                Description = "Old",
+                CheckInTime = oldCheckIn
+            };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+            var attendanceId = attendance.Id;
+            context.ChangeTracker.Clear();
+
+            var service = new AttendanceService(
+                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                context);
+            var response = await service.BulkSaveAsync(new AttendanceBulkSaveDto
+            {
+                ScheduleId = schedule.Id,
+                Attendances = new List<AttendanceStudentSaveDto>
+                {
+                    new() { StudentId = student.Id, Status = 2, Description = "Late" }
+                }
+            });
+
+            response.Success.Should().BeTrue();
+            var persisted = await context.Attendances.SingleAsync();
+            persisted.Id.Should().Be(attendanceId);
+            persisted.Status.Should().Be(2);
+            persisted.Description.Should().Be("Late");
+            persisted.CheckInTime.Should().BeAfter(oldCheckIn);
+        }
+
+        [Fact]
+        public async Task BulkSaveAsync_WhenAttendanceExistsForAnotherSchedule_ShouldCreateIndependentRecord()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var firstSchedule = new ClassSchedule { LessonNo = 1, ScheduleDate = DateTime.UtcNow.Date };
+            var secondSchedule = new ClassSchedule { LessonNo = 2, ScheduleDate = DateTime.UtcNow.Date.AddDays(1) };
+            var student = new Student { Code = "ST-SCOPE", Name = "Scoped Student", Status = 1 };
+            context.AddRange(firstSchedule, secondSchedule, student);
+            await context.SaveChangesAsync();
+            context.Attendances.Add(new Attendance
+            {
+                ScheduleId = firstSchedule.Id,
+                StudentId = student.Id,
+                Status = 1,
+                Description = "First lesson"
+            });
+            await context.SaveChangesAsync();
+
+            var service = new AttendanceService(
+                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                context);
+            var response = await service.BulkSaveAsync(new AttendanceBulkSaveDto
+            {
+                ScheduleId = secondSchedule.Id,
+                Attendances = new List<AttendanceStudentSaveDto>
+                {
+                    new() { StudentId = student.Id, Status = 0, Description = "Second lesson" }
+                }
+            });
+
+            response.Success.Should().BeTrue();
+            var records = await context.Attendances.OrderBy(x => x.ScheduleId).ToListAsync();
+            records.Should().HaveCount(2);
+            records.Single(x => x.ScheduleId == firstSchedule.Id).Description.Should().Be("First lesson");
+            records.Single(x => x.ScheduleId == secondSchedule.Id).Description.Should().Be("Second lesson");
+        }
+
+        [Fact]
+        public async Task BulkSaveAsync_WhenOnlySomeStudentsAreSubmitted_ShouldLeaveOthersUnchanged()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var schedule = new ClassSchedule { LessonNo = 1, ScheduleDate = DateTime.UtcNow.Date };
+            var first = new Student { Code = "ST-P1", Name = "First", Status = 1 };
+            var second = new Student { Code = "ST-P2", Name = "Second", Status = 1 };
+            context.AddRange(schedule, first, second);
+            await context.SaveChangesAsync();
+            context.Attendances.AddRange(
+                new Attendance { ScheduleId = schedule.Id, StudentId = first.Id, Status = 0, Description = "Change me" },
+                new Attendance { ScheduleId = schedule.Id, StudentId = second.Id, Status = 1, Description = "Keep me" });
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+
+            var service = new AttendanceService(
+                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                context);
+            var response = await service.BulkSaveAsync(new AttendanceBulkSaveDto
+            {
+                ScheduleId = schedule.Id,
+                Attendances = new List<AttendanceStudentSaveDto>
+                {
+                    new() { StudentId = first.Id, Status = 3, Description = "Excused" }
+                }
+            });
+
+            response.Success.Should().BeTrue();
+            var records = await context.Attendances.ToListAsync();
+            records.Single(x => x.StudentId == first.Id).Status.Should().Be(3);
+            records.Single(x => x.StudentId == second.Id).Description.Should().Be("Keep me");
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        public async Task BulkSaveAsync_WithSupportedAttendanceStatus_ShouldPersistStatus(int status)
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var schedule = new ClassSchedule { LessonNo = 1, ScheduleDate = DateTime.UtcNow.Date };
+            var student = new Student { Code = $"ST-{status}", Name = "Status Student", Status = 1 };
+            context.AddRange(schedule, student);
+            await context.SaveChangesAsync();
+
+            var service = new AttendanceService(
+                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                context);
+            var response = await service.BulkSaveAsync(new AttendanceBulkSaveDto
+            {
+                ScheduleId = schedule.Id,
+                Attendances = new List<AttendanceStudentSaveDto>
+                {
+                    new() { StudentId = student.Id, Status = status }
+                }
+            });
+
+            response.Success.Should().BeTrue();
+            (await context.Attendances.SingleAsync()).Status.Should().Be(status);
+        }
+
+        [Fact]
+        public async Task BulkSaveAsync_WithNullDescription_ShouldClearExistingDescription()
+        {
+            var options = CreateNewContextOptions();
+            var mockHttp = GetMockHttpContextAccessor();
+            using var context = new ApplicationDbContext(options, mockHttp.Object);
+            var schedule = new ClassSchedule { LessonNo = 1, ScheduleDate = DateTime.UtcNow.Date };
+            var student = new Student { Code = "ST-NULL", Name = "Null Description", Status = 1 };
+            context.AddRange(schedule, student);
+            await context.SaveChangesAsync();
+            context.Attendances.Add(new Attendance
+            {
+                ScheduleId = schedule.Id,
+                StudentId = student.Id,
+                Status = 1,
+                Description = "Remove this"
+            });
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+
+            var service = new AttendanceService(
+                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                context);
+            var response = await service.BulkSaveAsync(new AttendanceBulkSaveDto
+            {
+                ScheduleId = schedule.Id,
+                Attendances = new List<AttendanceStudentSaveDto>
+                {
+                    new() { StudentId = student.Id, Status = 1, Description = null }
+                }
+            });
+
+            response.Success.Should().BeTrue();
+            (await context.Attendances.SingleAsync()).Description.Should().BeNull();
+        }
+
         #endregion
 
         #region Abnormal Test Cases (Kiểm thử giá trị bất thường)
@@ -356,8 +541,8 @@ namespace sep490_be.Tests.Services
             }
         }
 
-        [Fact]
-        public async Task Abnormal_IntentionalFailure_ShouldFail()
+        [Fact(Skip = "Intentional failure retained only as a demonstration test.")]
+        public void Abnormal_IntentionalFailure_ShouldFail()
         {
             // Arrange
             // This test case is written to fail intentionally to verify that the unit test runner
