@@ -336,14 +336,15 @@ namespace sep490_be.Services.Implementations
 
                 if (dto.QuestionIds != null && dto.QuestionIds.Count > 0)
                 {
-                    var defaultPoint = dto.TotalScore.HasValue ? dto.TotalScore.Value / dto.QuestionIds.Count : 1.0m;
-                    foreach (var questionId in dto.QuestionIds)
+                    var targetTotal = dto.TotalScore ?? 10.0m;
+                    var points = DistributePoints(targetTotal, dto.QuestionIds.Count);
+                    for (int i = 0; i < dto.QuestionIds.Count; i++)
                     {
                         var eq = new ExamQuestion
                         {
                             ExamId = exam.Id,
-                            QuestionId = questionId,
-                            Point = defaultPoint
+                            QuestionId = dto.QuestionIds[i],
+                            Point = points[i]
                         };
                         _dbContext.ExamQuestions.Add(eq);
                     }
@@ -421,14 +422,15 @@ namespace sep490_be.Services.Implementations
                 // Add new question relations
                 if (dto.QuestionIds != null && dto.QuestionIds.Count > 0)
                 {
-                    var defaultPoint = dto.TotalScore.HasValue ? dto.TotalScore.Value / dto.QuestionIds.Count : 1.0m;
-                    foreach (var questionId in dto.QuestionIds)
+                    var targetTotal = dto.TotalScore ?? 10.0m;
+                    var points = DistributePoints(targetTotal, dto.QuestionIds.Count);
+                    for (int i = 0; i < dto.QuestionIds.Count; i++)
                     {
                         var eq = new ExamQuestion
                         {
                             ExamId = exam.Id,
-                            QuestionId = questionId,
-                            Point = defaultPoint
+                            QuestionId = dto.QuestionIds[i],
+                            Point = points[i]
                         };
                         _dbContext.ExamQuestions.Add(eq);
                     }
@@ -620,6 +622,9 @@ namespace sep490_be.Services.Implementations
                                     }
                                 }
                             }
+                        if (exam.TotalScore.HasValue && attempt.Answers.Count > 0 && attempt.Answers.All(a => a.IsCorrect == true))
+                        {
+                            attempt.Score = exam.TotalScore.Value;
                         }
                     }
                 }
@@ -707,6 +712,9 @@ namespace sep490_be.Services.Implementations
                                     }
                                 }
                             }
+                        if (exam.TotalScore.HasValue && attempt.Answers.Count > 0 && attempt.Answers.All(a => a.IsCorrect == true))
+                        {
+                            attempt.Score = exam.TotalScore.Value;
                         }
                     }
                 }
@@ -908,6 +916,10 @@ namespace sep490_be.Services.Implementations
                     });
                 }
 
+                if (exam.TotalScore.HasValue && listAnswers.Count > 0 && listAnswers.All(a => a.IsCorrect == true))
+                {
+                    totalScore = exam.TotalScore.Value;
+                }
                 attempt.Score = totalScore;
                 await _dbContext.SaveChangesAsync();
                 await transaction.CommitAsync();
@@ -1028,6 +1040,24 @@ namespace sep490_be.Services.Implementations
             }
 
             return student;
+        }
+
+        private static List<decimal> DistributePoints(decimal totalScore, int questionCount)
+        {
+            if (questionCount <= 0) return new List<decimal>();
+
+            var points = new List<decimal>(questionCount);
+            var basePoint = Math.Floor((totalScore / questionCount) * 100m) / 100m;
+            var remainder = Math.Round(totalScore - (basePoint * questionCount), 2);
+            var extraCount = (int)(remainder * 100m);
+
+            for (int i = 0; i < questionCount; i++)
+            {
+                var pt = basePoint + (i >= questionCount - extraCount ? 0.01m : 0m);
+                points.Add(pt);
+            }
+
+            return points;
         }
     }
 }
