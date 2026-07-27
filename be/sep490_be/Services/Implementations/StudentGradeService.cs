@@ -347,7 +347,7 @@ namespace sep490_be.Services.Implementations
 
                         if (!candidateCodes.Add(code))
                         {
-                            return ApiResponse<List<GradeComponentDto>>.Fail("ERR_GRADE_COMPONENT_CODE_DUPLICATE", StatusCodes.Status400BadRequest);
+                            return ApiResponse<List<GradeComponentDto>>.Fail("ERR_COMPONENT_CODE_DUPLICATE", StatusCodes.Status400BadRequest);
                         }
                     }
                 }
@@ -357,15 +357,15 @@ namespace sep490_be.Services.Implementations
                 {
                     if (!candidateCodes.Add(omittedSystemComponent.Code))
                     {
-                        return ApiResponse<List<GradeComponentDto>>.Fail("ERR_GRADE_COMPONENT_CODE_DUPLICATE", StatusCodes.Status400BadRequest);
+                        return ApiResponse<List<GradeComponentDto>>.Fail("ERR_COMPONENT_CODE_DUPLICATE", StatusCodes.Status400BadRequest);
                     }
                 }
 
                 var effectiveTotalWeight = dto.Components.Sum(x => x.Weight)
                     + existing.Where(x => x.IsSystem && !payloadIds.Contains(x.Id)).Sum(x => x.Weight);
-                if (effectiveTotalWeight > 100)
+                if (effectiveTotalWeight != 100)
                 {
-                    return ApiResponse<List<GradeComponentDto>>.Fail("ERR_GRADE_COMPONENT_TOTAL_WEIGHT", StatusCodes.Status400BadRequest);
+                    return ApiResponse<List<GradeComponentDto>>.Fail("ERR_TOTAL_WEIGHT_MUST_BE_100", StatusCodes.Status400BadRequest);
                 }
 
                 using var transaction = await _dbContext.Database.BeginTransactionAsync();
