@@ -29,7 +29,6 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("class/{classId}")]
-        [HasPermission(Permissions.HomeworkManagement.HomeworkManagement_View)]
         public async Task<IActionResult> GetHomeworkByClass(int classId)
         {
             if (!HasAnyPermission(Permissions.StudentHomework.StudentHomework_View, Permissions.HomeworkManagement.HomeworkManagement_View))
