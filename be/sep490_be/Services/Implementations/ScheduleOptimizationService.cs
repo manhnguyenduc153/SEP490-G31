@@ -50,6 +50,15 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ConflictCheckResultDto>.Fail("ERR_INVALID_DAY_OF_WEEK", StatusCodes.Status400BadRequest);
                 }
 
+                weeklySchedules = weeklySchedules
+                    .Where(w => TimeSpan.TryParse(w.StartTime, out _) &&
+                                TimeSpan.TryParse(w.EndTime, out _))
+                    .ToList();
+                if (!weeklySchedules.Any())
+                {
+                    return ApiResponse<ConflictCheckResultDto>.Ok(result, "NO_PROPOSED_SCHEDULES_GENERATED");
+                }
+
                 while (lessonNo <= dto.ExpectedLessons.Value)
                 {
                     var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
