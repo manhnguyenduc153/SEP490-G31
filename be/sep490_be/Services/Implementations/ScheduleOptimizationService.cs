@@ -342,6 +342,12 @@ namespace sep490_be.Services.Implementations
                         }
                     }
 
+                    // Constraint: The slot index must be the same for all sessions of a class
+                    for (int j = 1; j < freq; j++)
+                    {
+                        model.Add(slotIndexVar[i, j] == slotIndexVar[i, 0]);
+                    }
+
                     // Sessions of the same class: ordered days + gap constraint
                     for (int j = 0; j < freq - 1; j++)
                     {
@@ -1175,6 +1181,12 @@ namespace sep490_be.Services.Implementations
                         }
                     }
 
+                    // Constraint: The slot index must be the same for all sessions of a class
+                    for (int j = 1; j < freq; j++)
+                    {
+                        model.Add(slotIndexVar[i, j] == slotIndexVar[i, 0]);
+                    }
+
                     // Sessions of the same class: ordered days + gap constraint
                     for (int j = 0; j < freq - 1; j++)
                     {
@@ -1200,7 +1212,7 @@ namespace sep490_be.Services.Implementations
                             // If the set is empty (shouldn't happen, but guard it), skip
                             if (!activeSlots.Any()) continue;
 
-                            for (int day = 0; day <= 6; day++)
+                            foreach (int day in allowedDays)
                             {
                                 for (int slot = 0; slot < numFixed; slot++)
                                 {

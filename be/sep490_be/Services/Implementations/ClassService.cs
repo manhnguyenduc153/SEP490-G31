@@ -228,6 +228,25 @@ namespace sep490_be.Services.Implementations
 
                 await GenerateSchedulesAsync(entity, dto);
 
+                // Update student registrations to Scheduled
+                if (dto.Students != null && dto.Students.Any() && entity.CourseId.HasValue)
+                {
+                    var addedStudentIds = dto.Students.Select(s => s.StudentId).ToList();
+                    var semesterId = entity.SemesterId;
+                    var regsToUpdate = await _dbContext.StudentRegistrations
+                        .Where(r => r.CourseId == entity.CourseId
+                                 && r.Status == (int)StudentRegistrationStatus.Pending
+                                 && addedStudentIds.Contains(r.StudentId)
+                                 && (!semesterId.HasValue || r.SemesterId == semesterId.Value))
+                        .ToListAsync();
+
+                    foreach (var reg in regsToUpdate)
+                    {
+                        reg.Status = (int)StudentRegistrationStatus.Scheduled;
+                        _dbContext.StudentRegistrations.Update(reg);
+                    }
+                }
+
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
 
@@ -325,6 +344,48 @@ namespace sep490_be.Services.Implementations
                         existingSc.EnrollType = updated.EnrollType;
                 }
 
+                // Sync student registrations status
+                if (existingEntity.CourseId.HasValue)
+                {
+                    var semesterId = existingEntity.SemesterId;
+                    
+                    // Reset removed students' registrations to Pending
+                    var removeStudentIds = studentsToRemove.Select(sc => sc.StudentId).ToList();
+                    if (removeStudentIds.Any())
+                    {
+                        var regsToReset = await _dbContext.StudentRegistrations
+                            .Where(r => r.CourseId == existingEntity.CourseId
+                                     && r.Status == (int)StudentRegistrationStatus.Scheduled
+                                     && removeStudentIds.Contains(r.StudentId)
+                                     && (!semesterId.HasValue || r.SemesterId == semesterId.Value))
+                            .ToListAsync();
+
+                        foreach (var reg in regsToReset)
+                        {
+                            reg.Status = (int)StudentRegistrationStatus.Pending;
+                            _dbContext.StudentRegistrations.Update(reg);
+                        }
+                    }
+
+                    // Update added students' registrations to Scheduled
+                    var addStudentIds = studentsToAdd.Select(s => s.StudentId).ToList();
+                    if (addStudentIds.Any())
+                    {
+                        var regsToUpdate = await _dbContext.StudentRegistrations
+                            .Where(r => r.CourseId == existingEntity.CourseId
+                                     && r.Status == (int)StudentRegistrationStatus.Pending
+                                     && addStudentIds.Contains(r.StudentId)
+                                     && (!semesterId.HasValue || r.SemesterId == semesterId.Value))
+                            .ToListAsync();
+
+                        foreach (var reg in regsToUpdate)
+                        {
+                            reg.Status = (int)StudentRegistrationStatus.Scheduled;
+                            _dbContext.StudentRegistrations.Update(reg);
+                        }
+                    }
+                }
+
                 // Map basic fields
                 dto.Adapt(existingEntity);
 
@@ -395,40 +456,18 @@ namespace sep490_be.Services.Implementations
 
                 if (studentIds.Any() && existingEntity.CourseId.HasValue)
                 {
-                    // 2. Find the semester corresponding to this class (based on Class StartDate matching Semester StartDate)
-                    var semester = await _dbContext.Semesters
-                        .FirstOrDefaultAsync(s => !s.IsDeleted && s.StartDate == existingEntity.StartDate);
+                    var semesterId = existingEntity.SemesterId;
+                    var regsToReset = await _dbContext.StudentRegistrations
+                        .Where(r => r.CourseId == existingEntity.CourseId 
+                                 && r.Status == (int)StudentRegistrationStatus.Scheduled 
+                                 && studentIds.Contains(r.StudentId)
+                                 && (!semesterId.HasValue || r.SemesterId == semesterId.Value))
+                        .ToListAsync();
 
-                    if (semester != null)
+                    foreach (var reg in regsToReset)
                     {
-                        // 3. Find registrations for these students, for this course, in this semester, that are Scheduled (2)
-                        var regsToReset = await _dbContext.StudentRegistrations
-                            .Where(r => r.SemesterId == semester.Id 
-                                     && r.CourseId == existingEntity.CourseId 
-                                     && r.Status == (int)StudentRegistrationStatus.Scheduled 
-                                     && studentIds.Contains(r.StudentId))
-                            .ToListAsync();
-
-                        foreach (var reg in regsToReset)
-                        {
-                            reg.Status = (int)StudentRegistrationStatus.Pending;
-                            _dbContext.StudentRegistrations.Update(reg);
-                        }
-                    }
-                    else
-                    {
-                        // Fallback: Reset any Scheduled registrations for this course and these students
-                        var regsToReset = await _dbContext.StudentRegistrations
-                            .Where(r => r.CourseId == existingEntity.CourseId 
-                                     && r.Status == (int)StudentRegistrationStatus.Scheduled 
-                                     && studentIds.Contains(r.StudentId))
-                            .ToListAsync();
-
-                        foreach (var reg in regsToReset)
-                        {
-                            reg.Status = (int)StudentRegistrationStatus.Pending;
-                            _dbContext.StudentRegistrations.Update(reg);
-                        }
+                        reg.Status = (int)StudentRegistrationStatus.Pending;
+                        _dbContext.StudentRegistrations.Update(reg);
                     }
                 }
 
