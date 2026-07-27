@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace sep490_be.DTO.Student
 {
@@ -25,6 +25,7 @@ namespace sep490_be.DTO.Student
         public int SemesterId { get; set; }
         public List<string> PreferredSlots { get; set; } = new List<string>();
         public int Status { get; set; }
+        public int EnrollType { get; set; } = 0; // 0 = Offline, 1 = Online
     }
 }
 

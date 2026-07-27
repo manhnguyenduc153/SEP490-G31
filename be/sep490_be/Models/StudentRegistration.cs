@@ -1,4 +1,4 @@
-﻿using sep490_be.Models.BaseEntities;
+using sep490_be.Models.BaseEntities;
 
 namespace sep490_be.Models
 {
@@ -9,6 +9,7 @@ namespace sep490_be.Models
         public int SemesterId { get; set; }
         public string PreferredSlotsJson { get; set; } = "[]"; // e.g., ["morning", "evening"]
         public int Status { get; set; } // 0: Pending, 1: Scheduled, 2: Cancelled
+        public int EnrollType { get; set; } = 0; // 0 = Offline, 1 = Online
 
         public virtual Student Student { get; set; } = null!;
         public virtual Course Course { get; set; } = null!;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace sep490_be.DTO.Class
@@ -10,6 +10,9 @@ namespace sep490_be.DTO.Class
         public string Name { get; set; } = string.Empty;
         public int Status { get; set; }
         public string? StatusName { get; set; }
+        public int Type { get; set; } // 0 = Offline, 1 = Online
+        public string? TypeName { get; set; } // "Offline" / "Online"
+        public string? Url { get; set; }
         public string? Description { get; set; }
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
@@ -33,6 +36,8 @@ namespace sep490_be.DTO.Class
     {
         public int Id { get; set; }
         public int StudentId { get; set; }
+        public int? EnrollType { get; set; } // 0 = Offline, 1 = Online
+        public string? EnrollTypeName { get; set; } // "Offline" / "Online"
         public sep490_be.DTO.Student.StudentDto? Student { get; set; }
     }
 }

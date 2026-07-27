@@ -802,6 +802,7 @@ namespace sep490_be.Services.Implementations
             public List<int> StudentIds { get; set; } = new List<int>();
             public string PreferredSlotBucket { get; set; } = "evening"; // morning, afternoon, evening
             public int ExpectedLessons { get; set; } = 30;
+            public int EnrollType { get; set; } = 0; // 0 = Offline, 1 = Online
         }
 
         private List<DraftClass> GroupStudentsIntoDraftClasses(
@@ -820,12 +821,13 @@ namespace sep490_be.Services.Implementations
                 allowedBuckets = new[] { true, true, true };
             }
 
-            // Group by Course
-            var byCourse = registrations.GroupBy(r => r.CourseId);
+            // Group by Course and EnrollType to separate Online/Offline students into distinct classes
+            var byCourse = registrations.GroupBy(r => new { r.CourseId, r.EnrollType });
             foreach (var courseGroup in byCourse)
             {
                 var course = courseGroup.First().Course;
                 if (course == null) continue;
+                int groupEnrollType = courseGroup.Key.EnrollType;
 
                 var expectedLessons = course.Duration ?? 30;
                 var students = courseGroup.ToList();
@@ -960,7 +962,8 @@ namespace sep490_be.Services.Implementations
                                 CourseName = course.Name ?? "Khóa học",
                                 StudentIds = studentIds,
                                 PreferredSlotBucket = chosenSlot,
-                                ExpectedLessons = expectedLessons
+                                ExpectedLessons = expectedLessons,
+                                EnrollType = groupEnrollType
                             });
                         }
                     }
@@ -1104,12 +1107,15 @@ namespace sep490_be.Services.Implementations
                     teacherVar[i] = model.NewIntVar(0, numTeachers - 1, $"t_{i}");
                     roomVar[i] = model.NewIntVar(0, numRooms - 1, $"r_{i}");
 
-                    // Room capacity check: room capacity must be >= class size
-                    for (int rIdx = 0; rIdx < numRooms; rIdx++)
+                    // Room capacity check: room capacity must be >= class size (only for Offline classes)
+                    if (draft.EnrollType != 1)
                     {
-                        if ((rooms[rIdx].Capacity ?? int.MaxValue) < draft.Size)
+                        for (int rIdx = 0; rIdx < numRooms; rIdx++)
                         {
-                            model.Add(roomVar[i] != rIdx);
+                            if ((rooms[rIdx].Capacity ?? int.MaxValue) < draft.Size)
+                            {
+                                model.Add(roomVar[i] != rIdx);
+                            }
                         }
                     }
 
@@ -1547,6 +1553,7 @@ namespace sep490_be.Services.Implementations
                             Code = classCode,
                             Name = className,
                             Status = (int)ClassStatus.Planning,
+                            Type = draft.EnrollType, // 0=Offline, 1=Online
                             StartDate = semester.StartDate,
                             EndDate = semester.EndDate,
                             CourseId = draft.CourseId,
@@ -1570,7 +1577,7 @@ namespace sep490_be.Services.Implementations
                                 DayOfWeek = dayVal,
                                 StartTime = fs.StartStr,
                                 EndTime = fs.EndStr,
-                                RoomId = room.Id
+                                RoomId = draft.EnrollType == 1 ? null : room.Id
                             });
                         }
 
@@ -1595,15 +1602,16 @@ namespace sep490_be.Services.Implementations
                         // Link students and update registrations
                         foreach (var studentId in draft.StudentIds)
                         {
+                            var reg = registrations.FirstOrDefault(r => r.StudentId == studentId && r.CourseId == draft.CourseId);
                             _dbContext.StudentClasses.Add(new StudentClass
                             {
                                 StudentId = studentId,
                                 ClassId = entity.Id,
                                 EnrollDate = DateTime.UtcNow,
-                                Status = (int)StudentClassStatus.Enrolled
+                                Status = (int)StudentClassStatus.Enrolled,
+                                EnrollType = reg?.EnrollType ?? draft.EnrollType
                             });
 
-                            var reg = registrations.FirstOrDefault(r => r.StudentId == studentId && r.CourseId == draft.CourseId);
                             if (reg != null)
                             {
                                 reg.Status = (int)StudentRegistrationStatus.Scheduled;

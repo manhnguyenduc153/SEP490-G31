@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using sep490_be.Models.BaseEntities;
 
@@ -11,6 +11,7 @@ namespace sep490_be.Models
         public DateTime? EnrollDate { get; set; }
         public DateTime? CompletionDate { get; set; }
         public int Status { get; set; }
+        public int? EnrollType { get; set; } // 0 = Offline, 1 = Online
         public string? Description { get; set; }
 
         public virtual Student Student { get; set; } = null!;
