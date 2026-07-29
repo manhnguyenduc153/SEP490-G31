@@ -197,6 +197,15 @@ namespace sep490_be.Controllers
             var response = await _optService.AutoScheduleSemesterAsync(request);
             return StatusCode(response.StatusCode, response);
         }
+
+        // POST: api/Class/save-schedule-draft
+        [HttpPost("save-schedule-draft")]
+        [HasPermission(Permissions.Semester.Semester_Scheduling)]
+        public async Task<IActionResult> SaveScheduleDraft([FromBody] SaveScheduleDraftRequestDto request)
+        {
+            var response = await _optService.SaveSemesterScheduleDraftAsync(request);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }
 

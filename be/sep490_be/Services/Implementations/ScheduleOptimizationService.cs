@@ -1550,88 +1550,196 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<ClassDto>>.Fail(diagMsg, StatusCodes.Status409Conflict);
                 }
 
-                // 12. Persist
+                // 12. Build in-memory draft result (do NOT persist to DB yet)
+                var resultList = new List<ClassDto>();
+
+                for (int i = 0; i < numClasses; i++)
+                {
+                    var draft = draftClasses[i];
+                    int tIdx = (int)solver.Value(teacherVar[i]);
+                    int rIdx = (int)solver.Value(roomVar[i]);
+
+                    var teacher = teachers[tIdx];
+                    var room = rooms[rIdx];
+
+                    var classCode = $"{draft.CourseCode}_{semester.Code}_{draft.PreferredSlotBucket.Substring(0, 3).ToUpper()}_{i + 1}";
+                    var className = $"Lớp {draft.CourseName} - {semester.Name} ({draft.PreferredSlotBucket}) - Lớp {i + 1}";
+
+                    // Build weekly schedules for this draft class
+                    var newWS = new List<WeeklyScheduleDto>();
+                    for (int j = 0; j < freq; j++)
+                    {
+                        int dayVal = (int)solver.Value(dayVar[i, j]);
+                        int fsVal = (int)solver.Value(slotIndexVar[i, j]);
+                        var fs = fixedSlots[fsVal];
+                        newWS.Add(new WeeklyScheduleDto
+                        {
+                            DayOfWeek = dayVal,
+                            StartTime = fs.StartStr,
+                            EndTime = fs.EndStr,
+                            RoomId = draft.EnrollType == 1 ? null : room.Id
+                        });
+                    }
+
+                    // Generate in-memory ClassSchedule list (no DB write)
+                    var scheduleDisplay = string.Join(", ", newWS
+                        .OrderBy(w => w.DayOfWeek)
+                        .Select(w => $"{GetDayOfWeekName(w.DayOfWeek)} {w.StartTime}-{w.EndTime}"));
+
+                    var inMemorySchedules = new List<ClassScheduleDto>();
+                    int lessonNo = 1;
+                    var orderedWS = newWS.OrderBy(w => w.DayOfWeek).ToList();
+
+                    var cur = semester.StartDate;
+                    while (cur <= semester.EndDate)
+                    {
+                        var match = orderedWS.FirstOrDefault(w => (int)cur.DayOfWeek == w.DayOfWeek);
+                        if (match != null && TimeSpan.TryParse(match.StartTime, out var st) && TimeSpan.TryParse(match.EndTime, out _))
+                        {
+                            var fixedSlot = FixedTimeSlot.FromStartTime(st);
+                            inMemorySchedules.Add(new ClassScheduleDto
+                            {
+                                LessonNo = lessonNo,
+                                ScheduleDate = cur,
+                                StartTime = match.StartTime,
+                                EndTime = match.EndTime,
+                                RoomId = draft.EnrollType == 1 ? null : room.Id,
+                                RoomName = draft.EnrollType == 1 ? null : room.Name,
+                                TeacherId = teacher.Id,
+                                TeacherName = teacher.Name,
+                                SlotName = fixedSlot?.Name,
+                                Status = (int)ClassScheduleStatus.Scheduled,
+                                Code = $"SCH_DRAFT_{i + 1}_{lessonNo}",
+                                Name = $"Buổi học {lessonNo}"
+                            });
+                            lessonNo++;
+                        }
+                        cur = cur.AddDays(1);
+                    }
+
+                    // Build student list for draft display
+                    var studentDtos = new List<ClassStudentDto>();
+                    foreach (var studentId in draft.StudentIds)
+                    {
+                        var reg = registrations.FirstOrDefault(r => r.StudentId == studentId && r.CourseId == draft.CourseId);
+                        if (reg?.Student != null)
+                        {
+                            studentDtos.Add(new ClassStudentDto
+                            {
+                                StudentId = studentId,
+                                EnrollType = reg.EnrollType,
+                                EnrollTypeName = reg.EnrollType == 1 ? "Online" : "Offline"
+                            });
+                        }
+                    }
+
+                    resultList.Add(new ClassDto
+                    {
+                        Id = 0, // 0 signals draft (not yet persisted)
+                        Code = classCode,
+                        Name = className,
+                        Status = (int)ClassStatus.Planning,
+                        StatusName = "Planning",
+                        Type = draft.EnrollType,
+                        TypeName = draft.EnrollType == 1 ? "Online" : "Offline",
+                        StartDate = semester.StartDate,
+                        EndDate = semester.EndDate,
+                        CourseId = draft.CourseId,
+                        TeacherId = teacher.Id,
+                        TeacherName = teacher.Name,
+                        SemesterId = semester.Id,
+                        SemesterName = semester.Name,
+                        ScheduleDisplay = scheduleDisplay,
+                        ExpectedLessons = lessonNo - 1,
+                        WeeklySchedulesJson = System.Text.Json.JsonSerializer.Serialize(newWS,
+                            new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }),
+                        StudentCount = draft.StudentIds.Count,
+                        Schedules = inMemorySchedules,
+                        StudentClasses = studentDtos
+                    });
+                }
+
+                return ApiResponse<List<ClassDto>>.Ok(resultList, "AUTO_SCHEDULING_SEMESTER_DRAFT_GENERATED");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Save confirmed draft to DB
+        // ─────────────────────────────────────────────────────────────────────
+        public async Task<ApiResponse<List<ClassDto>>> SaveSemesterScheduleDraftAsync(SaveScheduleDraftRequestDto request)
+        {
+            try
+            {
+                if (request == null || request.Classes == null || !request.Classes.Any())
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_INVALID_DRAFT_REQUEST", StatusCodes.Status400BadRequest);
+
+                var semester = await _dbContext.Semesters.FindAsync(request.SemesterId);
+                if (semester == null || semester.IsDeleted)
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
+
                 using var transaction = await _dbContext.Database.BeginTransactionAsync();
                 try
                 {
                     var createdClasses = new List<Class>();
 
-                    for (int i = 0; i < numClasses; i++)
+                    foreach (var draftClass in request.Classes)
                     {
-                        var draft = draftClasses[i];
-                        int tIdx = (int)solver.Value(teacherVar[i]);
-                        int rIdx = (int)solver.Value(roomVar[i]);
-
-                        var teacher = teachers[tIdx];
-                        var room = rooms[rIdx];
-
-                        // Generate class details
-                        var classCode = $"{draft.CourseCode}_{semester.Code}_{draft.PreferredSlotBucket.Substring(0,3).ToUpper()}_{i + 1}";
-                        var className = $"Lớp {draft.CourseName} - {semester.Name} ({draft.PreferredSlotBucket}) - Lớp {i + 1}";
-
                         var entity = new Class
                         {
-                            Code = classCode,
-                            Name = className,
+                            Code = draftClass.Code,
+                            Name = draftClass.Name,
                             Status = (int)ClassStatus.Planning,
-                            Type = draft.EnrollType, // 0=Offline, 1=Online
+                            Type = draftClass.EnrollType,
                             StartDate = semester.StartDate,
                             EndDate = semester.EndDate,
-                            CourseId = draft.CourseId,
-                            TeacherId = teacher.Id,
+                            CourseId = draftClass.CourseId,
+                            TeacherId = draftClass.TeacherId,
                             SemesterId = semester.Id,
                             AutoRefund = false
                         };
 
                         _dbContext.Classes.Add(entity);
-                        await _dbContext.SaveChangesAsync(); // save to get Id
-
-                        // Map solved day/slots
-                        var newWS = new List<WeeklyScheduleDto>();
-                        for (int j = 0; j < freq; j++)
-                        {
-                            int dayVal = (int)solver.Value(dayVar[i, j]);
-                            int fsVal = (int)solver.Value(slotIndexVar[i, j]);
-                            var fs = fixedSlots[fsVal];
-                            newWS.Add(new WeeklyScheduleDto
-                            {
-                                DayOfWeek = dayVal,
-                                StartTime = fs.StartStr,
-                                EndTime = fs.EndStr,
-                                RoomId = draft.EnrollType == 1 ? null : room.Id
-                            });
-                        }
+                        await _dbContext.SaveChangesAsync(); // get Id
 
                         var saveDto = new ClassSaveDto
                         {
                             Id = entity.Id,
-                            Code = entity.Code,
-                            Name = entity.Name,
+                            Code = entity.Code ?? string.Empty,
+                            Name = entity.Name ?? string.Empty,
                             Status = entity.Status,
                             StartDate = entity.StartDate,
-                            EndDate = semester.EndDate,
-                            SemesterId = semester.Id,
-                            ExpectedLessons = draft.ExpectedLessons,
+                            EndDate = entity.EndDate,
+                            SemesterId = entity.SemesterId,
+                            ExpectedLessons = draftClass.ExpectedLessons,
                             TeacherId = entity.TeacherId,
-                            WeeklySchedules = newWS
+                            WeeklySchedules = draftClass.WeeklySchedules
                         };
 
-                        // Add class schedules
                         await GenerateClassSchedulesHelperAsync(entity, saveDto);
                         _dbContext.Classes.Update(entity);
 
-                        // Link students and update registrations
-                        foreach (var studentId in draft.StudentIds)
+                        // Link students and mark registrations as Scheduled
+                        foreach (var studentEntry in draftClass.Students)
                         {
-                            var reg = registrations.FirstOrDefault(r => r.StudentId == studentId && r.CourseId == draft.CourseId);
                             _dbContext.StudentClasses.Add(new StudentClass
                             {
-                                StudentId = studentId,
+                                StudentId = studentEntry.StudentId,
                                 ClassId = entity.Id,
                                 EnrollDate = DateTime.UtcNow,
                                 Status = (int)StudentClassStatus.Enrolled,
-                                EnrollType = reg?.EnrollType ?? draft.EnrollType
+                                EnrollType = studentEntry.EnrollType
                             });
+
+                            var reg = await _dbContext.StudentRegistrations
+                                .FirstOrDefaultAsync(r =>
+                                    r.StudentId == studentEntry.StudentId &&
+                                    r.CourseId == draftClass.CourseId &&
+                                    r.SemesterId == request.SemesterId &&
+                                    r.Status == (int)StudentRegistrationStatus.Pending);
 
                             if (reg != null)
                             {
@@ -1646,7 +1754,7 @@ namespace sep490_be.Services.Implementations
                     await _dbContext.SaveChangesAsync();
                     await transaction.CommitAsync();
 
-                    // Reload created classes to return
+                    // Reload and return persisted classes
                     var resultList = new List<ClassDto>();
                     foreach (var c in createdClasses)
                     {
@@ -1660,12 +1768,12 @@ namespace sep490_be.Services.Implementations
                         if (reloaded != null) resultList.Add(MapToDto(reloaded));
                     }
 
-                    return ApiResponse<List<ClassDto>>.Ok(resultList, "AUTO_SCHEDULING_SEMESTER_COMPLETED");
+                    return ApiResponse<List<ClassDto>>.Ok(resultList, "SCHEDULE_DRAFT_SAVED");
                 }
                 catch (Exception ex)
                 {
                     await transaction.RollbackAsync();
-                    throw new Exception("Error writing auto scheduling semester results: " + ex.Message, ex);
+                    throw new Exception("Error saving schedule draft: " + ex.Message, ex);
                 }
             }
             catch (Exception ex)
