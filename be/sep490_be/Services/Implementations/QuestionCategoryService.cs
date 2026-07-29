@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Mapster;
 using sep490_be.DTO;
@@ -7,6 +7,7 @@ using sep490_be.Models;
 using sep490_be.Repositories.Interfaces;
 using sep490_be.Services.Interfaces;
 using sep490_be.Helpers;
+using sep490_be.Enums;
 
 namespace sep490_be.Services.Implementations
 {
@@ -23,11 +24,16 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var query = _repository.FindAll();
+                var query = _repository.FindAll().Include(c => c.Course).AsQueryable();
 
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
                 {
                     query = query.Where(c => c.TextSearch != null && c.TextSearch.Contains(searchDto.Keyword));
+                }
+
+                if (searchDto.CourseId.HasValue)
+                {
+                    query = query.Where(c => c.CourseId == searchDto.CourseId.Value);
                 }
 
                 var totalRecords = await query.CountAsync();
@@ -48,7 +54,10 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var entity = await _repository.GetByIdAsync(id);
+                var entity = await _repository.FindAll()
+                    .Include(c => c.Course)
+                    .FirstOrDefaultAsync(c => c.Id == id);
+
                 if (entity == null)
                 {
                     return ApiResponse<QuestionCategoryDto>.Fail("ERR_CATEGORY_NOT_FOUND", StatusCodes.Status404NotFound);
@@ -74,11 +83,12 @@ namespace sep490_be.Services.Implementations
 
                 var entity = dto.Adapt<QuestionCategory>();
                 entity.Id = 0;
+                entity.CourseId = dto.CourseId;
 
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
 
-                return ApiResponse<QuestionCategoryDto>.Created(MapToDto(entity), "CREATE_CATEGORY_SUCCESS");
+                return await GetByIdAsync(entity.Id);
             }
             catch (Exception ex)
             {
@@ -102,12 +112,15 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<QuestionCategoryDto>.Fail("ERR_CATEGORY_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                dto.Adapt(existingEntity);
+                existingEntity.Code = dto.Code;
+                existingEntity.Name = dto.Name;
+                existingEntity.Description = dto.Description;
+                existingEntity.CourseId = dto.CourseId;
 
                 await _repository.UpdateAsync(existingEntity);
                 await _repository.SaveChangesAsync();
 
-                return ApiResponse<QuestionCategoryDto>.Ok(MapToDto(existingEntity), "UPDATE_CATEGORY_SUCCESS");
+                return await GetByIdAsync(existingEntity.Id);
             }
             catch (Exception ex)
             {
@@ -171,6 +184,9 @@ namespace sep490_be.Services.Implementations
             Code = entity.Code ?? string.Empty,
             Name = entity.Name ?? string.Empty,
             Description = entity.Description,
+            CourseId = entity.CourseId,
+            CourseName = entity.Course?.Name,
+            CourseCode = entity.Course?.Code,
         };
 
         // ===================== PRIVATE VALIDATE =====================

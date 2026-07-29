@@ -151,6 +151,16 @@ namespace sep490_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        // PUT: api/Exam/attempt/5/grade
+        [HttpPut("attempt/{attemptId}/grade")]
+        [HasPermission("Exam.Edit,TeachingExam")]
+        public async Task<IActionResult> GradeAttempt(int attemptId, [FromBody] GradeAttemptDto gradeDto)
+        {
+            var userEmailOrCode = GetCurrentUserEmailOrCode();
+            var response = await _service.GradeAttemptAsync(attemptId, gradeDto, userEmailOrCode ?? "");
+            return StatusCode(response.StatusCode, response);
+        }
+
         // GET: api/Exam/teacher - for teachers to view exams in their classes
         [HttpGet("teacher")]
         [HasPermission(Permissions.TeachingExam.TeachingExamPage)]

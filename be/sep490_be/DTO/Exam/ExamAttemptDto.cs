@@ -18,7 +18,14 @@ namespace sep490_be.DTO.Exam
         public int? Duration { get; set; }
         public int TabExitsCount { get; set; }
         public string? Log { get; set; }
+        public string? TeacherComment { get; set; }
         public List<ExamAnswerDto> Answers { get; set; } = new List<ExamAnswerDto>();
+    }
+
+    public class GradeAttemptDto
+    {
+        public decimal Score { get; set; }
+        public string? TeacherComment { get; set; }
     }
 
     public class ExamAnswerDto

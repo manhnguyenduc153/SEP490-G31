@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -18,11 +18,16 @@ namespace sep490_be.Services.Implementations
     {
         private readonly IQuestionRepository _repository;
         private readonly IQuestionCategoryRepository _categoryRepository;
+        private readonly ApplicationDbContext _dbContext;
 
-        public QuestionService(IQuestionRepository repository, IQuestionCategoryRepository categoryRepository)
+        public QuestionService(
+            IQuestionRepository repository,
+            IQuestionCategoryRepository categoryRepository,
+            ApplicationDbContext dbContext)
         {
             _repository = repository;
             _categoryRepository = categoryRepository;
+            _dbContext = dbContext;
         }
 
         public async Task<ApiResponse<PagingResponse<QuestionDto>>> GetAllAsync(QuestionSearchDto searchDto)
@@ -55,6 +60,11 @@ namespace sep490_be.Services.Implementations
                 if (searchDto.QuestionType.HasValue)
                 {
                     query = query.Where(q => q.QuestionType == searchDto.QuestionType.Value);
+                }
+
+                if (searchDto.SkillType.HasValue)
+                {
+                    query = query.Where(q => q.SkillType == searchDto.SkillType.Value);
                 }
 
 
@@ -105,6 +115,8 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<QuestionDto>.Fail(validationError, StatusCodes.Status400BadRequest);
                 }
 
+                int effectiveSkillType = dto.SkillType > 0 ? dto.SkillType : (int)SkillType.Listening;
+
                 var entity = new Question
                 {
                     Id = 0,
@@ -112,8 +124,10 @@ namespace sep490_be.Services.Implementations
                     Name = dto.Name,
                     Content = dto.Content,
                     QuestionType = dto.QuestionType,
+                    SkillType = effectiveSkillType,
                     DifficultyLevel = dto.DifficultyLevel,
                     Explanation = dto.Explanation,
+                    MediaUrl = dto.MediaUrl,
                     CategoryId = dto.CategoryId,
                     Point = dto.Point ?? 0,
                     Status = 1 // Active by default
@@ -172,8 +186,13 @@ namespace sep490_be.Services.Implementations
                 existingEntity.Name = dto.Name;
                 existingEntity.Content = dto.Content;
                 existingEntity.QuestionType = dto.QuestionType;
+                if (dto.SkillType > 0)
+                {
+                    existingEntity.SkillType = dto.SkillType;
+                }
                 existingEntity.DifficultyLevel = dto.DifficultyLevel;
                 existingEntity.Explanation = dto.Explanation;
+                existingEntity.MediaUrl = dto.MediaUrl;
                 existingEntity.CategoryId = dto.CategoryId;
                 existingEntity.Point = dto.Point ?? 0;
                 if (dto.Code != null)
@@ -249,14 +268,32 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var existingEntity = await _repository.GetByIdAsync(id);
+                var existingEntity = await _repository.FindAll()
+                    .Include(q => q.QuestionAnswers)
+                    .FirstOrDefaultAsync(q => q.Id == id);
+
                 if (existingEntity == null)
                 {
                     return ApiResponse<bool>.Fail("ERR_QUESTION_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                await _repository.DeleteAsync(existingEntity);
-                await _repository.SaveChangesAsync();
+                // Check if used in any Exam
+                var isUsedInExam = await _dbContext.ExamQuestions.AnyAsync(eq => eq.QuestionId == id)
+                    || await _dbContext.ExamAnswers.AnyAsync(ea => ea.QuestionId == id);
+
+                if (isUsedInExam)
+                {
+                    return ApiResponse<bool>.Fail("ERR_QUESTION_IN_USE", StatusCodes.Status400BadRequest);
+                }
+
+                // Hard Delete
+                if (existingEntity.QuestionAnswers.Count > 0)
+                {
+                    _dbContext.QuestionAnswers.RemoveRange(existingEntity.QuestionAnswers);
+                }
+
+                _dbContext.Questions.Remove(existingEntity);
+                await _dbContext.SaveChangesAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_QUESTION_SUCCESS");
             }
@@ -297,9 +334,14 @@ namespace sep490_be.Services.Implementations
             Content = entity.Content ?? string.Empty,
             QuestionType = entity.QuestionType,
             QuestionTypeName = ((QuestionType)entity.QuestionType).GetStringValue(),
+            SkillType = entity.SkillType,
+            SkillTypeName = Enum.IsDefined(typeof(SkillType), entity.SkillType)
+                ? ((SkillType)entity.SkillType).GetStringValue()
+                : string.Empty,
             DifficultyLevel = entity.DifficultyLevel,
             DifficultyLevelName = ((DifficultyLevel)entity.DifficultyLevel).GetStringValue(),
             Explanation = entity.Explanation,
+            MediaUrl = entity.MediaUrl,
             Status = entity.Status,
             CategoryId = entity.CategoryId,
             CategoryName = entity.QuestionCategory?.Name,

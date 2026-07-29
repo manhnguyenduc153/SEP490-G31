@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using sep490_be.Helpers;
 using sep490_be.DTO;
@@ -56,7 +56,7 @@ namespace sep490_be.Controllers
                 }
 
                 var ext = System.IO.Path.GetExtension(file.FileName).ToLower();
-                var allowed = new[] { ".jpg", ".png", ".jpeg", ".pdf", ".doc", ".docx", ".mp3", ".wav", ".ogg", ".mp4" };
+                var allowed = new[] { ".jpg", ".png", ".jpeg", ".pdf", ".doc", ".docx", ".mp3", ".wav", ".ogg", ".mp4", ".m4a", ".aac", ".flac", ".wma" };
                 if (!Array.Exists(allowed, e => e == ext))
                 {
                     return BadRequest(ApiResponse<string>.Fail("File format is not allowed."));
