@@ -869,3 +869,27 @@ Details: Query: None | User: Anonymous
 [2026-07-24 01:44:56] [CLIENT ERROR 401] POST /api/Auth/Login
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-07-29 18:10:04] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-29 18:10:37] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-29 18:11:27] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-29 18:11:27] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-07-29 18:33:03] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-29 18:33:03] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-29 21:31:29] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
+[2026-07-29 21:31:29] [CLIENT ERROR 401] GET /api/Class
+Details: Query: ?pageIndex=1&pageSize=1000 | User: Anonymous
+------------------------------------------------------------
