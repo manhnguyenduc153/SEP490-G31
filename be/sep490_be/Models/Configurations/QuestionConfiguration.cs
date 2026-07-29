@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace sep490_be.Models.Configurations
@@ -14,11 +14,18 @@ namespace sep490_be.Models.Configurations
 
             builder.Property(x => x.Content).IsRequired();
             builder.Property(x => x.Point).HasColumnType("decimal(18,2)");
+            builder.Property(x => x.SkillType).IsRequired().HasDefaultValue(1);
+            builder.Property(x => x.MediaUrl).HasMaxLength(500);
 
             builder.HasOne(x => x.QuestionCategory)
                 .WithMany(qc => qc.Questions)
                 .HasForeignKey(x => x.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(x => x.QuestionPassage)
+                .WithMany(qp => qp.Questions)
+                .HasForeignKey(x => x.PassageId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             // Soft-delete global filter
             builder.HasQueryFilter(x => !x.IsDeleted);

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace sep490_be.Models.Configurations
@@ -12,6 +12,12 @@ namespace sep490_be.Models.Configurations
             builder.Property(x => x.Code).IsRequired().HasMaxLength(50);
             builder.Property(x => x.Name).IsRequired().HasMaxLength(200);
             builder.Property(x => x.Description).HasMaxLength(1000);
+            builder.Property(x => x.CourseId).IsRequired(false);
+
+            builder.HasOne(x => x.Course)
+                   .WithMany()
+                   .HasForeignKey(x => x.CourseId)
+                   .OnDelete(DeleteBehavior.SetNull);
 
             // Soft-delete global filter: tự động loại trừ các bản ghi đã bị xóa mềm
             builder.HasQueryFilter(x => !x.IsDeleted);

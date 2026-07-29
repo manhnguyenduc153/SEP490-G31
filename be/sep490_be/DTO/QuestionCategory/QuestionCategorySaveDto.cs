@@ -1,4 +1,4 @@
-﻿using sep490_be.Helpers;
+using sep490_be.Helpers;
 
 namespace sep490_be.DTO.QuestionCategory
 {
@@ -8,6 +8,7 @@ namespace sep490_be.DTO.QuestionCategory
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
+        public int? CourseId { get; set; }
 
         public string TextSearch => StringHelper.GenerateTextSearch(Code, Name, Description);
     }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 
 namespace sep490_be.Enums
@@ -137,7 +137,9 @@ namespace sep490_be.Enums
         [StringValue("Essay")]
         Essay = 3,
         [StringValue("True or False")]
-        TrueFalse = 4
+        TrueFalse = 4,
+        [StringValue("Audio Recording")]
+        AudioRecord = 5
     }
 
     public enum DifficultyLevel
@@ -148,6 +150,18 @@ namespace sep490_be.Enums
         Medium = 2,
         [StringValue("Hard")]
         Hard = 3
+    }
+
+    public enum SkillType
+    {
+        [StringValue("Listening")]
+        Listening = 1,
+        [StringValue("Reading")]
+        Reading = 2,
+        [StringValue("Speaking")]
+        Speaking = 3,
+        [StringValue("Writing")]
+        Writing = 4
     }
 
     public enum ExamType

@@ -34,6 +34,7 @@ namespace sep490_be.Models
         public DbSet<LearningMaterial> LearningMaterials { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<QuestionCategory> QuestionCategories { get; set; }
+        public DbSet<QuestionPassage> QuestionPassages { get; set; }
         public DbSet<Question> Questions { get; set; }
         public DbSet<QuestionAnswer> QuestionAnswers { get; set; }
         public DbSet<Exam> Exams { get; set; }
