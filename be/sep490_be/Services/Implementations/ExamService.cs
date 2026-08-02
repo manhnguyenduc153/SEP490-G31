@@ -309,6 +309,12 @@ namespace sep490_be.Services.Implementations
                 return ApiResponse<ExamDto>.Fail("ERR_SCORE_INVALID", StatusCodes.Status400BadRequest);
             }
 
+            var courseCheck = await ValidateQuestionCourseMatchAsync(dto.ClassId, dto.QuestionIds);
+            if (courseCheck != null)
+            {
+                return ApiResponse<ExamDto>.Fail(courseCheck, StatusCodes.Status400BadRequest);
+            }
+
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
@@ -385,6 +391,12 @@ namespace sep490_be.Services.Implementations
                 (dto.PassingScore.HasValue && dto.TotalScore.HasValue && dto.PassingScore.Value > dto.TotalScore.Value))
             {
                 return ApiResponse<ExamDto>.Fail("ERR_SCORE_INVALID", StatusCodes.Status400BadRequest);
+            }
+
+            var courseCheck = await ValidateQuestionCourseMatchAsync(dto.ClassId, dto.QuestionIds);
+            if (courseCheck != null)
+            {
+                return ApiResponse<ExamDto>.Fail(courseCheck, StatusCodes.Status400BadRequest);
             }
 
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
@@ -812,6 +824,18 @@ namespace sep490_be.Services.Implementations
                     }, "EXAM_ATTEMPT_CONTINUE");
                 }
 
+                // Check exam start & end time window for starting a new attempt
+                var now = DateTime.UtcNow;
+                if (exam.StartTime.HasValue && now < exam.StartTime.Value)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_NOT_STARTED", StatusCodes.Status400BadRequest);
+                }
+
+                if (exam.EndTime.HasValue && now > exam.EndTime.Value && !exam.AllowLateSubmit)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_CLOSED", StatusCodes.Status400BadRequest);
+                }
+
                 var attempt = new ExamAttempt
                 {
                     Code = "ATT-" + Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper(),
@@ -1184,6 +1208,42 @@ namespace sep490_be.Services.Implementations
             {
                 return ApiResponse<ExamAttemptDto>.Fail("Error grading attempt: " + ex.Message);
             }
+        }
+
+        private async Task<string?> ValidateQuestionCourseMatchAsync(int? classId, List<int>? questionIds)
+        {
+            if (!classId.HasValue || questionIds == null || questionIds.Count == 0)
+            {
+                return null;
+            }
+
+            var targetClass = await _dbContext.Classes
+                .FirstOrDefaultAsync(c => c.Id == classId.Value && !c.IsDeleted);
+
+            if (targetClass == null || !targetClass.CourseId.HasValue)
+            {
+                return null;
+            }
+
+            var targetCourseId = targetClass.CourseId.Value;
+
+            var invalidQuestions = await _dbContext.Questions
+                .Include(q => q.QuestionCategory)
+                .Include(q => q.QuestionPassage)
+                    .ThenInclude(p => p.QuestionCategory)
+                .Where(q => questionIds.Contains(q.Id))
+                .Where(q =>
+                    (q.QuestionCategory != null && q.QuestionCategory.CourseId.HasValue && q.QuestionCategory.CourseId.Value != targetCourseId) ||
+                    (q.QuestionPassage != null && q.QuestionPassage.QuestionCategory != null && q.QuestionPassage.QuestionCategory.CourseId.HasValue && q.QuestionPassage.QuestionCategory.CourseId.Value != targetCourseId)
+                )
+                .ToListAsync();
+
+            if (invalidQuestions.Count > 0)
+            {
+                return "ERR_QUESTION_COURSE_MISMATCH";
+            }
+
+            return null;
         }
 
         private static List<decimal> DistributePoints(decimal totalScore, int questionCount)
