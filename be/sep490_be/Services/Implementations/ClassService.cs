@@ -1067,6 +1067,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var user = await _userManager.FindByNameAsync(username);
                 if (user == null)
                 {
@@ -1104,7 +1105,8 @@ namespace sep490_be.Services.Implementations
                         TeacherName = teacher.Name,
                         TeacherAvatar = teacher.Avatar,
                         Status = cs.Status,
-                        Note = cs.Note
+                        Note = cs.Note,
+                        ClassStatus = cs.Class != null ? cs.Class.Status : null
                     })
                     .ToListAsync();
 
@@ -1120,6 +1122,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var user = await _userManager.FindByNameAsync(username);
                 if (user == null)
                 {
@@ -1164,7 +1167,8 @@ namespace sep490_be.Services.Implementations
                         TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
                         TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
                         Status = cs.Status,
-                        Note = cs.Note
+                        Note = cs.Note,
+                        ClassStatus = cs.Class != null ? cs.Class.Status : null
                     })
                     .ToListAsync();
 
@@ -1197,6 +1201,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var user = await _userManager.FindByNameAsync(username);
                 if (user == null)
                 {
@@ -1253,7 +1258,8 @@ namespace sep490_be.Services.Implementations
                         TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
                         TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
                         Status = cs.Status,
-                        Note = cs.Note
+                        Note = cs.Note,
+                        ClassStatus = cs.Class != null ? cs.Class.Status : null
                     })
                     .ToListAsync();
 
@@ -1286,6 +1292,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var schedules = await _scheduleRepository.FindAll()
                     .Include(cs => cs.TimeSlot)
                     .Include(cs => cs.Room)
@@ -1311,7 +1318,8 @@ namespace sep490_be.Services.Implementations
                         TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
                         TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
                         Status = cs.Status,
-                        Note = cs.Note
+                        Note = cs.Note,
+                        ClassStatus = cs.Class != null ? cs.Class.Status : null
                     })
                     .ToListAsync();
 
