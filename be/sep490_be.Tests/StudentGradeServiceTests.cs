@@ -68,8 +68,10 @@ namespace sep490_be.Tests.Services
 
             response.Success.Should().BeTrue();
             response.Data!.ClassId.Should().Be(classId);
-            response.Data.Components.Select(x => x.Code).Should().Equal("attendance", "homework", "exam");
-            response.Data.Components.Select(x => x.Weight).Should().Equal(30m, 30m, 40m);
+            response.Data.Components.Select(x => x.Code).Should().Equal(
+                "listening", "reading", "writing", "speaking", "homework", "attendance");
+            response.Data.Components.Select(x => x.Weight).Should().Equal(
+                10m, 10m, 10m, 10m, 30m, 30m);
         }
         [Fact]
         public async Task GetCourseComponentsAsync_WhenCourseExistsWithoutComponents_ShouldCreateDefaults()
@@ -86,8 +88,34 @@ namespace sep490_be.Tests.Services
             var response = await service.GetCourseComponentsAsync(course.Id);
 
             response.Success.Should().BeTrue();
-            response.Data.Should().HaveCount(3);
-            response.Data!.Select(x => x.Code).Should().Equal("attendance", "homework", "exam");
+            response.Data.Should().HaveCount(6);
+            response.Data!.Select(x => x.Code).Should().Equal(
+                "listening", "reading", "writing", "speaking", "homework", "attendance");
+        }
+
+        [Fact]
+        public async Task GetCourseComponentsAsync_WithLegacyExamComponent_ShouldReplaceItWithFourSkills()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var course = new Course { Code = "C-LEGACY", Name = "Legacy Course", Status = (int)GeneralStatus.Active };
+            context.Courses.Add(course);
+            await context.SaveChangesAsync();
+            context.GradeComponents.AddRange(
+                new GradeComponent { CourseId = course.Id, Code = "attendance", Name = "Attendance", Weight = 30, SortOrder = 1, IsSystem = true },
+                new GradeComponent { CourseId = course.Id, Code = "homework", Name = "Homework", Weight = 30, SortOrder = 2, IsSystem = true },
+                new GradeComponent { CourseId = course.Id, Code = "exam", Name = "Exam", Weight = 40, SortOrder = 3, IsSystem = true });
+            await context.SaveChangesAsync();
+
+            var response = await CreateService(context).GetCourseComponentsAsync(course.Id);
+
+            response.Success.Should().BeTrue();
+            response.Data!.Select(x => x.Code).Should().Equal(
+                "listening", "reading", "writing", "speaking", "homework", "attendance");
+            response.Data!.Sum(x => x.Weight).Should().Be(100);
+            (await context.GradeComponents.IgnoreQueryFilters()
+                .SingleAsync(x => x.CourseId == course.Id && x.Code == "exam"))
+                .IsDeleted.Should().BeTrue();
         }
         [Fact]
         public async Task SaveCourseComponentsAsync_WithValidComponents_ShouldCreateAndOrderComponents()
@@ -140,13 +168,10 @@ namespace sep490_be.Tests.Services
             var homework2 = new Homework { ClassId = classId, TeacherId = teacher.Id, Title = "HW2", TotalScore = 20, Status = 1 };
             context.Homeworks.AddRange(homework1, homework2);
 
-            var exam = new Exam { Code = "EX001", Name = "Exam One", Title = "Exam One", ClassId = classId, TotalScore = 20, Status = 1, Type = 1 };
-            context.Exams.Add(exam);
             await context.SaveChangesAsync();
             context.HomeworkSubmissions.AddRange(
                 new HomeworkSubmission { HomeworkId = homework1.Id, StudentId = studentId, SubmitTime = DateTime.UtcNow, Score = 8, Status = 2 },
                 new HomeworkSubmission { HomeworkId = homework2.Id, StudentId = studentId, SubmitTime = DateTime.UtcNow, Score = 10, Status = 2 });
-            context.ExamAttempts.Add(new ExamAttempt { ExamId = exam.Id, StudentId = studentId, StartTime = DateTime.UtcNow, Score = 15, Status = 2 });
             await context.SaveChangesAsync();
 
             var response = await service.GetMyGradesAsync(new[] { "student" });
@@ -156,9 +181,10 @@ namespace sep490_be.Tests.Services
             var grade = response.Data!.Single();
             grade.Components.Single(x => x.ComponentCode == "attendance").RawScore.Should().Be(5);
             grade.Components.Single(x => x.ComponentCode == "homework").RawScore.Should().Be(6.5m);
-            grade.Components.Single(x => x.ComponentCode == "exam").RawScore.Should().Be(7.5m);
-            grade.AverageScore.Should().Be(6.5m);
-            settings.Data!.Components.Should().HaveCount(3);
+            grade.Components.Where(x => new[] { "listening", "reading", "writing", "speaking" }.Contains(x.ComponentCode))
+                .Should().OnlyContain(x => x.RawScore == 0);
+            grade.AverageScore.Should().Be(3.5m);
+            settings.Data!.Components.Should().HaveCount(6);
         }
         [Fact]
         public async Task GetMyGradesAsync_WhenOverrideExists_ShouldUseOverrideButKeepRawScore()
@@ -202,14 +228,14 @@ namespace sep490_be.Tests.Services
             var service = CreateService(context);
             var settings = await service.GetSettingsAsync(classId);
             var attendanceId = settings.Data!.Components.First(x => x.Code == "attendance").Id;
-            var examId = settings.Data.Components.First(x => x.Code == "exam").Id;
+            var listeningId = settings.Data.Components.First(x => x.Code == "listening").Id;
 
             var response = await service.SaveOverridesAsync(classId, new StudentGradeOverridesSaveDto
             {
                 Overrides = new List<StudentGradeOverrideSaveDto>
                 {
                     new() { StudentClassId = studentClassId, GradeComponentId = attendanceId, Score = 12 },
-                    new() { StudentClassId = studentClassId, GradeComponentId = examId, Score = -2 }
+                    new() { StudentClassId = studentClassId, GradeComponentId = listeningId, Score = -2 }
                 }
             });
 
@@ -508,14 +534,14 @@ namespace sep490_be.Tests.Services
             {
                 Components = new List<GradeComponentSaveDto>
                 {
-                    new() { Id = kept.Id, Code = kept.Code, Name = "Updated attendance", Weight = kept.Weight, SortOrder = 1, IsSystem = true }
+                    new() { Id = kept.Id, Code = kept.Code, Name = "Updated listening", Weight = kept.Weight, SortOrder = 1, IsSystem = true }
                 }
             });
 
             response.Success.Should().BeTrue();
-            response.Data.Should().HaveCount(3);
-            response.Data!.First(x => x.Id == kept.Id).Name.Should().Be("Updated attendance");
-            (await context.GradeComponents.CountAsync(x => x.CourseId == course.Id)).Should().Be(3);
+            response.Data.Should().HaveCount(6);
+            response.Data!.First(x => x.Id == kept.Id).Name.Should().Be("Updated listening");
+            (await context.GradeComponents.CountAsync(x => x.CourseId == course.Id)).Should().Be(6);
         }
 
         [Fact]

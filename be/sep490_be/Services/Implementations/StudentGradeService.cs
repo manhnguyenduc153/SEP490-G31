@@ -124,8 +124,7 @@ namespace sep490_be.Services.Implementations
                 var rawScores = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["attendance"] = await CalculateAttendanceScoreAsync(classInfo.Id, studentId),
-                    ["homework"] = await CalculateHomeworkScoreAsync(classInfo.Id, studentId),
-                    ["exam"] = await CalculateExamScoreAsync(classInfo.Id, studentId)
+                    ["homework"] = await CalculateHomeworkScoreAsync(classInfo.Id, studentId)
                 };
 
                 var scoreComponents = components.Select(component =>
@@ -554,17 +553,74 @@ namespace sep490_be.Services.Implementations
 
         private async Task EnsureDefaultComponentsAsync(int courseId)
         {
-            var hasComponents = await _dbContext.GradeComponents.AnyAsync(x => x.CourseId == courseId);
-            if (hasComponents)
+            var existingComponents = await _dbContext.GradeComponents
+                .Where(x => x.CourseId == courseId)
+                .ToListAsync();
+
+            if (existingComponents.Count == 0)
+            {
+                _dbContext.GradeComponents.AddRange(
+                    new GradeComponent { CourseId = courseId, Code = "listening", Name = "Listening", Weight = 10, SortOrder = 1, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "reading", Name = "Reading", Weight = 10, SortOrder = 2, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "writing", Name = "Writing", Weight = 10, SortOrder = 3, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "speaking", Name = "Speaking", Weight = 10, SortOrder = 4, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "homework", Name = "Homework", Weight = 30, SortOrder = 5, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "attendance", Name = "Attendance", Weight = 30, SortOrder = 6, IsSystem = true }
+                );
+                await _dbContext.SaveChangesAsync();
+                return;
+            }
+
+            var legacyExam = existingComponents.FirstOrDefault(x =>
+                x.IsSystem && x.Code.Equals("exam", StringComparison.OrdinalIgnoreCase));
+            if (legacyExam == null)
             {
                 return;
             }
 
-            _dbContext.GradeComponents.AddRange(
-                new GradeComponent { CourseId = courseId, Code = "attendance", Name = "Attendance", Weight = 30, SortOrder = 1, IsSystem = true },
-                new GradeComponent { CourseId = courseId, Code = "homework", Name = "Homework", Weight = 30, SortOrder = 2, IsSystem = true },
-                new GradeComponent { CourseId = courseId, Code = "exam", Name = "Exam", Weight = 40, SortOrder = 3, IsSystem = true }
-            );
+            var skills = new[]
+            {
+                (Code: "listening", Name: "Listening", SortOrder: 1),
+                (Code: "reading", Name: "Reading", SortOrder: 2),
+                (Code: "writing", Name: "Writing", SortOrder: 3),
+                (Code: "speaking", Name: "Speaking", SortOrder: 4)
+            };
+            var missingSkills = skills
+                .Where(skill => existingComponents.All(component =>
+                    !component.Code.Equals(skill.Code, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            var skillWeight = missingSkills.Count > 0
+                ? legacyExam.Weight / missingSkills.Count
+                : 0m;
+
+            legacyExam.IsDeleted = true;
+            foreach (var skill in missingSkills)
+            {
+                _dbContext.GradeComponents.Add(new GradeComponent
+                {
+                    CourseId = courseId,
+                    Code = skill.Code,
+                    Name = skill.Name,
+                    Weight = skillWeight,
+                    SortOrder = skill.SortOrder,
+                    IsSystem = true
+                });
+            }
+
+            var homework = existingComponents.FirstOrDefault(x =>
+                x.Code.Equals("homework", StringComparison.OrdinalIgnoreCase));
+            if (homework != null)
+            {
+                homework.SortOrder = 5;
+            }
+
+            var attendance = existingComponents.FirstOrDefault(x =>
+                x.Code.Equals("attendance", StringComparison.OrdinalIgnoreCase));
+            if (attendance != null)
+            {
+                attendance.SortOrder = 6;
+            }
+
             await _dbContext.SaveChangesAsync();
         }
 
@@ -605,31 +661,6 @@ namespace sep490_be.Services.Implementations
                 NormalizeScore(scoreByHomework.GetValueOrDefault(homework.Id), homework.TotalScore));
 
             return normalizedScores.Sum() / homeworks.Count;
-        }
-
-        private async Task<decimal> CalculateExamScoreAsync(int classId, int studentId)
-        {
-            var exams = await _dbContext.Exams
-                .AsNoTracking()
-                .Where(x => x.ClassId == classId)
-                .Select(x => new { x.Id, x.TotalScore })
-                .ToListAsync();
-
-            if (exams.Count == 0) return 0m;
-
-            var examIds = exams.Select(x => x.Id).ToList();
-            var attempts = await _dbContext.ExamAttempts
-                .AsNoTracking()
-                .Where(x => x.StudentId == studentId && examIds.Contains(x.ExamId))
-                .GroupBy(x => x.ExamId)
-                .Select(g => new { ExamId = g.Key, Score = g.Max(x => x.Score) })
-                .ToListAsync();
-
-            var scoreByExam = attempts.ToDictionary(x => x.ExamId, x => x.Score);
-            var normalizedScores = exams.Select(exam =>
-                NormalizeScore(scoreByExam.GetValueOrDefault(exam.Id), exam.TotalScore ?? 10m));
-
-            return normalizedScores.Sum() / exams.Count;
         }
 
         private static decimal NormalizeScore(decimal? score, decimal total)
