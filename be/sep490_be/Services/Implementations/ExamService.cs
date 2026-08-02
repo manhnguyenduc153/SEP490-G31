@@ -824,6 +824,18 @@ namespace sep490_be.Services.Implementations
                     }, "EXAM_ATTEMPT_CONTINUE");
                 }
 
+                // Check exam start & end time window for starting a new attempt
+                var now = DateTime.UtcNow;
+                if (exam.StartTime.HasValue && now < exam.StartTime.Value)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_NOT_STARTED", StatusCodes.Status400BadRequest);
+                }
+
+                if (exam.EndTime.HasValue && now > exam.EndTime.Value && !exam.AllowLateSubmit)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_CLOSED", StatusCodes.Status400BadRequest);
+                }
+
                 var attempt = new ExamAttempt
                 {
                     Code = "ATT-" + Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper(),
