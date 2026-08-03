@@ -24,6 +24,7 @@ namespace sep490_be.DTO.Class
         public int? AttendanceStatus { get; set; }
         public string? Code { get; set; }
         public string? Name { get; set; }
+        public int? ClassStatus { get; set; }
     }
 }
 
