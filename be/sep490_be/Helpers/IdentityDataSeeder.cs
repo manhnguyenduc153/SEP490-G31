@@ -33,6 +33,7 @@ namespace sep490_be.Helpers
                 }
             }
 
+
             // Thêm các Claim mới có trong Code nhưng chưa có trong DB
             var existingPermissionValues = existingClaims
                 .Where(c => c.Type.Equals("Permission", System.StringComparison.OrdinalIgnoreCase))
@@ -47,30 +48,7 @@ namespace sep490_be.Helpers
                 }
             }
 
-            // Chuyển quyền xem điểm cũ sang hai quyền chuyên biệt mà không làm mất quyền của các role hiện có.
-            const string legacyStudentGradeView = "StudentGrade.View";
-            foreach (var role in roleManager.Roles.ToList())
-            {
-                var roleClaims = await roleManager.GetClaimsAsync(role);
-                var legacyClaim = roleClaims.FirstOrDefault(claim =>
-                    claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
-                    claim.Value.Equals(legacyStudentGradeView, StringComparison.OrdinalIgnoreCase));
 
-                if (legacyClaim == null) continue;
-
-                var replacementPermission = role.Name?.Equals("Student", StringComparison.OrdinalIgnoreCase) == true
-                    ? Permissions.StudentGrade.StudentGrade_ViewOwnGrades
-                    : Permissions.StudentGrade.StudentGrade_ViewSettings;
-
-                if (!roleClaims.Any(claim =>
-                    claim.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) &&
-                    claim.Value.Equals(replacementPermission, StringComparison.OrdinalIgnoreCase)))
-                {
-                    await roleManager.AddClaimAsync(role, new Claim("Permission", replacementPermission));
-                }
-
-                await roleManager.RemoveClaimAsync(role, legacyClaim);
-            }
 
             // 3. Tạo tài khoản admin nếu chưa tồn tại
             const string adminUsername = "admin";
@@ -241,14 +219,13 @@ namespace sep490_be.Helpers
                 "Center manager"
             };
 
-            foreach (var roleName in newRolesToSeed)
+        private static async Task EnsureRoleExistsAsync(RoleManager<IdentityRole> roleManager, string roleName)
+        {
+            var role = await roleManager.FindByNameAsync(roleName);
+            if (role == null)
             {
-                var role = await roleManager.FindByNameAsync(roleName);
-                if (role == null)
-                {
-                    role = new IdentityRole(roleName);
-                    await roleManager.CreateAsync(role);
-                }
+                role = new IdentityRole(roleName);
+                await roleManager.CreateAsync(role);
             }
         }
     }

@@ -40,12 +40,7 @@ namespace sep490_be.DTO.Common
             public const string Student_Delete = "Student.Delete";
         }
 
-        public static class StudentProfile
-        {
-            public const string StudentProfilePage = "StudentProfile";
-            public const string StudentProfile_View = "StudentProfile.View";
-            public const string StudentProfile_Edit = "StudentProfile.Edit";
-        }
+
 
         public static class Teacher
         {
@@ -56,12 +51,7 @@ namespace sep490_be.DTO.Common
             public const string Teacher_Delete = "Teacher.Delete";
         }
 
-        public static class TeacherProfile
-        {
-            public const string TeacherProfilePage = "TeacherProfile";
-            public const string TeacherProfile_View = "TeacherProfile.View";
-            public const string TeacherProfile_Edit = "TeacherProfile.Edit";
-        }
+
 
         public static class ParentStudent
         {
@@ -89,8 +79,16 @@ namespace sep490_be.DTO.Common
             public const string Class_Edit = "Class.Edit";
             public const string Class_Delete = "Class.Delete";
             public const string Class_Import = "Class.Import";
-            public const string Class_StudentView = "Class.StudentView";
-            public const string Class_TeacherView = "Class.TeacherView";
+        }
+
+        public static class MyClass
+        {
+            public const string MyClassPage = "MyClass";
+        }
+
+        public static class TeachingClass
+        {
+            public const string TeachingClassPage = "TeachingClass";
         }
 
         public static class Room
@@ -188,8 +186,16 @@ namespace sep490_be.DTO.Common
             public const string Exam_Create = "Exam.Create";
             public const string Exam_Edit = "Exam.Edit";
             public const string Exam_Delete = "Exam.Delete";
-            public const string Exam_StudentView = "Exam.StudentView";
-            public const string Exam_TeacherView = "Exam.TeacherView";
+        }
+
+        public static class StudentExam
+        {
+            public const string StudentExamPage = "StudentExam";
+        }
+
+        public static class TeachingExam
+        {
+            public const string TeachingExamPage = "TeachingExam";
         }
 
         public static class ExamQuestion
@@ -241,20 +247,36 @@ namespace sep490_be.DTO.Common
         {
             public const string StudentGradePage = "StudentGrade";
             public const string StudentGrade_ViewSettings = "StudentGrade.ViewSettings";
-            public const string StudentGrade_ViewOwnGrades = "StudentGrade.ViewOwnGrades";
             public const string StudentGrade_Create = "StudentGrade.Create";
             public const string StudentGrade_Edit = "StudentGrade.Edit";
             public const string StudentGrade_Delete = "StudentGrade.Delete";
             public const string StudentGrade_SaveGrade = "StudentGrade.SaveGrade";
         }
 
-        public static class Homework
+        public static class MyGrade
         {
-            public const string HomeworkPage = "Homework";
-            public const string Homework_View = "Homework.View";
-            public const string Homework_Create = "Homework.Create";
-            public const string Homework_Edit = "Homework.Edit";
-            public const string Homework_Delete = "Homework.Delete";
+            public const string MyGradePage = "MyGrade";
+        }
+
+        public static class StudentProgress
+        {
+            public const string StudentProgressPage = "StudentProgress";
+        }
+
+        public static class HomeworkManagement
+        {
+            public const string HomeworkManagementPage = "HomeworkManagement";
+            public const string HomeworkManagement_View = "HomeworkManagement.View";
+            public const string HomeworkManagement_Create = "HomeworkManagement.Create";
+            public const string HomeworkManagement_Edit = "HomeworkManagement.Edit";
+            public const string HomeworkManagement_Delete = "HomeworkManagement.Delete";
+        }
+
+        public static class StudentHomework
+        {
+            public const string StudentHomeworkPage = "StudentHomework";
+            public const string StudentHomework_View = "StudentHomework.View";
+            public const string StudentHomework_Submit = "StudentHomework.Submit";
         }
 
         public static class Semester
@@ -275,6 +297,31 @@ namespace sep490_be.DTO.Common
             public const string StudentRegistration_Edit = "StudentRegistration.Edit";
             public const string StudentRegistration_Delete = "StudentRegistration.Delete";
             public const string StudentRegistration_Import = "StudentRegistration.Import";
+        }
+
+        public static class ClassGradeReport
+        {
+            public const string ClassGradeReportPage = "ClassGradeReport";
+        }
+
+        public static class AttendanceReport
+        {
+            public const string AttendanceReportPage = "AttendanceReport";
+        }
+
+        public static class ExamReport
+        {
+            public const string ExamReportPage = "ExamReport";
+        }
+
+        public static class ChildProgress
+        {
+            public const string ChildProgressPage = "ChildProgress";
+        }
+
+        public static class ChildSchedule
+        {
+            public const string ChildSchedulePage = "ChildSchedule";
         }
 
         public static List<string> GetAllPermissions()
@@ -309,6 +356,7 @@ namespace sep490_be.DTO.Common
             { "Teacher", "academicOperations" },
             { "Student", "academicOperations" },
             { "Room", "academicOperations" },
+            { "TeachingExam", "academicOperations" },
             
             { "Schedule", "schedule" },
             { "TeachingSchedule", "schedule" },
@@ -319,30 +367,37 @@ namespace sep490_be.DTO.Common
             { "ExamAttempt", "assessments" },
             { "ExamAnswer", "assessments" },
             { "ExamStudent", "assessments" },
-            { "Homework", "assessments" },
+            { "HomeworkManagement", "assessments" },
             { "Question", "assessments" },
             { "QuestionCategory", "assessments" },
             { "StudentGrade", "assessments" },
             
             { "LearningMaterial", "learning" },
             { "Attendance", "learning" },
+            { "StudentHomework", "learning" },
+            { "MyGrade", "learning" },
+            { "StudentProgress", "learning" },
+            { "MyClass", "learning" },
+            { "TeachingClass", "learning" },
+            { "StudentExam", "learning" },
             
             { "User", "administration" },
             { "Role", "administration" },
             { "Notification", "administration" },
             
             { "ParentStudent", "parentServices" },
-            { "StudentProfile", "parentServices" },
-            { "TeacherProfile", "parentServices" },
-            
-            { "Product", "others" }
+            { "ChildProgress", "parentServices" },
+            { "ChildSchedule", "parentServices" },
+            { "ClassGradeReport", "reportsMenu" },
+            { "AttendanceReport", "reportsMenu" },
+            { "ExamReport", "reportsMenu" }
         };
 
         public static Dictionary<string, Dictionary<string, List<string>>> GetStructuredPermissions()
         {
             var structured = new Dictionary<string, Dictionary<string, List<string>>>();
             
-            var groups = new[] { "academicOperations", "schedule", "assessments", "learning", "administration", "parentServices", "others" };
+            var groups = new[] { "academicOperations", "schedule", "assessments", "learning", "administration", "reportsMenu", "parentServices" };
             foreach (var g in groups)
             {
                 structured[g] = new Dictionary<string, List<string>>();
@@ -353,6 +408,7 @@ namespace sep490_be.DTO.Common
             {
                 var featureName = type.Name;
                 var groupId = FeatureToGroupMapping.GetValueOrDefault(featureName, "others");
+                if (groupId == "others") continue;
                 var groupNode = structured[groupId];
 
                 var fields = type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using sep490_be.Models.BaseEntities;
 
@@ -7,6 +7,8 @@ namespace sep490_be.Models
     public class Class : StandardEntity<int>
     {
         public int Status { get; set; }
+        public int Type { get; set; } = 0; // 0 = Offline, 1 = Online
+        public string? Url { get; set; }
         public string? Description { get; set; }
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }

@@ -81,6 +81,11 @@ namespace sep490_be.Services.Implementations
                     query = query.Where(c => c.TeacherId == searchDto.TeacherId.Value);
                 }
 
+                if (searchDto.Type.HasValue)
+                {
+                    query = query.Where(c => c.Type == searchDto.Type.Value);
+                }
+
                 query = query.OrderByDescending(c => c.Id);
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(searchDto);
@@ -153,7 +158,7 @@ namespace sep490_be.Services.Implementations
 
                         if (!isViewAll)
                         {
-                            if (permissions.Contains(Permissions.Class.Class_TeacherView))
+                            if (permissions.Contains(Permissions.TeachingClass.TeachingClassPage))
                             {
                                 var teacher = await _teacherRepository.FindAll()
                                     .FirstOrDefaultAsync(t => t.Email == user.Email || t.Email == username);
@@ -162,7 +167,7 @@ namespace sep490_be.Services.Implementations
                                     return ApiResponse<ClassDto>.Fail("ERR_FORBIDDEN", StatusCodes.Status403Forbidden);
                                 }
                             }
-                            else if (permissions.Contains(Permissions.Class.Class_StudentView))
+                            else if (permissions.Contains(Permissions.MyClass.MyClassPage))
                             {
                                 var student = await _studentRepository.FindAll()
                                     .FirstOrDefaultAsync(s => s.Email == user.Email || s.Email == username);
@@ -207,20 +212,40 @@ namespace sep490_be.Services.Implementations
                 entity.Id = 0;
                 entity.StudentClasses = new List<StudentClass>();
 
-                if (dto.StudentIds != null && dto.StudentIds.Any())
+                if (dto.Students != null && dto.Students.Any())
                 {
-                    foreach (var studentId in dto.StudentIds)
+                    foreach (var s in dto.Students)
                     {
                         entity.StudentClasses.Add(new StudentClass
                         {
-                            StudentId = studentId,
+                            StudentId = s.StudentId,
                             EnrollDate = DateTime.UtcNow,
-                            Status = (int)StudentClassStatus.Enrolled
+                            Status = (int)StudentClassStatus.Enrolled,
+                            EnrollType = s.EnrollType
                         });
                     }
                 }
 
                 await GenerateSchedulesAsync(entity, dto);
+
+                // Update student registrations to Scheduled
+                if (dto.Students != null && dto.Students.Any() && entity.CourseId.HasValue)
+                {
+                    var addedStudentIds = dto.Students.Select(s => s.StudentId).ToList();
+                    var semesterId = entity.SemesterId;
+                    var regsToUpdate = await _dbContext.StudentRegistrations
+                        .Where(r => r.CourseId == entity.CourseId
+                                 && r.Status == (int)StudentRegistrationStatus.Pending
+                                 && addedStudentIds.Contains(r.StudentId)
+                                 && (!semesterId.HasValue || r.SemesterId == semesterId.Value))
+                        .ToListAsync();
+
+                    foreach (var reg in regsToUpdate)
+                    {
+                        reg.Status = (int)StudentRegistrationStatus.Scheduled;
+                        _dbContext.StudentRegistrations.Update(reg);
+                    }
+                }
 
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
@@ -288,7 +313,8 @@ namespace sep490_be.Services.Implementations
 
                 // Sync StudentClasses
                 var currentStudentIds = existingEntity.StudentClasses.Select(sc => sc.StudentId).ToList();
-                var newStudentIds = dto.StudentIds ?? new List<int>();
+                var newStudents = dto.Students ?? new List<StudentEnrollDto>();
+                var newStudentIds = newStudents.Select(s => s.StudentId).ToList();
 
                 // Remove students that are no longer assigned
                 var studentsToRemove = existingEntity.StudentClasses.Where(sc => !newStudentIds.Contains(sc.StudentId)).ToList();
@@ -297,16 +323,67 @@ namespace sep490_be.Services.Implementations
                     _dbContext.StudentClasses.RemoveRange(studentsToRemove);
                 }
 
-                // Add new students
-                var studentsToAdd = newStudentIds.Where(id => !currentStudentIds.Contains(id)).ToList();
-                foreach (var studentId in studentsToAdd)
+                // Add new students or update EnrollType for existing ones
+                var studentsToAdd = newStudents.Where(s => !currentStudentIds.Contains(s.StudentId)).ToList();
+                foreach (var s in studentsToAdd)
                 {
                     existingEntity.StudentClasses.Add(new StudentClass
                     {
-                        StudentId = studentId,
+                        StudentId = s.StudentId,
                         EnrollDate = DateTime.UtcNow,
-                        Status = (int)StudentClassStatus.Enrolled
+                        Status = (int)StudentClassStatus.Enrolled,
+                        EnrollType = s.EnrollType
                     });
+                }
+
+                // Update EnrollType for already-existing students
+                foreach (var existingSc in existingEntity.StudentClasses.Where(sc => newStudentIds.Contains(sc.StudentId)))
+                {
+                    var updated = newStudents.FirstOrDefault(s => s.StudentId == existingSc.StudentId);
+                    if (updated != null)
+                        existingSc.EnrollType = updated.EnrollType;
+                }
+
+                // Sync student registrations status
+                if (existingEntity.CourseId.HasValue)
+                {
+                    var semesterId = existingEntity.SemesterId;
+                    
+                    // Reset removed students' registrations to Pending
+                    var removeStudentIds = studentsToRemove.Select(sc => sc.StudentId).ToList();
+                    if (removeStudentIds.Any())
+                    {
+                        var regsToReset = await _dbContext.StudentRegistrations
+                            .Where(r => r.CourseId == existingEntity.CourseId
+                                     && r.Status == (int)StudentRegistrationStatus.Scheduled
+                                     && removeStudentIds.Contains(r.StudentId)
+                                     && (!semesterId.HasValue || r.SemesterId == semesterId.Value))
+                            .ToListAsync();
+
+                        foreach (var reg in regsToReset)
+                        {
+                            reg.Status = (int)StudentRegistrationStatus.Pending;
+                            _dbContext.StudentRegistrations.Update(reg);
+                        }
+                    }
+
+                    // Update added students' registrations to Scheduled
+                    var addStudentIds = studentsToAdd.Select(s => s.StudentId).ToList();
+                    if (addStudentIds.Any())
+                    {
+                        var regsToUpdate = await _dbContext.StudentRegistrations
+                            .Where(r => r.CourseId == existingEntity.CourseId
+                                     && r.Status == (int)StudentRegistrationStatus.Pending
+                                     && addStudentIds.Contains(r.StudentId)
+                                     && (!semesterId.HasValue || r.SemesterId == semesterId.Value))
+                            .ToListAsync();
+
+                        foreach (var reg in regsToUpdate)
+                        {
+                            reg.Status = (int)StudentRegistrationStatus.Scheduled;
+                            _dbContext.StudentRegistrations.Update(reg);
+                        }
+                    }
                 }
 
                 // Map basic fields
@@ -336,7 +413,7 @@ namespace sep490_be.Services.Implementations
                 // Trigger SignalR Notification for newly added students
                 if (updatedClass != null && studentsToAdd.Any())
                 {
-                    await _notificationService.SendStudentsAddedToClassNotificationAsync(updatedClass, studentsToAdd);
+                    await _notificationService.SendStudentsAddedToClassNotificationAsync(updatedClass, studentsToAdd.Select(s => s.StudentId).ToList());
                 }
 
                 // Trigger SignalR Notification if teacher changed or newly assigned
@@ -379,40 +456,18 @@ namespace sep490_be.Services.Implementations
 
                 if (studentIds.Any() && existingEntity.CourseId.HasValue)
                 {
-                    // 2. Find the semester corresponding to this class (based on Class StartDate matching Semester StartDate)
-                    var semester = await _dbContext.Semesters
-                        .FirstOrDefaultAsync(s => !s.IsDeleted && s.StartDate == existingEntity.StartDate);
+                    var semesterId = existingEntity.SemesterId;
+                    var regsToReset = await _dbContext.StudentRegistrations
+                        .Where(r => r.CourseId == existingEntity.CourseId 
+                                 && r.Status == (int)StudentRegistrationStatus.Scheduled 
+                                 && studentIds.Contains(r.StudentId)
+                                 && (!semesterId.HasValue || r.SemesterId == semesterId.Value))
+                        .ToListAsync();
 
-                    if (semester != null)
+                    foreach (var reg in regsToReset)
                     {
-                        // 3. Find registrations for these students, for this course, in this semester, that are Scheduled (2)
-                        var regsToReset = await _dbContext.StudentRegistrations
-                            .Where(r => r.SemesterId == semester.Id 
-                                     && r.CourseId == existingEntity.CourseId 
-                                     && r.Status == (int)StudentRegistrationStatus.Scheduled 
-                                     && studentIds.Contains(r.StudentId))
-                            .ToListAsync();
-
-                        foreach (var reg in regsToReset)
-                        {
-                            reg.Status = (int)StudentRegistrationStatus.Pending;
-                            _dbContext.StudentRegistrations.Update(reg);
-                        }
-                    }
-                    else
-                    {
-                        // Fallback: Reset any Scheduled registrations for this course and these students
-                        var regsToReset = await _dbContext.StudentRegistrations
-                            .Where(r => r.CourseId == existingEntity.CourseId 
-                                     && r.Status == (int)StudentRegistrationStatus.Scheduled 
-                                     && studentIds.Contains(r.StudentId))
-                            .ToListAsync();
-
-                        foreach (var reg in regsToReset)
-                        {
-                            reg.Status = (int)StudentRegistrationStatus.Pending;
-                            _dbContext.StudentRegistrations.Update(reg);
-                        }
+                        reg.Status = (int)StudentRegistrationStatus.Pending;
+                        _dbContext.StudentRegistrations.Update(reg);
                     }
                 }
 
@@ -568,6 +623,38 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<PagingResponse<ClassDto>>> GetAccessibleClassesAsync(string username, ClassSearchDto searchDto)
+        {
+            try
+            {
+                var user = await _userManager.FindByNameAsync(username);
+                var email = user?.Email ?? username;
+
+                // 1. Check if Teacher
+                var teacher = await _teacherRepository.FindAll()
+                    .FirstOrDefaultAsync(t => t.Email == email || t.Code == username);
+                if (teacher != null)
+                {
+                    return await GetTeacherClassesAsync(username, searchDto);
+                }
+
+                // 2. Check if Student
+                var student = await _studentRepository.FindAll()
+                    .FirstOrDefaultAsync(s => s.Email == email || s.Code == username);
+                if (student != null)
+                {
+                    return await GetStudentClassesAsync(username, searchDto);
+                }
+
+                // 3. Fallback to Admin (All)
+                return await GetAllAsync(searchDto);
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<PagingResponse<ClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
         // ===================== PRIVATE MAPPING =====================
 
         private static ClassDto MapToDto(Class entity) => new()
@@ -577,6 +664,9 @@ namespace sep490_be.Services.Implementations
             Name = entity.Name ?? string.Empty,
             Status = entity.Status,
             StatusName = ((ClassStatus)entity.Status).GetStringValue(),
+            Type = entity.Type,
+            TypeName = entity.Type == 1 ? "Online" : "Offline",
+            Url = entity.Url,
             Description = entity.Description,
             StartDate = entity.StartDate,
             EndDate = entity.EndDate,
@@ -610,12 +700,15 @@ namespace sep490_be.Services.Implementations
                 TeacherName = cs.Teacher?.Name,
                 TeacherAvatar = cs.Teacher?.Avatar,
                 Status = cs.Status,
-                Note = cs.Note
+                Note = cs.Note,
+                ClassStatus = cs.Class != null ? cs.Class.Status : entity.Status
             }).OrderBy(cs => cs.LessonNo).ToList() ?? new List<ClassScheduleDto>(),
             StudentClasses = entity.StudentClasses?.Select(sc => new ClassStudentDto
             {
                 Id = sc.Id,
                 StudentId = sc.StudentId,
+                EnrollType = sc.EnrollType,
+                EnrollTypeName = sc.EnrollType == 1 ? "Online" : "Offline",
                 Student = sc.Student != null ? new sep490_be.DTO.Student.StudentDto
                 {
                     Id = sc.Student.Id,
@@ -695,9 +788,9 @@ namespace sep490_be.Services.Implementations
                     return "ERR_STUDENT_NOT_FOUND";
             }
 
-            // Kiểm tra sức chứa phòng học so với số lượng học sinh
-            int studentCount = dto.StudentIds?.Count ?? 0;
-            if (dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+            // Kiểm tra sức chứa phòng học so với số lượng học sinh (chỉ áp dụng cho lớp Offline)
+            int studentCount = dto.Students?.Count ?? 0;
+            if (dto.Type != 1 && dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
             {
                 var roomIds = dto.WeeklySchedules
                     .Where(w => w.RoomId.HasValue)
@@ -975,6 +1068,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var user = await _userManager.FindByNameAsync(username);
                 if (user == null)
                 {
@@ -1012,7 +1106,8 @@ namespace sep490_be.Services.Implementations
                         TeacherName = teacher.Name,
                         TeacherAvatar = teacher.Avatar,
                         Status = cs.Status,
-                        Note = cs.Note
+                        Note = cs.Note,
+                        ClassStatus = cs.Class != null ? cs.Class.Status : null
                     })
                     .ToListAsync();
 
@@ -1028,6 +1123,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var user = await _userManager.FindByNameAsync(username);
                 if (user == null)
                 {
@@ -1072,7 +1168,8 @@ namespace sep490_be.Services.Implementations
                         TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
                         TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
                         Status = cs.Status,
-                        Note = cs.Note
+                        Note = cs.Note,
+                        ClassStatus = cs.Class != null ? cs.Class.Status : null
                     })
                     .ToListAsync();
 
@@ -1105,6 +1202,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var user = await _userManager.FindByNameAsync(username);
                 if (user == null)
                 {
@@ -1161,7 +1259,8 @@ namespace sep490_be.Services.Implementations
                         TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
                         TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
                         Status = cs.Status,
-                        Note = cs.Note
+                        Note = cs.Note,
+                        ClassStatus = cs.Class != null ? cs.Class.Status : null
                     })
                     .ToListAsync();
 
@@ -1194,6 +1293,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
+                await AutoUpdateClassStatusesAsync();
                 var schedules = await _scheduleRepository.FindAll()
                     .Include(cs => cs.TimeSlot)
                     .Include(cs => cs.Room)
@@ -1219,7 +1319,8 @@ namespace sep490_be.Services.Implementations
                         TeacherName = cs.Teacher != null ? cs.Teacher.Name : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Name : null),
                         TeacherAvatar = cs.Teacher != null ? cs.Teacher.Avatar : (cs.Class != null && cs.Class.Teacher != null ? cs.Class.Teacher.Avatar : null),
                         Status = cs.Status,
-                        Note = cs.Note
+                        Note = cs.Note,
+                        ClassStatus = cs.Class != null ? cs.Class.Status : null
                     })
                     .ToListAsync();
 
@@ -1279,14 +1380,14 @@ namespace sep490_be.Services.Implementations
                     studentId = existingStudent.Id;
                 }
                 
-                if (dto.StudentIds == null)
+                // Add newly created/resolved student to the Students list with default enroll type matching the class type
+                if (!dto.Students.Any(s => s.StudentId == studentId))
                 {
-                    dto.StudentIds = new List<int>();
-                }
-                
-                if (!dto.StudentIds.Contains(studentId))
-                {
-                    dto.StudentIds.Add(studentId);
+                    dto.Students.Add(new StudentEnrollDto
+                    {
+                        StudentId = studentId,
+                        EnrollType = dto.Type // default enroll type matches class type
+                    });
                 }
             }
         }

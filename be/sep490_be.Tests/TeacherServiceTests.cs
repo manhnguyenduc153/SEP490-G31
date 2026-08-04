@@ -234,7 +234,8 @@ namespace sep490_be.Tests.Services
 
                 response.Success.Should().BeTrue();
                 var teacher = await context.Teachers.IgnoreQueryFilters().FirstAsync(t => t.Id == teacherId);
-                teacher.IsDeleted.Should().BeTrue();
+                teacher.IsDeleted.Should().BeFalse();
+                teacher.Status.Should().Be((int)TeacherStatus.Inactive);
 
                 var user = await userManager.FindByEmailAsync("deactive@test.com");
                 (await userManager.IsLockedOutAsync(user!)).Should().BeTrue();
@@ -295,7 +296,7 @@ namespace sep490_be.Tests.Services
         #region Boundary Test Cases (Kiểm thử giá trị biên)
 
         [Fact]
-        public async Task ImportAsync_ShouldCreateValidRowsAndSkipInvalidRows()
+        public async Task ImportAsync_WithInvalidRow_ShouldRejectEntireImport()
         {
             var options = CreateNewContextOptions();
             var mockHttp = GetMockHttpContextAccessor();
@@ -308,10 +309,10 @@ namespace sep490_be.Tests.Services
                 new() { Code = "TC002", Name = "Teacher Two", Email = "two@test.com" }
             });
 
-            response.Success.Should().BeTrue();
-            response.Data.Should().HaveCount(2);
-            response.Data!.Select(x => x.Code).Should().BeEquivalentTo(new[] { "TC001", "TC002" });
-            (await context.Teachers.CountAsync()).Should().Be(2);
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_CODE_EMPTY");
+            (await context.Teachers.CountAsync()).Should().Be(0);
         }
 
         #endregion
@@ -428,6 +429,10 @@ namespace sep490_be.Tests.Services
         [InlineData("long-name", "ERR_NAME_MAX_LENGTH")]
         [InlineData("long-email", "ERR_EMAIL_MAX_LENGTH")]
         [InlineData("long-phone", "ERR_PHONE_MAX_LENGTH")]
+        [InlineData("invalid-email", "ERR_EMAIL_INVALID")]
+        [InlineData("invalid-phone", "ERR_PHONE_INVALID")]
+        [InlineData("future-dob", "ERR_DOB_FUTURE")]
+        [InlineData("invalid-status", "ERR_TEACHER_STATUS_INVALID")]
         public async Task CreateAsync_WithInvalidField_ShouldReturnExpectedValidationError(string scenario, string expectedError)
         {
             var options = CreateNewContextOptions();
@@ -441,6 +446,10 @@ namespace sep490_be.Tests.Services
                 case "long-name": dto.Name = new string('N', 201); break;
                 case "long-email": dto.Email = new string('e', 151); break;
                 case "long-phone": dto.Phone = new string('1', 21); break;
+                case "invalid-email": dto.Email = "invalid-email"; break;
+                case "invalid-phone": dto.Phone = "abc"; break;
+                case "future-dob": dto.Dob = DateTime.UtcNow.Date.AddDays(1); break;
+                case "invalid-status": dto.Status = 99; break;
             }
 
             var response = await CreateService(context).CreateAsync(dto);
@@ -581,16 +590,16 @@ namespace sep490_be.Tests.Services
         }
 
         [Fact]
-        public async Task ImportAsync_WithEmptyList_ShouldReturnCreatedEmptyList()
+        public async Task ImportAsync_WithEmptyList_ShouldReturnBadRequest()
         {
             var options = CreateNewContextOptions();
             using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
 
             var response = await CreateService(context).ImportAsync(new List<TeacherSaveDto>());
 
-            response.Success.Should().BeTrue();
-            response.StatusCode.Should().Be(StatusCodes.Status201Created);
-            response.Data.Should().BeEmpty();
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_TEACHER_IMPORT_EMPTY");
         }
 
         [Fact]

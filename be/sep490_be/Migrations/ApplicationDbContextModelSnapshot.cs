@@ -357,10 +357,16 @@ namespace sep490_be.Migrations
                     b.Property<string>("TextSearch")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Url")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("WeeklySchedulesJson")
@@ -780,10 +786,16 @@ namespace sep490_be.Migrations
                     b.Property<int>("ExamId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("PassageId")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("Point")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("QuestionId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("QuestionPassageId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -791,6 +803,8 @@ namespace sep490_be.Migrations
                     b.HasIndex("ExamId");
 
                     b.HasIndex("QuestionId");
+
+                    b.HasIndex("QuestionPassageId");
 
                     b.ToTable("exam_questions", (string)null);
                 });
@@ -1458,16 +1472,28 @@ namespace sep490_be.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("MediaUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("PassageId")
+                        .HasColumnType("int");
 
                     b.Property<decimal?>("Point")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("QuestionType")
                         .HasColumnType("int");
+
+                    b.Property<int>("SkillType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -1484,6 +1510,8 @@ namespace sep490_be.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("PassageId");
 
                     b.ToTable("questions", (string)null);
                 });
@@ -1560,6 +1588,9 @@ namespace sep490_be.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int?>("CourseId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1595,7 +1626,77 @@ namespace sep490_be.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CourseId");
+
                     b.ToTable("question_categories", (string)null);
+                });
+
+            modelBuilder.Entity("sep490_be.Models.QuestionPassage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AttachmentUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AudioUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Content")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SkillType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TextSearch")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("question_passages", (string)null);
                 });
 
             modelBuilder.Entity("sep490_be.Models.RefreshToken", b =>
@@ -1864,6 +1965,9 @@ namespace sep490_be.Migrations
                     b.Property<DateTime?>("EnrollDate")
                         .HasColumnType("date");
 
+                    b.Property<int?>("EnrollType")
+                        .HasColumnType("int");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -1969,6 +2073,9 @@ namespace sep490_be.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EnrollType")
                         .HasColumnType("int");
 
                     b.Property<string>("PreferredSlotsJson")
@@ -2357,9 +2464,15 @@ namespace sep490_be.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("sep490_be.Models.QuestionPassage", "QuestionPassage")
+                        .WithMany()
+                        .HasForeignKey("QuestionPassageId");
+
                     b.Navigation("Exam");
 
                     b.Navigation("Question");
+
+                    b.Navigation("QuestionPassage");
                 });
 
             modelBuilder.Entity("sep490_be.Models.ExamSchedule", b =>
@@ -2528,7 +2641,14 @@ namespace sep490_be.Migrations
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("sep490_be.Models.QuestionPassage", "QuestionPassage")
+                        .WithMany("Questions")
+                        .HasForeignKey("PassageId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("QuestionCategory");
+
+                    b.Navigation("QuestionPassage");
                 });
 
             modelBuilder.Entity("sep490_be.Models.QuestionAnswer", b =>
@@ -2539,6 +2659,26 @@ namespace sep490_be.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("sep490_be.Models.QuestionCategory", b =>
+                {
+                    b.HasOne("sep490_be.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Course");
+                });
+
+            modelBuilder.Entity("sep490_be.Models.QuestionPassage", b =>
+                {
+                    b.HasOne("sep490_be.Models.QuestionCategory", "QuestionCategory")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("QuestionCategory");
                 });
 
             modelBuilder.Entity("sep490_be.Models.RefreshToken", b =>
@@ -2732,6 +2872,11 @@ namespace sep490_be.Migrations
                 });
 
             modelBuilder.Entity("sep490_be.Models.QuestionCategory", b =>
+                {
+                    b.Navigation("Questions");
+                });
+
+            modelBuilder.Entity("sep490_be.Models.QuestionPassage", b =>
                 {
                     b.Navigation("Questions");
                 });

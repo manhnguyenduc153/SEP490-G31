@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
+
+using System.Security.Claims;
 
 namespace sep490_be.Helpers.Authorization
 {
@@ -11,10 +13,26 @@ namespace sep490_be.Helpers.Authorization
                 return Task.CompletedTask;
             }
 
+            // Admin luôn có toàn quyền, kể cả khi JWT được phát trước lúc có permission mới.
+            var isAdmin = context.User.IsInRole("Admin") ||
+                context.User.Claims.Any(c =>
+                    (c.Type == ClaimTypes.Role || c.Type.Equals("role", StringComparison.OrdinalIgnoreCase)) &&
+                    c.Value.Equals("Admin", StringComparison.OrdinalIgnoreCase));
+
+            if (isAdmin)
+            {
+                context.Succeed(requirement);
+                return Task.CompletedTask;
+            }
+
             // Kiểm tra xem context.User có chứa Claim loại "Permission" và giá trị khớp với yêu cầu hay không
-            var hasPermission = context.User.Claims.Any(c => 
-                c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) && 
-                c.Value.Equals(requirement.Permission, StringComparison.OrdinalIgnoreCase));
+            var requiredPerms = requirement.Permission.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var userPerms = context.User.Claims
+                .Where(c => c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase))
+                .Select(c => c.Value)
+                .ToList();
+
+            var hasPermission = requiredPerms.Any(rp => userPerms.Any(up => up.Equals(rp, StringComparison.OrdinalIgnoreCase)));
 
             if (hasPermission)
             {

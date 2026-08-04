@@ -155,6 +155,11 @@ namespace sep490_be.Services.Implementations
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
                 };
 
+                if (!string.IsNullOrEmpty(user.Email))
+                {
+                    authClaims.Add(new Claim(ClaimTypes.Email, user.Email));
+                }
+
                 foreach (var roleName in userRoles)
                 {
                     authClaims.Add(new Claim(ClaimTypes.Role, roleName));
@@ -611,6 +616,41 @@ namespace sep490_be.Services.Implementations
             catch (Exception ex)
             {
                 return ApiResponse<List<string>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<bool>> DeleteRoleAsync(string roleName)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(roleName))
+                {
+                    return ApiResponse<bool>.Fail("ERR_ROLE_NAME_EMPTY", StatusCodes.Status400BadRequest);
+                }
+
+                // Không cho phép xóa vai trò Admin
+                if (roleName.Equals("Admin", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return ApiResponse<bool>.Fail("ERR_CANNOT_DELETE_ADMIN_ROLE", StatusCodes.Status400BadRequest);
+                }
+
+                var role = await _roleManager.FindByNameAsync(roleName);
+                if (role == null)
+                {
+                    return ApiResponse<bool>.Fail("ERR_ROLE_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var result = await _roleManager.DeleteAsync(role);
+                if (!result.Succeeded)
+                {
+                    return ApiResponse<bool>.Fail("ERR_DELETE_ROLE_FAILED", StatusCodes.Status400BadRequest);
+                }
+
+                return ApiResponse<bool>.Ok(true, "DELETE_ROLE_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 

@@ -16,10 +16,12 @@ namespace sep490_be.Services.Implementations
     public class ExamService : IExamService
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly INotificationService _notificationService;
 
-        public ExamService(ApplicationDbContext dbContext)
+        public ExamService(ApplicationDbContext dbContext, INotificationService notificationService = null)
         {
             _dbContext = dbContext;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<PagingResponse<ExamDto>>> GetAllAsync(ExamSearchDto searchDto)
@@ -104,6 +106,113 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<PagingResponse<ExamDto>>> GetTeacherExamsAsync(ExamSearchDto searchDto, string teacherEmailOrCode)
+        {
+            try
+            {
+                // Find teacher by email or code
+                Teacher? teacher = null;
+                if (!string.IsNullOrWhiteSpace(teacherEmailOrCode))
+                {
+                    teacher = await _dbContext.Teachers
+                        .FirstOrDefaultAsync(t => (t.Email == teacherEmailOrCode || t.Code == teacherEmailOrCode) && !t.IsDeleted);
+
+                    if (teacher == null)
+                    {
+                        // Try via Identity user
+                        var user = await _dbContext.Users.FirstOrDefaultAsync(u =>
+                            u.UserName == teacherEmailOrCode || u.Email == teacherEmailOrCode || u.Id == teacherEmailOrCode);
+                        if (user != null)
+                        {
+                            teacher = await _dbContext.Teachers
+                                .FirstOrDefaultAsync(t => (t.Email == user.Email || t.Email == user.UserName || t.Code == user.UserName) && !t.IsDeleted);
+                        }
+                    }
+                }
+
+                if (teacher == null)
+                {
+                    return ApiResponse<PagingResponse<ExamDto>>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                // Get class IDs for this teacher
+                var classIds = await _dbContext.Classes
+                    .Where(c => c.TeacherId == teacher.Id && !c.IsDeleted)
+                    .Select(c => c.Id)
+                    .ToListAsync();
+
+                var query = _dbContext.Exams
+                    .Include(e => e.Class)
+                    .Include(e => e.ExamQuestions)
+                    .Include(e => e.ExamAttempts)
+                    .Where(e => !e.IsDeleted && e.ClassId.HasValue && classIds.Contains(e.ClassId.Value))
+                    .AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
+                {
+                    query = query.Where(e => e.Title.Contains(searchDto.Keyword)
+                                             || (e.Code != null && e.Code.Contains(searchDto.Keyword)));
+                }
+
+                if (searchDto.ClassId.HasValue)
+                {
+                    query = query.Where(e => e.ClassId == searchDto.ClassId.Value);
+                }
+
+                if (searchDto.Status.HasValue)
+                {
+                    query = query.Where(e => e.Status == searchDto.Status.Value);
+                }
+
+                var totalCount = await query.CountAsync();
+
+                var items = await query
+                    .OrderByDescending(e => e.Id)
+                    .Skip((searchDto.PageNumber - 1) * searchDto.PageSize)
+                    .Take(searchDto.PageSize)
+                    .Select(e => new ExamDto
+                    {
+                        Id = e.Id,
+                        Code = e.Code,
+                        Name = e.Name,
+                        Title = e.Title,
+                        Description = e.Description,
+                        ClassId = e.ClassId,
+                        ClassName = e.Class != null ? e.Class.Name : null,
+                        ScheduleId = e.ScheduleId,
+                        Type = e.Type,
+                        StartTime = e.StartTime,
+                        EndTime = e.EndTime,
+                        Duration = e.Duration,
+                        TotalScore = e.TotalScore,
+                        PassingScore = e.PassingScore,
+                        MaxAttempts = e.MaxAttempts,
+                        AllowLateSubmit = e.AllowLateSubmit,
+                        ShuffleQuestion = e.ShuffleQuestion,
+                        ShowAnswerAfter = e.ShowAnswerAfter,
+                        Status = e.Status,
+                        CreatedAt = e.CreatedAt,
+                        QuestionCount = e.ExamQuestions.Count,
+                        SubmissionCount = e.ExamAttempts.Count
+                    })
+                    .ToListAsync();
+
+                var paging = new PagingResponse<ExamDto>
+                {
+                    Items = items,
+                    TotalRecords = totalCount,
+                    PageIndex = searchDto.PageNumber,
+                    PageSize = searchDto.PageSize
+                };
+
+                return ApiResponse<PagingResponse<ExamDto>>.Ok(paging, "GET_EXAM_LIST_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<PagingResponse<ExamDto>>.Fail("Error retrieving teacher exams: " + ex.Message);
+            }
+        }
+
         public async Task<ApiResponse<ExamDto>> GetByIdAsync(int id)
         {
             try
@@ -158,10 +267,16 @@ namespace sep490_be.Services.Implementations
                             QuestionTypeName = eq.Question.QuestionType == 1 ? "Chọn một" :
                                                eq.Question.QuestionType == 2 ? "Chọn nhiều" :
                                                eq.Question.QuestionType == 3 ? "Nhập text" : "Đúng/Sai",
+                            SkillType = eq.Question.SkillType,
+                            SkillTypeName = eq.Question.SkillType == 1 ? "Listening" :
+                                            eq.Question.SkillType == 2 ? "Reading" :
+                                            eq.Question.SkillType == 3 ? "Speaking" : "Writing",
                             DifficultyLevel = eq.Question.DifficultyLevel,
                             DifficultyLevelName = eq.Question.DifficultyLevel == 1 ? "Dễ" :
                                                   eq.Question.DifficultyLevel == 2 ? "Trung bình" : "Khó",
                             Explanation = eq.Question.Explanation,
+                            MediaUrl = eq.Question.MediaUrl,
+                            PassageId = eq.Question.PassageId,
                             Status = eq.Question.Status,
                             CategoryId = eq.Question.CategoryId,
                             Point = eq.Point,
@@ -194,6 +309,12 @@ namespace sep490_be.Services.Implementations
                 (dto.PassingScore.HasValue && dto.TotalScore.HasValue && dto.PassingScore.Value > dto.TotalScore.Value))
             {
                 return ApiResponse<ExamDto>.Fail("ERR_SCORE_INVALID", StatusCodes.Status400BadRequest);
+            }
+
+            var courseCheck = await ValidateQuestionCourseMatchAsync(dto.ClassId, dto.QuestionIds);
+            if (courseCheck != null)
+            {
+                return ApiResponse<ExamDto>.Fail(courseCheck, StatusCodes.Status400BadRequest);
             }
 
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
@@ -229,14 +350,15 @@ namespace sep490_be.Services.Implementations
 
                 if (dto.QuestionIds != null && dto.QuestionIds.Count > 0)
                 {
-                    var defaultPoint = dto.TotalScore.HasValue ? dto.TotalScore.Value / dto.QuestionIds.Count : 1.0m;
-                    foreach (var questionId in dto.QuestionIds)
+                    var targetTotal = dto.TotalScore ?? 10.0m;
+                    var points = DistributePoints(targetTotal, dto.QuestionIds.Count);
+                    for (int i = 0; i < dto.QuestionIds.Count; i++)
                     {
                         var eq = new ExamQuestion
                         {
                             ExamId = exam.Id,
-                            QuestionId = questionId,
-                            Point = defaultPoint
+                            QuestionId = dto.QuestionIds[i],
+                            Point = points[i]
                         };
                         _dbContext.ExamQuestions.Add(eq);
                     }
@@ -244,6 +366,15 @@ namespace sep490_be.Services.Implementations
                 }
 
                 await transaction.CommitAsync();
+
+                if (_notificationService != null && exam.Status == 1 && exam.Type == 1 && exam.ClassId.HasValue)
+                {
+                    try
+                    {
+                        await _notificationService.SendExamCreatedNotificationAsync(exam);
+                    }
+                    catch { }
+                }
 
                 var result = await GetByIdAsync(exam.Id);
                 if (result.Success && result.Data != null)
@@ -273,6 +404,12 @@ namespace sep490_be.Services.Implementations
                 return ApiResponse<ExamDto>.Fail("ERR_SCORE_INVALID", StatusCodes.Status400BadRequest);
             }
 
+            var courseCheck = await ValidateQuestionCourseMatchAsync(dto.ClassId, dto.QuestionIds);
+            if (courseCheck != null)
+            {
+                return ApiResponse<ExamDto>.Fail(courseCheck, StatusCodes.Status400BadRequest);
+            }
+
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
@@ -284,6 +421,8 @@ namespace sep490_be.Services.Implementations
                 {
                     return ApiResponse<ExamDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
+
+                var oldStatus = exam.Status;
 
                 exam.Title = dto.Title;
                 exam.Name = dto.Title; // keep StandardEntity Name updated
@@ -314,14 +453,15 @@ namespace sep490_be.Services.Implementations
                 // Add new question relations
                 if (dto.QuestionIds != null && dto.QuestionIds.Count > 0)
                 {
-                    var defaultPoint = dto.TotalScore.HasValue ? dto.TotalScore.Value / dto.QuestionIds.Count : 1.0m;
-                    foreach (var questionId in dto.QuestionIds)
+                    var targetTotal = dto.TotalScore ?? 10.0m;
+                    var points = DistributePoints(targetTotal, dto.QuestionIds.Count);
+                    for (int i = 0; i < dto.QuestionIds.Count; i++)
                     {
                         var eq = new ExamQuestion
                         {
                             ExamId = exam.Id,
-                            QuestionId = questionId,
-                            Point = defaultPoint
+                            QuestionId = dto.QuestionIds[i],
+                            Point = points[i]
                         };
                         _dbContext.ExamQuestions.Add(eq);
                     }
@@ -329,6 +469,15 @@ namespace sep490_be.Services.Implementations
                 }
 
                 await transaction.CommitAsync();
+
+                if (_notificationService != null && oldStatus != 1 && exam.Status == 1 && exam.Type == 1 && exam.ClassId.HasValue)
+                {
+                    try
+                    {
+                        await _notificationService.SendExamCreatedNotificationAsync(exam);
+                    }
+                    catch { }
+                }
 
                 var result = await GetByIdAsync(exam.Id);
                 if (result.Success && result.Data != null)
@@ -346,23 +495,47 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<bool>> DeleteAsync(int id)
         {
+            using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
-                var exam = await _dbContext.Exams.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+                var exam = await _dbContext.Exams
+                    .Include(e => e.ExamAttempts)
+                        .ThenInclude(a => a.ExamAnswers)
+                    .Include(e => e.ExamQuestions)
+                    .Include(e => e.ExamSchedules)
+                    .Include(e => e.StudentGrades)
+                    .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+
                 if (exam == null)
                 {
                     return ApiResponse<bool>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                exam.IsDeleted = true;
-                exam.DeletedAt = DateTime.UtcNow;
-                _dbContext.Exams.Update(exam);
+                // Block deletion if any student has already attempted this exam
+                if (exam.ExamAttempts.Any())
+                {
+                    return ApiResponse<bool>.Fail("ERR_EXAM_IN_USE", StatusCodes.Status400BadRequest);
+                }
+
+                // Hard delete all related data
+                if (exam.StudentGrades.Any())
+                    _dbContext.StudentGrades.RemoveRange(exam.StudentGrades);
+
+                if (exam.ExamSchedules.Any())
+                    _dbContext.ExamSchedules.RemoveRange(exam.ExamSchedules);
+
+                if (exam.ExamQuestions.Any())
+                    _dbContext.ExamQuestions.RemoveRange(exam.ExamQuestions);
+
+                _dbContext.Exams.Remove(exam);
                 await _dbContext.SaveChangesAsync();
+                await transaction.CommitAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_EXAM_SUCCESS");
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 return ApiResponse<bool>.Fail("Error deleting exam: " + ex.Message);
             }
         }
@@ -451,6 +624,20 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<ExamAttemptDto>>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                if (exam.ClassId.HasValue)
+                {
+                    var classIds = student.StudentClasses
+                        .Where(sc => sc.Status == (int)Enums.StudentClassStatus.Enrolled
+                                  || sc.Status == (int)Enums.StudentClassStatus.Studying)
+                        .Select(sc => sc.ClassId)
+                        .ToList();
+
+                    if (!classIds.Contains(exam.ClassId.Value))
+                    {
+                        return ApiResponse<List<ExamAttemptDto>>.Fail("ERR_FORBIDDEN_EXAM", StatusCodes.Status403Forbidden);
+                    }
+                }
+
                 var attempts = await _dbContext.ExamAttempts
                     .Include(a => a.ExamAnswers)
                     .Where(a => a.ExamId == examId && a.StudentId == student.Id && !a.IsDeleted)
@@ -514,6 +701,11 @@ namespace sep490_be.Services.Implementations
                                 }
                             }
                         }
+                        var totalExamQuestions = questionsMap.Count;
+                        if (exam.TotalScore.HasValue && totalExamQuestions > 0 && attempt.Answers.Count == totalExamQuestions && attempt.Answers.All(a => a.IsCorrect == true))
+                        {
+                            attempt.Score = exam.TotalScore.Value;
+                        }
                     }
                 }
 
@@ -557,6 +749,7 @@ namespace sep490_be.Services.Implementations
                         Duration = exam.Duration,
                         TabExitsCount = a.TabExitsCount,
                         Log = a.Log,
+                        TeacherComment = a.ExamAnswers.FirstOrDefault(ans => !string.IsNullOrEmpty(ans.TeacherComment)) != null ? a.ExamAnswers.FirstOrDefault(ans => !string.IsNullOrEmpty(ans.TeacherComment))!.TeacherComment : null,
                         Answers = a.ExamAnswers.Select(ans => new ExamAnswerDto
                         {
                             Id = ans.Id,
@@ -601,6 +794,11 @@ namespace sep490_be.Services.Implementations
                                 }
                             }
                         }
+                        var totalExamQuestions = questionsMap.Count;
+                        if (exam.TotalScore.HasValue && totalExamQuestions > 0 && attempt.Answers.Count == totalExamQuestions && attempt.Answers.All(a => a.IsCorrect == true))
+                        {
+                            attempt.Score = exam.TotalScore.Value;
+                        }
                     }
                 }
 
@@ -635,6 +833,20 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_NOT_PUBLISHED", StatusCodes.Status400BadRequest);
                 }
 
+                if (exam.ClassId.HasValue)
+                {
+                    var classIds = student.StudentClasses
+                        .Where(sc => sc.Status == (int)Enums.StudentClassStatus.Enrolled
+                                  || sc.Status == (int)Enums.StudentClassStatus.Studying)
+                        .Select(sc => sc.ClassId)
+                        .ToList();
+
+                    if (!classIds.Contains(exam.ClassId.Value))
+                    {
+                        return ApiResponse<ExamAttemptDto>.Fail("ERR_FORBIDDEN_EXAM", StatusCodes.Status403Forbidden);
+                    }
+                }
+
                 var existingAttempts = exam.ExamAttempts.Where(a => a.StudentId == student.Id && !a.IsDeleted).ToList();
                 if (exam.MaxAttempts.HasValue && existingAttempts.Count >= exam.MaxAttempts.Value)
                 {
@@ -662,6 +874,18 @@ namespace sep490_be.Services.Implementations
                         TabExitsCount = inProgressAttempt.TabExitsCount,
                         Log = inProgressAttempt.Log
                     }, "EXAM_ATTEMPT_CONTINUE");
+                }
+
+                // Check exam start & end time window for starting a new attempt
+                var now = DateTime.UtcNow;
+                if (exam.StartTime.HasValue && now < exam.StartTime.Value)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_NOT_STARTED", StatusCodes.Status400BadRequest);
+                }
+
+                if (exam.EndTime.HasValue && now > exam.EndTime.Value && !exam.AllowLateSubmit)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_CLOSED", StatusCodes.Status400BadRequest);
                 }
 
                 var attempt = new ExamAttempt
@@ -801,7 +1025,23 @@ namespace sep490_be.Services.Implementations
                     });
                 }
 
-                attempt.Score = totalScore;
+                bool isManualGraded = (exam.Type == 3 || exam.Type == 4) ||
+                    (!string.IsNullOrEmpty(exam.Title) && (exam.Title.ToLower().Contains("speaking") || exam.Title.ToLower().Contains("writing"))) ||
+                    exam.ExamQuestions.Any(eq => eq.Question != null && (eq.Question.QuestionType == 3 || eq.Question.SkillType == 3 || eq.Question.SkillType == 4));
+
+                if (isManualGraded)
+                {
+                    attempt.Score = null;
+                }
+                else
+                {
+                    var totalExamQuestions = exam.ExamQuestions.Count;
+                    if (exam.TotalScore.HasValue && totalExamQuestions > 0 && listAnswers.Count == totalExamQuestions && listAnswers.All(a => a.IsCorrect == true))
+                    {
+                        totalScore = exam.TotalScore.Value;
+                    }
+                    attempt.Score = totalScore;
+                }
                 await _dbContext.SaveChangesAsync();
                 await transaction.CommitAsync();
 
@@ -827,6 +1067,49 @@ namespace sep490_be.Services.Implementations
             {
                 await transaction.RollbackAsync();
                 return ApiResponse<ExamAttemptDto>.Fail("Error submitting exam: " + ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse<ExamDto>> GetStudentExamDetailAsync(int examId, string userEmailOrCode)
+        {
+            try
+            {
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
+                if (student == null)
+                {
+                    return ApiResponse<ExamDto>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var exam = await _dbContext.Exams.FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
+                if (exam == null)
+                {
+                    return ApiResponse<ExamDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (exam.Status != 1)
+                {
+                    return ApiResponse<ExamDto>.Fail("ERR_EXAM_NOT_PUBLISHED", StatusCodes.Status400BadRequest);
+                }
+
+                if (exam.ClassId.HasValue)
+                {
+                    var classIds = student.StudentClasses
+                        .Where(sc => sc.Status == (int)Enums.StudentClassStatus.Enrolled
+                                  || sc.Status == (int)Enums.StudentClassStatus.Studying)
+                        .Select(sc => sc.ClassId)
+                        .ToList();
+
+                    if (!classIds.Contains(exam.ClassId.Value))
+                    {
+                        return ApiResponse<ExamDto>.Fail("ERR_FORBIDDEN_EXAM", StatusCodes.Status403Forbidden);
+                    }
+                }
+
+                return await GetByIdAsync(examId);
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<ExamDto>.Fail("Error: " + ex.Message);
             }
         }
 
@@ -863,29 +1146,68 @@ namespace sep490_be.Services.Implementations
                     .ToListAsync();
 
                 // Map to ExamDto
-                var dtos = exams.Select(e => new ExamDto
-                {
-                    Id = e.Id,
-                    Code = e.Code,
-                    Name = e.Name,
-                    Title = e.Title,
-                    Description = e.Description,
-                    ClassId = e.ClassId,
-                    ClassName = e.Class != null ? e.Class.Name : null,
-                    ScheduleId = e.ScheduleId,
-                    Type = e.Type,
-                    StartTime = e.StartTime,
-                    EndTime = e.EndTime,
-                    Duration = e.Duration,
-                    TotalScore = e.TotalScore,
-                    PassingScore = e.PassingScore,
-                    MaxAttempts = e.MaxAttempts,
-                    AllowLateSubmit = e.AllowLateSubmit,
-                    ShuffleQuestion = e.ShuffleQuestion,
-                    ShowAnswerAfter = e.ShowAnswerAfter,
-                    Status = e.Status,
-                    QuestionCount = _dbContext.ExamQuestions.Count(eq => eq.ExamId == e.Id),
-                    SubmissionCount = e.ExamAttempts.Count(ea => ea.StudentId == student.Id && ea.Status == 2)
+                var dtos = exams.Select(e => {
+                    var studentAttempts = e.ExamAttempts
+                        .Where(ea => ea.StudentId == student.Id && ea.Status == 2 && !ea.IsDeleted)
+                        .OrderByDescending(ea => ea.SubmitTime ?? ea.CreatedAt)
+                        .ToList();
+
+                    var latestAttempt = studentAttempts.FirstOrDefault();
+
+                    bool isManualGraded = (e.Type == 3 || e.Type == 4) ||
+                        (!string.IsNullOrEmpty(e.Title) && (e.Title.ToLower().Contains("speaking") || e.Title.ToLower().Contains("writing")));
+
+                    bool isGraded = false;
+                    decimal? latestScore = null;
+
+                    if (latestAttempt != null)
+                    {
+                        if (!isManualGraded)
+                        {
+                            isGraded = latestAttempt.Score.HasValue;
+                            latestScore = latestAttempt.Score;
+                        }
+                        else
+                        {
+                            bool hasBeenGraded = latestAttempt.Score.HasValue && (
+                                latestAttempt.Score > 0 ||
+                                _dbContext.ExamAnswers.Any(ea => ea.ExamAttemptId == latestAttempt.Id && (ea.GradedAt.HasValue || !string.IsNullOrWhiteSpace(ea.TeacherComment)))
+                            );
+
+                            if (hasBeenGraded)
+                            {
+                                isGraded = true;
+                                latestScore = latestAttempt.Score;
+                            }
+                        }
+                    }
+
+                    return new ExamDto
+                    {
+                        Id = e.Id,
+                        Code = e.Code,
+                        Name = e.Name,
+                        Title = e.Title,
+                        Description = e.Description,
+                        ClassId = e.ClassId,
+                        ClassName = e.Class != null ? e.Class.Name : null,
+                        ScheduleId = e.ScheduleId,
+                        Type = e.Type,
+                        StartTime = e.StartTime,
+                        EndTime = e.EndTime,
+                        Duration = e.Duration,
+                        TotalScore = e.TotalScore,
+                        PassingScore = e.PassingScore,
+                        MaxAttempts = e.MaxAttempts,
+                        AllowLateSubmit = e.AllowLateSubmit,
+                        ShuffleQuestion = e.ShuffleQuestion,
+                        ShowAnswerAfter = e.ShowAnswerAfter,
+                        Status = e.Status,
+                        QuestionCount = _dbContext.ExamQuestions.Count(eq => eq.ExamId == e.Id),
+                        SubmissionCount = studentAttempts.Count,
+                        LatestScore = latestScore,
+                        IsGraded = isGraded
+                    };
                 }).ToList();
 
                 return ApiResponse<List<ExamDto>>.Ok(dtos, "GET_STUDENT_EXAMS_SUCCESS");
@@ -921,6 +1243,131 @@ namespace sep490_be.Services.Implementations
             }
 
             return student;
+        }
+
+        public async Task<ApiResponse<ExamAttemptDto>> GradeAttemptAsync(int attemptId, GradeAttemptDto gradeDto, string teacherEmailOrCode)
+        {
+            try
+            {
+                var attempt = await _dbContext.ExamAttempts
+                    .Include(a => a.ExamAnswers)
+                    .Include(a => a.Student)
+                    .Include(a => a.Exam)
+                    .FirstOrDefaultAsync(a => a.Id == attemptId && !a.IsDeleted);
+
+                if (attempt == null)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_ATTEMPT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                decimal maxScore = attempt.Exam?.TotalScore ?? 10m;
+                if (gradeDto.Score < 0)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_SCORE_INVALID", StatusCodes.Status400BadRequest);
+                }
+                if (gradeDto.Score > maxScore)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_SCORE_EXCEEDS_TOTAL", StatusCodes.Status400BadRequest);
+                }
+
+                attempt.Score = gradeDto.Score;
+                attempt.Status = 2; // Graded / Submitted
+
+                foreach (var ans in attempt.ExamAnswers)
+                {
+                    ans.TeacherComment = gradeDto.TeacherComment;
+                    ans.GradedAt = DateTime.UtcNow;
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                var listAnswers = attempt.ExamAnswers.Select(ans => new ExamAnswerDto
+                {
+                    Id = ans.Id,
+                    QuestionId = ans.QuestionId,
+                    AnswerContent = ans.AnswerContent,
+                    AttachmentUrl = ans.AttachmentUrl,
+                    Score = ans.Score,
+                    TeacherComment = ans.TeacherComment
+                }).ToList();
+
+                return ApiResponse<ExamAttemptDto>.Ok(new ExamAttemptDto
+                {
+                    Id = attempt.Id,
+                    ExamId = attempt.ExamId,
+                    ExamTitle = attempt.Exam?.Title ?? string.Empty,
+                    StudentId = attempt.StudentId,
+                    StudentName = attempt.Student?.Name ?? string.Empty,
+                    StudentCode = attempt.Student?.Code ?? string.Empty,
+                    StartTime = attempt.StartTime,
+                    SubmitTime = attempt.SubmitTime,
+                    Score = attempt.Score,
+                    Status = attempt.Status,
+                    Duration = attempt.Exam?.Duration,
+                    TabExitsCount = attempt.TabExitsCount,
+                    Log = attempt.Log,
+                    TeacherComment = gradeDto.TeacherComment,
+                    Answers = listAnswers
+                }, "GRADE_ATTEMPT_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<ExamAttemptDto>.Fail("Error grading attempt: " + ex.Message);
+            }
+        }
+
+        private async Task<string?> ValidateQuestionCourseMatchAsync(int? classId, List<int>? questionIds)
+        {
+            if (!classId.HasValue || questionIds == null || questionIds.Count == 0)
+            {
+                return null;
+            }
+
+            var targetClass = await _dbContext.Classes
+                .FirstOrDefaultAsync(c => c.Id == classId.Value && !c.IsDeleted);
+
+            if (targetClass == null || !targetClass.CourseId.HasValue)
+            {
+                return null;
+            }
+
+            var targetCourseId = targetClass.CourseId.Value;
+
+            var invalidQuestions = await _dbContext.Questions
+                .Include(q => q.QuestionCategory)
+                .Include(q => q.QuestionPassage)
+                    .ThenInclude(p => p.QuestionCategory)
+                .Where(q => questionIds.Contains(q.Id))
+                .Where(q =>
+                    (q.QuestionCategory != null && q.QuestionCategory.CourseId.HasValue && q.QuestionCategory.CourseId.Value != targetCourseId) ||
+                    (q.QuestionPassage != null && q.QuestionPassage.QuestionCategory != null && q.QuestionPassage.QuestionCategory.CourseId.HasValue && q.QuestionPassage.QuestionCategory.CourseId.Value != targetCourseId)
+                )
+                .ToListAsync();
+
+            if (invalidQuestions.Count > 0)
+            {
+                return "ERR_QUESTION_COURSE_MISMATCH";
+            }
+
+            return null;
+        }
+
+        private static List<decimal> DistributePoints(decimal totalScore, int questionCount)
+        {
+            if (questionCount <= 0) return new List<decimal>();
+
+            var points = new List<decimal>(questionCount);
+            var basePoint = Math.Floor((totalScore / questionCount) * 100m) / 100m;
+            var remainder = Math.Round(totalScore - (basePoint * questionCount), 2);
+            var extraCount = (int)(remainder * 100m);
+
+            for (int i = 0; i < questionCount; i++)
+            {
+                var pt = basePoint + (i >= questionCount - extraCount ? 0.01m : 0m);
+                points.Add(pt);
+            }
+
+            return points;
         }
     }
 }

@@ -29,7 +29,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("my")]
-        [HasPermission(Permissions.StudentGrade.StudentGrade_ViewOwnGrades)]
+        [HasPermission(Permissions.MyGrade.MyGradePage)]
         public async Task<IActionResult> GetMyGrades()
         {
             var identifiers = User.Claims
@@ -52,6 +52,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet("child-grades")]
+        [HasPermission(Permissions.ChildProgress.ChildProgressPage)]
         public async Task<IActionResult> GetChildGrades([FromQuery] int studentId)
         {
             var username = User.Identity?.Name ?? "";

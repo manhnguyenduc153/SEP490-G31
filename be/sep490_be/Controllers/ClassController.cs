@@ -42,7 +42,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/teaching-classes
         [HttpGet("teaching-classes")]
-        [HasPermission(Permissions.Class.Class_TeacherView)]
+        [HasPermission(Permissions.TeachingClass.TeachingClassPage)]
         public async Task<IActionResult> GetTeacherClasses([FromQuery] ClassSearchDto searchDto)
         {
             var username = User.Identity?.Name;
@@ -56,7 +56,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/my-classes
         [HttpGet("my-classes")]
-        [HasPermission(Permissions.Class.Class_StudentView)]
+        [HasPermission(Permissions.MyClass.MyClassPage)]
         public async Task<IActionResult> GetStudentClasses([FromQuery] ClassSearchDto searchDto)
         {
             var username = User.Identity?.Name;
@@ -135,7 +135,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Class/ChildSchedules?studentId=5
         [HttpGet("ChildSchedules")]
-        [HasPermission(Permissions.ParentStudent.ParentStudent_View)]
+        [HasPermission(Permissions.ChildSchedule.ChildSchedulePage)]
         public async Task<IActionResult> GetChildSchedules([FromQuery] int studentId)
         {
             var username = User.Identity?.Name;
@@ -195,6 +195,15 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> AutoScheduleSemester([FromBody] AutoScheduleSemesterRequestDto request)
         {
             var response = await _optService.AutoScheduleSemesterAsync(request);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Class/save-schedule-draft
+        [HttpPost("save-schedule-draft")]
+        [HasPermission(Permissions.Semester.Semester_Scheduling)]
+        public async Task<IActionResult> SaveScheduleDraft([FromBody] SaveScheduleDraftRequestDto request)
+        {
+            var response = await _optService.SaveSemesterScheduleDraftAsync(request);
             return StatusCode(response.StatusCode, response);
         }
     }

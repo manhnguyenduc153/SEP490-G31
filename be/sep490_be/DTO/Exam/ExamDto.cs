@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using sep490_be.DTO.Question;
 
@@ -29,6 +29,8 @@ namespace sep490_be.DTO.Exam
         
         public int QuestionCount { get; set; }
         public int SubmissionCount { get; set; }
+        public decimal? LatestScore { get; set; }
+        public bool IsGraded { get; set; }
         public List<int> QuestionIds { get; set; } = new List<int>();
         public List<QuestionDto> Questions { get; set; } = new List<QuestionDto>();
     }

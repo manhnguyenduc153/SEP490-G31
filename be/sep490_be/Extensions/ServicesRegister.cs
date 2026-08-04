@@ -19,14 +19,13 @@ namespace sep490_be.Extensions
             services.AddScoped<IQuestionCategoryRepository, QuestionCategoryRepository>();
             services.AddScoped<IAttendanceRepository, AttendanceRepository>();
             services.AddScoped<IQuestionRepository, QuestionRepository>();
+            services.AddScoped<IQuestionPassageRepository, QuestionPassageRepository>();
             services.AddScoped<ITeacherRepository, TeacherRepository>();
             services.AddScoped<IRoomRepository, RoomRepository>();
             services.AddScoped<ICourseRepository, CourseRepository>();
             services.AddScoped<IClassRepository, ClassRepository>();
             services.AddScoped<IStudentRepository, StudentRepository>();
             services.AddScoped<IParentStudentRepository, ParentStudentRepository>();
-            services.AddScoped<IRoomRepository, RoomRepository>();
-            services.AddScoped<IStudentRepository, StudentRepository>();
             services.AddScoped<IHomeworkRepository, HomeworkRepository>();
             services.AddScoped<IHomeworkSubmissionRepository, HomeworkSubmissionRepository>();
             services.AddScoped<ILearningMaterialRepository, LearningMaterialRepository>();
@@ -37,6 +36,7 @@ namespace sep490_be.Extensions
             services.AddScoped<IQuestionCategoryService, QuestionCategoryService>();
             services.AddScoped<IAttendanceService, AttendanceService>();
             services.AddScoped<IQuestionService, QuestionService>();
+            services.AddScoped<IQuestionPassageService, QuestionPassageService>();
             services.AddScoped<ICourseService, CourseService>();
             services.AddScoped<IStudentService, StudentService>();
             services.AddScoped<IAuthService, AuthService>();

@@ -71,7 +71,7 @@ namespace sep490_be.Controllers
                 }
                 else if (isStudent)
                 {
-                    var student = await _dbContext.Students.FirstOrDefaultAsync(s => s.Email == user.Email);
+                    var student = await _dbContext.Students.FirstOrDefaultAsync(s => s.Email != null && user.Email != null && s.Email.ToLower() == user.Email.ToLower());
                     if (student == null)
                     {
                         return Ok(new { success = true, data = new List<Notification>() });
@@ -89,7 +89,7 @@ namespace sep490_be.Controllers
                 }
                 else if (isTeacher)
                 {
-                    var teacher = await _dbContext.Teachers.FirstOrDefaultAsync(t => t.Email == user.Email);
+                    var teacher = await _dbContext.Teachers.FirstOrDefaultAsync(t => t.Email != null && user.Email != null && t.Email.ToLower() == user.Email.ToLower());
                     if (teacher == null)
                     {
                         return Ok(new { success = true, data = new List<Notification>() });
@@ -169,7 +169,7 @@ namespace sep490_be.Controllers
                 }
                 else if (isStudent)
                 {
-                    var student = await _dbContext.Students.FirstOrDefaultAsync(s => s.Email == user.Email);
+                    var student = await _dbContext.Students.FirstOrDefaultAsync(s => s.Email != null && user.Email != null && s.Email.ToLower() == user.Email.ToLower());
                     if (student == null) return Ok(new { success = true });
 
                     var classIds = await _dbContext.StudentClasses
@@ -185,7 +185,7 @@ namespace sep490_be.Controllers
                 }
                 else if (isTeacher)
                 {
-                    var teacher = await _dbContext.Teachers.FirstOrDefaultAsync(t => t.Email == user.Email);
+                    var teacher = await _dbContext.Teachers.FirstOrDefaultAsync(t => t.Email != null && user.Email != null && t.Email.ToLower() == user.Email.ToLower());
                     if (teacher == null) return Ok(new { success = true });
 
                     var classIds = await _dbContext.Classes
