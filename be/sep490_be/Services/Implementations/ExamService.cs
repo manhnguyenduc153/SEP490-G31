@@ -16,10 +16,12 @@ namespace sep490_be.Services.Implementations
     public class ExamService : IExamService
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly INotificationService _notificationService;
 
-        public ExamService(ApplicationDbContext dbContext)
+        public ExamService(ApplicationDbContext dbContext, INotificationService notificationService = null)
         {
             _dbContext = dbContext;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<PagingResponse<ExamDto>>> GetAllAsync(ExamSearchDto searchDto)
@@ -365,6 +367,15 @@ namespace sep490_be.Services.Implementations
 
                 await transaction.CommitAsync();
 
+                if (_notificationService != null && exam.Status == 1 && exam.Type == 1 && exam.ClassId.HasValue)
+                {
+                    try
+                    {
+                        await _notificationService.SendExamCreatedNotificationAsync(exam);
+                    }
+                    catch { }
+                }
+
                 var result = await GetByIdAsync(exam.Id);
                 if (result.Success && result.Data != null)
                 {
@@ -411,6 +422,8 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ExamDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                var oldStatus = exam.Status;
+
                 exam.Title = dto.Title;
                 exam.Name = dto.Title; // keep StandardEntity Name updated
                 exam.Description = dto.Description;
@@ -456,6 +469,15 @@ namespace sep490_be.Services.Implementations
                 }
 
                 await transaction.CommitAsync();
+
+                if (_notificationService != null && oldStatus != 1 && exam.Status == 1 && exam.Type == 1 && exam.ClassId.HasValue)
+                {
+                    try
+                    {
+                        await _notificationService.SendExamCreatedNotificationAsync(exam);
+                    }
+                    catch { }
+                }
 
                 var result = await GetByIdAsync(exam.Id);
                 if (result.Success && result.Data != null)

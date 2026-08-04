@@ -23,7 +23,7 @@ namespace sep490_be.Services.Implementations
         public QuestionService(
             IQuestionRepository repository,
             IQuestionCategoryRepository categoryRepository,
-            ApplicationDbContext dbContext)
+            ApplicationDbContext dbContext = null)
         {
             _repository = repository;
             _categoryRepository = categoryRepository;

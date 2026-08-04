@@ -9,5 +9,7 @@ namespace sep490_be.Services.Interfaces
         Task SendClassStatusChangedNotificationAsync(Class classEntity, int oldStatus, int newStatus);
         Task SendStudentsAddedToClassNotificationAsync(Class classEntity, List<int> newStudentIds);
         Task SendTeacherAssignedToClassNotificationAsync(Class classEntity, int teacherId);
+        Task SendExamCreatedNotificationAsync(Exam examEntity);
+        Task SendHomeworkCreatedNotificationAsync(Homework homeworkEntity);
     }
 }

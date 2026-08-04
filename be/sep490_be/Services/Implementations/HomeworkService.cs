@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using sep490_be.DTO.Homework;
 using sep490_be.DTO;
 using sep490_be.Helpers;
@@ -18,15 +19,21 @@ namespace sep490_be.Services.Implementations
         private readonly IHomeworkRepository _homeworkRepository;
         private readonly IHomeworkSubmissionRepository _homeworkSubmissionRepository;
         private readonly ApplicationDbContext _dbContext;
+        private readonly INotificationService _notificationService;
+        private readonly ILogger<HomeworkService> _logger;
 
         public HomeworkService(
             IHomeworkRepository homeworkRepository,
             IHomeworkSubmissionRepository homeworkSubmissionRepository,
-            ApplicationDbContext dbContext)
+            ApplicationDbContext dbContext,
+            INotificationService notificationService,
+            ILogger<HomeworkService> logger = null)
         {
             _homeworkRepository = homeworkRepository;
             _homeworkSubmissionRepository = homeworkSubmissionRepository;
             _dbContext = dbContext;
+            _notificationService = notificationService;
+            _logger = logger;
         }
 
         public async Task<ApiResponse<IEnumerable<HomeworkDto>>> GetHomeworkByClassAsync(int classId)
@@ -138,6 +145,19 @@ namespace sep490_be.Services.Implementations
                 CreatedBy = homework.CreatedBy
             };
 
+            if (homework.Status == 1)
+            {
+                try
+                {
+                    _logger?.LogInformation("[HomeworkService] Sending notification for new homework id={Id}, classId={ClassId}", homework.Id, homework.ClassId);
+                    await _notificationService.SendHomeworkCreatedNotificationAsync(homework);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "[HomeworkService] Failed to send notification for homework id={Id}", homework.Id);
+                }
+            }
+
             return ApiResponse<HomeworkDto>.Ok(result, "Thêm bài tập thành công");
         }
 
@@ -160,6 +180,8 @@ namespace sep490_be.Services.Implementations
                 return ApiResponse<HomeworkDto>.Fail(validation.Error, validation.StatusCode);
             }
 
+            var oldStatus = homework.Status;
+
             homework.ClassId = dto.ClassId;
             homework.TeacherId = dto.TeacherId;
             homework.Title = dto.Title;
@@ -172,6 +194,19 @@ namespace sep490_be.Services.Implementations
 
             await _homeworkRepository.UpdateAsync(homework);
             await _homeworkRepository.SaveChangesAsync();
+
+            if (oldStatus != 1 && homework.Status == 1)
+            {
+                try
+                {
+                    _logger?.LogInformation("[HomeworkService] Sending notification for updated homework id={Id} activated, classId={ClassId}", homework.Id, homework.ClassId);
+                    await _notificationService.SendHomeworkCreatedNotificationAsync(homework);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "[HomeworkService] Failed to send notification for updated homework id={Id}", homework.Id);
+                }
+            }
 
             var result = new HomeworkDto
             {
