@@ -90,3 +90,12 @@ Migrations/*.resx
 
 # Publish
 publish/
+
+## =========================
+## AI Agent Config Files
+## =========================
+AGENTS.md
+CLAUDE.md
+SKILL.md
+.agents/
+.claude/
