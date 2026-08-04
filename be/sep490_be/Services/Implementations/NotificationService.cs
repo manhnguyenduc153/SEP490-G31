@@ -182,6 +182,38 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        public async Task SendExamCreatedNotificationAsync(Exam examEntity)
+        {
+            if (examEntity == null || !examEntity.ClassId.HasValue) return;
+
+            var classEntity = await _dbContext.Classes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == examEntity.ClassId.Value && !c.IsDeleted);
+
+            if (classEntity == null) return;
+
+            string title = "Bài kiểm tra mới";
+            string content = $"Bạn có bài kiểm tra mới: '{examEntity.Title}' trong lớp {classEntity.Name}.";
+
+            await SaveAndBroadcastNotificationAsync(classEntity, title, content);
+        }
+
+        public async Task SendHomeworkCreatedNotificationAsync(Homework homeworkEntity)
+        {
+            if (homeworkEntity == null) return;
+
+            var classEntity = await _dbContext.Classes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == homeworkEntity.ClassId && !c.IsDeleted);
+
+            if (classEntity == null) return;
+
+            string title = "Bài tập về nhà mới";
+            string content = $"Bạn có bài tập về nhà mới: '{homeworkEntity.Title}' trong lớp {classEntity.Name}.";
+
+            await SaveAndBroadcastNotificationAsync(classEntity, title, content);
+        }
+
         private async Task SaveAndBroadcastNotificationAsync(Class classEntity, string title, string content)
         {
             try

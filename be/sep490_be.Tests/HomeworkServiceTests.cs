@@ -32,7 +32,8 @@ namespace sep490_be.Tests.Services
             return new HomeworkService(
                 new HomeworkRepository(context, unitOfWork),
                 new HomeworkSubmissionRepository(context, unitOfWork),
-                context);
+                context,
+                null!);
         }
 
         private static async Task<(int classId, int teacherId, int studentId)> SeedActorsAsync(ApplicationDbContext context)
