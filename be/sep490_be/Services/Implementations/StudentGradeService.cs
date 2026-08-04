@@ -626,6 +626,11 @@ namespace sep490_be.Services.Implementations
 
         private async Task<decimal> CalculateAttendanceScoreAsync(int classId, int studentId)
         {
+            var totalSessions = await _dbContext.ClassSchedules
+                .AsNoTracking()
+                .CountAsync(x => x.ClassId == classId);
+            if (totalSessions == 0) return 0m;
+
             var attendances = await _dbContext.Attendances
                 .AsNoTracking()
                 .Include(x => x.ClassSchedule)
@@ -633,9 +638,8 @@ namespace sep490_be.Services.Implementations
                 .Select(x => x.Status)
                 .ToListAsync();
 
-            if (attendances.Count == 0) return 0m;
-            var attended = attendances.Count(x => x != 0);
-            return (decimal)attended / attendances.Count * 10m;
+            var attended = attendances.Count(x => x > 0);
+            return (decimal)attended / totalSessions * 10m;
         }
 
         private async Task<decimal> CalculateHomeworkScoreAsync(int classId, int studentId)
