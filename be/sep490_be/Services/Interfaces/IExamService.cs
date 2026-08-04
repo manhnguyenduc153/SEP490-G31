@@ -17,6 +17,7 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<List<ExamAttemptDto>>> GetAttemptsByExamAsync(int examId);
         Task<ApiResponse<List<ExamAttemptDto>>> GetStudentAttemptsAsync(int examId, string userEmailOrCode);
         Task<ApiResponse<List<ExamDto>>> GetStudentExamsAsync(string userEmailOrCode);
+        Task<ApiResponse<ExamDto>> GetStudentExamDetailAsync(int examId, string userEmailOrCode);
         Task<ApiResponse<ExamAttemptDto>> StartAttemptAsync(int examId, string userEmailOrCode);
         Task<ApiResponse<ExamAttemptDto>> SubmitAttemptAsync(int examId, ExamSubmitDto submitDto, string userEmailOrCode);
         Task<ApiResponse<ExamAttemptDto>> GradeAttemptAsync(int attemptId, GradeAttemptDto gradeDto, string teacherEmailOrCode);

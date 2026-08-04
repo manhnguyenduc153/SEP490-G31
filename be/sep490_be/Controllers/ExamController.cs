@@ -91,7 +91,12 @@ namespace sep490_be.Controllers
         [HasPermission(Permissions.StudentExam.StudentExamPage)]
         public async Task<IActionResult> GetStudentExamDetail(int id)
         {
-            var response = await _service.GetByIdAsync(id);
+            var userEmailOrCode = GetCurrentUserEmailOrCode();
+            if (string.IsNullOrEmpty(userEmailOrCode))
+            {
+                return BadRequest(ApiResponse<ExamDto>.Fail("Không xác định được người dùng."));
+            }
+            var response = await _service.GetStudentExamDetailAsync(id, userEmailOrCode);
             return StatusCode(response.StatusCode, response);
         }
 

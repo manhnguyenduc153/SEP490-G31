@@ -602,6 +602,20 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<ExamAttemptDto>>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                if (exam.ClassId.HasValue)
+                {
+                    var classIds = student.StudentClasses
+                        .Where(sc => sc.Status == (int)Enums.StudentClassStatus.Enrolled
+                                  || sc.Status == (int)Enums.StudentClassStatus.Studying)
+                        .Select(sc => sc.ClassId)
+                        .ToList();
+
+                    if (!classIds.Contains(exam.ClassId.Value))
+                    {
+                        return ApiResponse<List<ExamAttemptDto>>.Fail("ERR_FORBIDDEN_EXAM", StatusCodes.Status403Forbidden);
+                    }
+                }
+
                 var attempts = await _dbContext.ExamAttempts
                     .Include(a => a.ExamAnswers)
                     .Where(a => a.ExamId == examId && a.StudentId == student.Id && !a.IsDeleted)
@@ -665,7 +679,8 @@ namespace sep490_be.Services.Implementations
                                 }
                             }
                         }
-                        if (exam.TotalScore.HasValue && attempt.Answers.Count > 0 && attempt.Answers.All(a => a.IsCorrect == true))
+                        var totalExamQuestions = questionsMap.Count;
+                        if (exam.TotalScore.HasValue && totalExamQuestions > 0 && attempt.Answers.Count == totalExamQuestions && attempt.Answers.All(a => a.IsCorrect == true))
                         {
                             attempt.Score = exam.TotalScore.Value;
                         }
@@ -757,7 +772,8 @@ namespace sep490_be.Services.Implementations
                                 }
                             }
                         }
-                        if (exam.TotalScore.HasValue && attempt.Answers.Count > 0 && attempt.Answers.All(a => a.IsCorrect == true))
+                        var totalExamQuestions = questionsMap.Count;
+                        if (exam.TotalScore.HasValue && totalExamQuestions > 0 && attempt.Answers.Count == totalExamQuestions && attempt.Answers.All(a => a.IsCorrect == true))
                         {
                             attempt.Score = exam.TotalScore.Value;
                         }
@@ -793,6 +809,20 @@ namespace sep490_be.Services.Implementations
                 if (exam.Status != 1)
                 {
                     return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_NOT_PUBLISHED", StatusCodes.Status400BadRequest);
+                }
+
+                if (exam.ClassId.HasValue)
+                {
+                    var classIds = student.StudentClasses
+                        .Where(sc => sc.Status == (int)Enums.StudentClassStatus.Enrolled
+                                  || sc.Status == (int)Enums.StudentClassStatus.Studying)
+                        .Select(sc => sc.ClassId)
+                        .ToList();
+
+                    if (!classIds.Contains(exam.ClassId.Value))
+                    {
+                        return ApiResponse<ExamAttemptDto>.Fail("ERR_FORBIDDEN_EXAM", StatusCodes.Status403Forbidden);
+                    }
                 }
 
                 var existingAttempts = exam.ExamAttempts.Where(a => a.StudentId == student.Id && !a.IsDeleted).ToList();
@@ -983,7 +1013,8 @@ namespace sep490_be.Services.Implementations
                 }
                 else
                 {
-                    if (exam.TotalScore.HasValue && listAnswers.Count > 0 && listAnswers.All(a => a.IsCorrect == true))
+                    var totalExamQuestions = exam.ExamQuestions.Count;
+                    if (exam.TotalScore.HasValue && totalExamQuestions > 0 && listAnswers.Count == totalExamQuestions && listAnswers.All(a => a.IsCorrect == true))
                     {
                         totalScore = exam.TotalScore.Value;
                     }
@@ -1014,6 +1045,49 @@ namespace sep490_be.Services.Implementations
             {
                 await transaction.RollbackAsync();
                 return ApiResponse<ExamAttemptDto>.Fail("Error submitting exam: " + ex.Message);
+            }
+        }
+
+        public async Task<ApiResponse<ExamDto>> GetStudentExamDetailAsync(int examId, string userEmailOrCode)
+        {
+            try
+            {
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
+                if (student == null)
+                {
+                    return ApiResponse<ExamDto>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var exam = await _dbContext.Exams.FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
+                if (exam == null)
+                {
+                    return ApiResponse<ExamDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (exam.Status != 1)
+                {
+                    return ApiResponse<ExamDto>.Fail("ERR_EXAM_NOT_PUBLISHED", StatusCodes.Status400BadRequest);
+                }
+
+                if (exam.ClassId.HasValue)
+                {
+                    var classIds = student.StudentClasses
+                        .Where(sc => sc.Status == (int)Enums.StudentClassStatus.Enrolled
+                                  || sc.Status == (int)Enums.StudentClassStatus.Studying)
+                        .Select(sc => sc.ClassId)
+                        .ToList();
+
+                    if (!classIds.Contains(exam.ClassId.Value))
+                    {
+                        return ApiResponse<ExamDto>.Fail("ERR_FORBIDDEN_EXAM", StatusCodes.Status403Forbidden);
+                    }
+                }
+
+                return await GetByIdAsync(examId);
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<ExamDto>.Fail("Error: " + ex.Message);
             }
         }
 
@@ -1162,6 +1236,16 @@ namespace sep490_be.Services.Implementations
                 if (attempt == null)
                 {
                     return ApiResponse<ExamAttemptDto>.Fail("ERR_ATTEMPT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                decimal maxScore = attempt.Exam?.TotalScore ?? 10m;
+                if (gradeDto.Score < 0)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_SCORE_INVALID", StatusCodes.Status400BadRequest);
+                }
+                if (gradeDto.Score > maxScore)
+                {
+                    return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_SCORE_EXCEEDS_TOTAL", StatusCodes.Status400BadRequest);
                 }
 
                 attempt.Score = gradeDto.Score;
