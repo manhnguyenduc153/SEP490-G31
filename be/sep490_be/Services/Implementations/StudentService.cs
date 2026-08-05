@@ -266,6 +266,11 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                if (await _repository.IsInUseAsync(id))
+                {
+                    return ApiResponse<bool>.Fail("ERR_STUDENT_IN_USE", StatusCodes.Status400BadRequest);
+                }
+
                 // Delete IdentityUser if it exists
                 if (!string.IsNullOrEmpty(existingEntity.Email))
                 {
@@ -276,8 +281,8 @@ namespace sep490_be.Services.Implementations
                     }
                 }
 
-                await _repository.DeleteAsync(existingEntity);
-                await _repository.SaveChangesAsync();
+                // Real removal from DB (not IsDeleted = true) — see IStudentRepository.HardDeleteAsync.
+                await _repository.HardDeleteAsync(id);
 
                 return ApiResponse<bool>.Ok(true, "DELETE_STUDENT_SUCCESS");
             }

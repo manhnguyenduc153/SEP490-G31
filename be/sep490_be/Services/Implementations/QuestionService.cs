@@ -268,32 +268,19 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var existingEntity = await _repository.FindAll()
-                    .Include(q => q.QuestionAnswers)
-                    .FirstOrDefaultAsync(q => q.Id == id);
-
-                if (existingEntity == null)
+                var exists = await _repository.ExistsAsync(q => q.Id == id);
+                if (!exists)
                 {
                     return ApiResponse<bool>.Fail("ERR_QUESTION_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                // Check if used in any Exam
-                var isUsedInExam = await _dbContext.ExamQuestions.AnyAsync(eq => eq.QuestionId == id)
-                    || await _dbContext.ExamAnswers.AnyAsync(ea => ea.QuestionId == id);
-
-                if (isUsedInExam)
+                if (await _repository.IsUsedInExamAsync(id))
                 {
                     return ApiResponse<bool>.Fail("ERR_QUESTION_IN_USE", StatusCodes.Status400BadRequest);
                 }
 
-                // Hard Delete
-                if (existingEntity.QuestionAnswers.Count > 0)
-                {
-                    _dbContext.QuestionAnswers.RemoveRange(existingEntity.QuestionAnswers);
-                }
-
-                _dbContext.Questions.Remove(existingEntity);
-                await _dbContext.SaveChangesAsync();
+                // Real removal from DB (not IsDeleted = true) — see IQuestionRepository.HardDeleteAsync.
+                await _repository.HardDeleteAsync(id);
 
                 return ApiResponse<bool>.Ok(true, "DELETE_QUESTION_SUCCESS");
             }

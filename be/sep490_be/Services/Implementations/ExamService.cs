@@ -9,6 +9,7 @@ using sep490_be.DTO.Exam;
 using sep490_be.DTO.Question;
 using sep490_be.Enums;
 using sep490_be.Models;
+using sep490_be.Repositories.Interfaces;
 using sep490_be.Services.Interfaces;
 
 namespace sep490_be.Services.Implementations
@@ -17,11 +18,13 @@ namespace sep490_be.Services.Implementations
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly INotificationService _notificationService;
+        private readonly IExamRepository? _examRepository;
 
-        public ExamService(ApplicationDbContext dbContext, INotificationService notificationService = null)
+        public ExamService(ApplicationDbContext dbContext, INotificationService notificationService = null, IExamRepository examRepository = null)
         {
             _dbContext = dbContext;
             _notificationService = notificationService;
+            _examRepository = examRepository;
         }
 
         public async Task<ApiResponse<PagingResponse<ExamDto>>> GetAllAsync(ExamSearchDto searchDto)
@@ -230,64 +233,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ExamDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                var dto = new ExamDto
-                {
-                    Id = exam.Id,
-                    Code = exam.Code,
-                    Name = exam.Name,
-                    Title = exam.Title,
-                    Description = exam.Description,
-                    ClassId = exam.ClassId,
-                    ClassName = exam.Class != null ? exam.Class.Name : null,
-                    ScheduleId = exam.ScheduleId,
-                    Type = exam.Type,
-                    StartTime = exam.StartTime,
-                    EndTime = exam.EndTime,
-                    Duration = exam.Duration,
-                    TotalScore = exam.TotalScore,
-                    PassingScore = exam.PassingScore,
-                    MaxAttempts = exam.MaxAttempts,
-                    AllowLateSubmit = exam.AllowLateSubmit,
-                    ShuffleQuestion = exam.ShuffleQuestion,
-                    ShowAnswerAfter = exam.ShowAnswerAfter,
-                    Status = exam.Status,
-                    CreatedAt = exam.CreatedAt,
-                    QuestionCount = exam.ExamQuestions.Count,
-                    SubmissionCount = exam.ExamAttempts.Count,
-                    QuestionIds = exam.ExamQuestions.Select(eq => eq.QuestionId).ToList(),
-                    Questions = exam.ExamQuestions
-                        .Where(eq => eq.Question != null)
-                        .Select(eq => new QuestionDto
-                        {
-                            Id = eq.Question.Id,
-                            Code = eq.Question.Code,
-                            Name = eq.Question.Name,
-                            Content = eq.Question.Content,
-                            QuestionType = eq.Question.QuestionType,
-                            QuestionTypeName = eq.Question.QuestionType == 1 ? "Chọn một" :
-                                               eq.Question.QuestionType == 2 ? "Chọn nhiều" :
-                                               eq.Question.QuestionType == 3 ? "Nhập text" : "Đúng/Sai",
-                            SkillType = eq.Question.SkillType,
-                            SkillTypeName = eq.Question.SkillType == 1 ? "Listening" :
-                                            eq.Question.SkillType == 2 ? "Reading" :
-                                            eq.Question.SkillType == 3 ? "Speaking" : "Writing",
-                            DifficultyLevel = eq.Question.DifficultyLevel,
-                            DifficultyLevelName = eq.Question.DifficultyLevel == 1 ? "Dễ" :
-                                                  eq.Question.DifficultyLevel == 2 ? "Trung bình" : "Khó",
-                            Explanation = eq.Question.Explanation,
-                            MediaUrl = eq.Question.MediaUrl,
-                            PassageId = eq.Question.PassageId,
-                            Status = eq.Question.Status,
-                            CategoryId = eq.Question.CategoryId,
-                            Point = eq.Point,
-                            QuestionAnswers = eq.Question.QuestionAnswers.Select(qa => new QuestionAnswerDto
-                            {
-                                Id = qa.Id,
-                                Content = qa.Content,
-                                IsCorrect = qa.IsCorrect
-                            }).ToList()
-                        }).ToList()
-                };
+                var dto = MapExamToDto(exam, includeCorrectAnswers: true);
 
                 return ApiResponse<ExamDto>.Ok(dto, "GET_EXAM_DETAIL_SUCCESS");
             }
@@ -295,6 +241,71 @@ namespace sep490_be.Services.Implementations
             {
                 return ApiResponse<ExamDto>.Fail("Error retrieving exam: " + ex.Message);
             }
+        }
+
+        // includeCorrectAnswers must stay false for any student-facing call unless the
+        // student has already submitted an attempt AND the exam allows showing answers
+        // (exam.ShowAnswerAfter) — otherwise this leaks the answer key before/during the exam.
+        private static ExamDto MapExamToDto(Exam exam, bool includeCorrectAnswers)
+        {
+            return new ExamDto
+            {
+                Id = exam.Id,
+                Code = exam.Code,
+                Name = exam.Name,
+                Title = exam.Title,
+                Description = exam.Description,
+                ClassId = exam.ClassId,
+                ClassName = exam.Class != null ? exam.Class.Name : null,
+                ScheduleId = exam.ScheduleId,
+                Type = exam.Type,
+                StartTime = exam.StartTime,
+                EndTime = exam.EndTime,
+                Duration = exam.Duration,
+                TotalScore = exam.TotalScore,
+                PassingScore = exam.PassingScore,
+                MaxAttempts = exam.MaxAttempts,
+                AllowLateSubmit = exam.AllowLateSubmit,
+                ShuffleQuestion = exam.ShuffleQuestion,
+                ShowAnswerAfter = exam.ShowAnswerAfter,
+                Status = exam.Status,
+                CreatedAt = exam.CreatedAt,
+                QuestionCount = exam.ExamQuestions.Count,
+                SubmissionCount = exam.ExamAttempts.Count,
+                QuestionIds = exam.ExamQuestions.Select(eq => eq.QuestionId).ToList(),
+                Questions = exam.ExamQuestions
+                    .Where(eq => eq.Question != null)
+                    .Select(eq => new QuestionDto
+                    {
+                        Id = eq.Question.Id,
+                        Code = eq.Question.Code,
+                        Name = eq.Question.Name,
+                        Content = eq.Question.Content,
+                        QuestionType = eq.Question.QuestionType,
+                        QuestionTypeName = eq.Question.QuestionType == 1 ? "Chọn một" :
+                                           eq.Question.QuestionType == 2 ? "Chọn nhiều" :
+                                           eq.Question.QuestionType == 3 ? "Nhập text" : "Đúng/Sai",
+                        SkillType = eq.Question.SkillType,
+                        SkillTypeName = eq.Question.SkillType == 1 ? "Listening" :
+                                        eq.Question.SkillType == 2 ? "Reading" :
+                                        eq.Question.SkillType == 3 ? "Speaking" : "Writing",
+                        DifficultyLevel = eq.Question.DifficultyLevel,
+                        DifficultyLevelName = eq.Question.DifficultyLevel == 1 ? "Dễ" :
+                                              eq.Question.DifficultyLevel == 2 ? "Trung bình" : "Khó",
+                        Explanation = eq.Question.Explanation,
+                        MediaUrl = eq.Question.MediaUrl,
+                        PassageId = eq.Question.PassageId,
+                        Status = eq.Question.Status,
+                        CategoryId = eq.Question.CategoryId,
+                        Point = eq.Point,
+                        QuestionAnswers = eq.Question.QuestionAnswers.Select(qa => new QuestionAnswerDto
+                        {
+                            Id = qa.Id,
+                            Content = qa.Content,
+                            IsCorrect = includeCorrectAnswers && qa.IsCorrect
+                        }).ToList()
+                    }).ToList()
+            };
         }
 
         public async Task<ApiResponse<ExamDto>> CreateAsync(ExamSaveDto dto)
@@ -495,47 +506,28 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<bool>> DeleteAsync(int id)
         {
-            using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
-                var exam = await _dbContext.Exams
-                    .Include(e => e.ExamAttempts)
-                        .ThenInclude(a => a.ExamAnswers)
-                    .Include(e => e.ExamQuestions)
-                    .Include(e => e.ExamSchedules)
-                    .Include(e => e.StudentGrades)
-                    .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
-
+                var exam = await _dbContext.Exams.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
                 if (exam == null)
                 {
                     return ApiResponse<bool>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                // Block deletion if any student has already attempted this exam
-                if (exam.ExamAttempts.Any())
+                // Block deletion if any student has already attempted this exam, or is assigned
+                // to one of its exam schedules (ExamStudent -> ExamSchedule is a Restrict FK).
+                if (await _examRepository!.HasAttemptsAsync(id) || await _examRepository.HasExamStudentsAsync(id))
                 {
                     return ApiResponse<bool>.Fail("ERR_EXAM_IN_USE", StatusCodes.Status400BadRequest);
                 }
 
-                // Hard delete all related data
-                if (exam.StudentGrades.Any())
-                    _dbContext.StudentGrades.RemoveRange(exam.StudentGrades);
-
-                if (exam.ExamSchedules.Any())
-                    _dbContext.ExamSchedules.RemoveRange(exam.ExamSchedules);
-
-                if (exam.ExamQuestions.Any())
-                    _dbContext.ExamQuestions.RemoveRange(exam.ExamQuestions);
-
-                _dbContext.Exams.Remove(exam);
-                await _dbContext.SaveChangesAsync();
-                await transaction.CommitAsync();
+                // Real removal from DB (not IsDeleted = true) — see IExamRepository.HardDeleteAsync.
+                await _examRepository.HardDeleteAsync(id);
 
                 return ApiResponse<bool>.Ok(true, "DELETE_EXAM_SUCCESS");
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
                 return ApiResponse<bool>.Fail("Error deleting exam: " + ex.Message);
             }
         }
@@ -1147,7 +1139,13 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ExamDto>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                var exam = await _dbContext.Exams.FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
+                var exam = await _dbContext.Exams
+                    .Include(e => e.Class)
+                    .Include(e => e.ExamQuestions)
+                        .ThenInclude(eq => eq.Question)
+                            .ThenInclude(q => q.QuestionAnswers)
+                    .Include(e => e.ExamAttempts)
+                    .FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
                 if (exam == null)
                 {
                     return ApiResponse<ExamDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
@@ -1172,7 +1170,13 @@ namespace sep490_be.Services.Implementations
                     }
                 }
 
-                return await GetByIdAsync(examId);
+                // The answer key (IsCorrect) must never reach the student before they submit —
+                // only reveal it once they have a submitted attempt AND the exam is configured to show it.
+                bool hasSubmittedAttempt = exam.ExamAttempts.Any(a => a.StudentId == student.Id && !a.IsDeleted && a.SubmitTime != null);
+                bool includeCorrectAnswers = exam.ShowAnswerAfter && hasSubmittedAttempt;
+
+                var dto = MapExamToDto(exam, includeCorrectAnswers);
+                return ApiResponse<ExamDto>.Ok(dto, "GET_EXAM_DETAIL_SUCCESS");
             }
             catch (Exception ex)
             {
