@@ -917,3 +917,24 @@ Details: Query: None | User: Anonymous
 [2026-08-02 21:40:03] [CLIENT ERROR 401] GET /api/Dashboard
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-08-04 14:23:40] [CLIENT ERROR 404] GET /
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-08-04 14:23:44] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-08-04 14:23:46] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-08-04 14:23:49] [CLIENT ERROR 401] GET /api/Dashboard
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-08-04 14:23:50] [CLIENT ERROR 401] GET /api/Auth/GetCurrentPermissions
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-08-04 14:24:01] [CLIENT ERROR 405] OPTIONS /api/Auth/RefreshToken
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
+[2026-08-04 14:25:37] [CLIENT ERROR 405] OPTIONS /api/Auth/Login
+Details: Query: None | User: Anonymous
+------------------------------------------------------------
