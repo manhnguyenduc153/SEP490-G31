@@ -857,6 +857,18 @@ namespace sep490_be.Services.Implementations
                 var inProgressAttempt = existingAttempts.FirstOrDefault(a => a.Status == 1);
                 if (inProgressAttempt != null)
                 {
+                    // Restore previously saved answers so the student can resume where they left off
+                    var savedAnswers = await _dbContext.ExamAnswers
+                        .Where(ea => ea.ExamAttemptId == inProgressAttempt.Id)
+                        .Select(ea => new ExamAnswerDto
+                        {
+                            Id = ea.Id,
+                            QuestionId = ea.QuestionId,
+                            AnswerContent = ea.AnswerContent,
+                            AttachmentUrl = ea.AttachmentUrl
+                        })
+                        .ToListAsync();
+
                     // Return the existing in progress attempt
                     return ApiResponse<ExamAttemptDto>.Ok(new ExamAttemptDto
                     {
@@ -872,7 +884,8 @@ namespace sep490_be.Services.Implementations
                         Status = inProgressAttempt.Status,
                         Duration = exam.Duration,
                         TabExitsCount = inProgressAttempt.TabExitsCount,
-                        Log = inProgressAttempt.Log
+                        Log = inProgressAttempt.Log,
+                        Answers = savedAnswers
                     }, "EXAM_ATTEMPT_CONTINUE");
                 }
 
@@ -1067,6 +1080,60 @@ namespace sep490_be.Services.Implementations
             {
                 await transaction.RollbackAsync();
                 return ApiResponse<ExamAttemptDto>.Fail("Error submitting exam: " + ex.Message);
+            }
+        }
+
+        // Persists the student's current answers for an in-progress attempt without finalizing it,
+        // so the attempt can be resumed with saved progress after a reload / power loss / crash.
+        public async Task<ApiResponse<bool>> SaveProgressAsync(int examId, ExamSubmitDto dto, string userEmailOrCode)
+        {
+            try
+            {
+                var student = await GetStudentByIdentifierAsync(userEmailOrCode);
+                if (student == null)
+                {
+                    return ApiResponse<bool>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                var attempt = await _dbContext.ExamAttempts
+                    .FirstOrDefaultAsync(a => a.Id == dto.AttemptId && a.ExamId == examId && a.StudentId == student.Id && !a.IsDeleted);
+
+                if (attempt == null)
+                {
+                    return ApiResponse<bool>.Fail("ERR_ATTEMPT_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (attempt.Status == 2)
+                {
+                    return ApiResponse<bool>.Fail("ERR_ATTEMPT_ALREADY_SUBMITTED", StatusCodes.Status400BadRequest);
+                }
+
+                attempt.TabExitsCount = dto.TabExitsCount;
+                attempt.Log = dto.Log;
+
+                var existingAnswers = await _dbContext.ExamAnswers.Where(ea => ea.ExamAttemptId == attempt.Id).ToListAsync();
+                _dbContext.ExamAnswers.RemoveRange(existingAnswers);
+
+                foreach (var ansDto in dto.Answers)
+                {
+                    if (string.IsNullOrEmpty(ansDto.AnswerContent)) continue;
+
+                    _dbContext.ExamAnswers.Add(new ExamAnswer
+                    {
+                        Code = "ANS-" + Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper(),
+                        Name = $"Câu trả lời (đang làm) của {student.Name}",
+                        ExamAttemptId = attempt.Id,
+                        QuestionId = ansDto.QuestionId,
+                        AnswerContent = ansDto.AnswerContent
+                    });
+                }
+
+                await _dbContext.SaveChangesAsync();
+                return ApiResponse<bool>.Ok(true, "SAVE_PROGRESS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail("Error saving progress: " + ex.Message);
             }
         }
 

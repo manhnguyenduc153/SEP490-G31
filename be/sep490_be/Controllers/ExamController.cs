@@ -156,6 +156,20 @@ namespace sep490_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        // POST: api/Exam/5/save-progress
+        [HttpPost("{id}/save-progress")]
+        [HasPermission(Permissions.StudentExam.StudentExamPage)]
+        public async Task<IActionResult> SaveProgress(int id, [FromBody] ExamSubmitDto dto)
+        {
+            var userEmailOrCode = GetCurrentUserEmailOrCode();
+            if (string.IsNullOrEmpty(userEmailOrCode))
+            {
+                return BadRequest(ApiResponse<bool>.Fail("Không xác định được người dùng."));
+            }
+            var response = await _service.SaveProgressAsync(id, dto, userEmailOrCode);
+            return StatusCode(response.StatusCode, response);
+        }
+
         // PUT: api/Exam/attempt/5/grade
         [HttpPut("attempt/{attemptId}/grade")]
         [HasPermission("Exam.Edit,TeachingExam")]

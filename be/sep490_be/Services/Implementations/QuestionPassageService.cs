@@ -52,6 +52,8 @@ namespace sep490_be.Services.Implementations
                     query = query.Where(p => p.CategoryId == searchDto.CategoryId.Value);
                 }
 
+                query = query.OrderByDescending(p => p.Id);
+
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(searchDto);
 
