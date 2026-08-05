@@ -20,6 +20,7 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<ExamDto>> GetStudentExamDetailAsync(int examId, string userEmailOrCode);
         Task<ApiResponse<ExamAttemptDto>> StartAttemptAsync(int examId, string userEmailOrCode);
         Task<ApiResponse<ExamAttemptDto>> SubmitAttemptAsync(int examId, ExamSubmitDto submitDto, string userEmailOrCode);
+        Task<ApiResponse<bool>> SaveProgressAsync(int examId, ExamSubmitDto dto, string userEmailOrCode);
         Task<ApiResponse<ExamAttemptDto>> GradeAttemptAsync(int attemptId, GradeAttemptDto gradeDto, string teacherEmailOrCode);
     }
 }
