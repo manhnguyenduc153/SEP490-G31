@@ -2083,7 +2083,8 @@ namespace sep490_be.Services.Implementations
                 TeacherName = cs.Teacher?.Name,
                 TeacherAvatar = cs.Teacher?.Avatar,
                 Status = cs.Status,
-                Note = cs.Note
+                Note = cs.Note,
+                ClassStatus = cs.Class != null ? cs.Class.Status : entity.Status
             }).OrderBy(cs => cs.LessonNo).ToList() ?? new List<ClassScheduleDto>(),
             StudentClasses = entity.StudentClasses?.Select(sc => new ClassStudentDto
             {

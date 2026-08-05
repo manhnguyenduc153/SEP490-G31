@@ -12,7 +12,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000") // Port 5173 và 3000 của React
+        policy.WithOrigins("http://localhost:5173", "http://localhost:3000", "https://sep-490-g31-fe.vercel.app") // Port 5173 và 3000 của React và Domain Vercel
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

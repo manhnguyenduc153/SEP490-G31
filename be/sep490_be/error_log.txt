@@ -869,3 +869,9 @@ Details: Query: None | User: Anonymous
 [2026-07-24 01:44:56] [CLIENT ERROR 401] POST /api/Auth/Login
 Details: Query: None | User: Anonymous
 ------------------------------------------------------------
+[2026-08-04 17:49:19] [CLIENT ERROR 404] GET /api/Class/TeacherSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------
+[2026-08-04 17:49:19] [CLIENT ERROR 404] GET /api/Class/TeacherSchedules
+Details: Query: None | User: admin
+------------------------------------------------------------

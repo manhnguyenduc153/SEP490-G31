@@ -119,6 +119,15 @@ namespace sep490_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        [HttpDelete("DeleteRole/{roleName}")]
+        [Authorize]
+        [sep490_be.Helpers.Authorization.HasPermission(sep490_be.DTO.Common.Permissions.Role.Role_Delete)]
+        public async Task<IActionResult> DeleteRole(string roleName)
+        {
+            var response = await _authService.DeleteRoleAsync(roleName);
+            return StatusCode(response.StatusCode, response);
+        }
+
         [HttpPost("ChangePassword")]
         [Authorize]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)

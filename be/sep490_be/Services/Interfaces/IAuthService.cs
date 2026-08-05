@@ -16,9 +16,9 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<List<string>>> GetUserRolesAsync(string username);
         Task<ApiResponse<List<string>>> GetUserPermissionsAsync(string username);
         Task<ApiResponse<List<string>>> GetRolePermissionsAsync(string roleName);
+        Task<ApiResponse<bool>> DeleteRoleAsync(string roleName);
         Task<ApiResponse<TokenResponseDto>> RefreshTokenAsync(RefreshTokenRequestDto requestDto);
         Task<ApiResponse<bool>> LogoutAsync(LogoutRequestDto requestDto);
         Task<ApiResponse<bool>> ChangePasswordAsync(string username, ChangePasswordDto dto);
     }
 }
-
