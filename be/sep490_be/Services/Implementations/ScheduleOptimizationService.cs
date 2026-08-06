@@ -203,7 +203,7 @@ namespace sep490_be.Services.Implementations
 
                 // Validate constraints
                 constraints ??= new AutoScheduleConstraintDto();
-                constraints.SessionsPerWeek = Math.Clamp(constraints.SessionsPerWeek, 1, 3);
+                constraints.SessionsPerWeek = Math.Clamp(constraints.SessionsPerWeek, 1, 7);
                 if (constraints.TimePreferences == null || !constraints.TimePreferences.Any())
                     constraints.TimePreferences = new List<string> { "morning", "afternoon", "evening" };
 
@@ -219,26 +219,10 @@ namespace sep490_be.Services.Implementations
                 if (!allClasses.Any())
                     return ApiResponse<List<ClassDto>>.Fail("ERR_CLASSES_NOT_FOUND", StatusCodes.Status404NotFound);
 
-                // Separate: classes to schedule vs classes already scheduled (skip but use for conflict)
                 var jsonOpts = new System.Text.Json.JsonSerializerOptions
                     { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
 
-                bool HasExistingSchedule(Class c)
-                {
-                    if (string.IsNullOrWhiteSpace(c.WeeklySchedulesJson)) return false;
-                    try
-                    {
-                        var list = System.Text.Json.JsonSerializer.Deserialize<List<WeeklyScheduleDto>>(c.WeeklySchedulesJson, jsonOpts);
-                        return list != null && list.Count > 0;
-                    }
-                    catch { return false; }
-                }
-
-                var classesToSchedule = allClasses.Where(c => !HasExistingSchedule(c)).ToList();
-                var classesAlreadyScheduled = allClasses.Where(c => HasExistingSchedule(c)).ToList();
-
-                if (!classesToSchedule.Any())
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_ALL_CLASSES_ALREADY_SCHEDULED", StatusCodes.Status400BadRequest);
+                var classesToSchedule = allClasses;
 
                 // ── 2. Validate per-class requirements ──────────────────────────────────
                 foreach (var c in classesToSchedule)
@@ -250,12 +234,22 @@ namespace sep490_be.Services.Implementations
                 }
 
                 // ── 3. Load resources ───────────────────────────────────────────────────
-                var teachers = await _teacherRepository.FindAll()
-                    .Where(t => t.Status == (int)TeacherStatus.Active && !t.IsDeleted)
-                    .ToListAsync();
-                var rooms = await _roomRepository.FindAll()
-                    .Where(r => r.Status == (int)RoomStatus.Active && !r.IsDeleted)
-                    .ToListAsync();
+                var teachersQuery = _teacherRepository.FindAll()
+                    .Where(t => t.Status == (int)TeacherStatus.Active && !t.IsDeleted);
+                if (constraints.TeacherIds != null && constraints.TeacherIds.Any())
+                {
+                    teachersQuery = teachersQuery.Where(t => constraints.TeacherIds.Contains(t.Id));
+                }
+                var teachers = await teachersQuery.ToListAsync();
+
+                var roomsQuery = _roomRepository.FindAll()
+                    .Where(r => r.Status == (int)RoomStatus.Active && !r.IsDeleted);
+                if (constraints.RoomIds != null && constraints.RoomIds.Any())
+                {
+                    roomsQuery = roomsQuery.Where(r => constraints.RoomIds.Contains(r.Id));
+                }
+                var rooms = await roomsQuery.ToListAsync();
+
                 if (!teachers.Any())
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_TEACHERS", StatusCodes.Status400BadRequest);
                 if (!rooms.Any())
@@ -316,14 +310,14 @@ namespace sep490_be.Services.Implementations
                     var classToSchedule = classesToSchedule[i];
                     teacherVar[i] = model.NewIntVar(0, numTeachers - 1, $"t_{i}");
                     roomVar[i]    = model.NewIntVar(0, numRooms - 1,    $"r_{i}");
-
-                    // Pin teacher if already assigned and still active
+                    // Pin teacher if already assigned and still in the allowed pool
                     if (classToSchedule.TeacherId.HasValue)
                     {
                         int pinTeacherId = classToSchedule.TeacherId.Value;
                         int tIdx = teachers.FindIndex(t => t.Id == pinTeacherId);
                         if (tIdx >= 0) model.Add(teacherVar[i] == tIdx);
                     }
+
 
                     // Room capacity check: room capacity must be >= class student count
                     int studentCount = classToSchedule.StudentClasses?.Count ?? 0;
@@ -1075,12 +1069,22 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_DRAFT_CLASSES_GENERATED", StatusCodes.Status400BadRequest);
 
                 // 3. Load active Teachers and Rooms
-                var teachers = await _teacherRepository.FindAll()
-                    .Where(t => t.Status == (int)TeacherStatus.Active && !t.IsDeleted)
-                    .ToListAsync();
-                var rooms = await _roomRepository.FindAll()
-                    .Where(r => r.Status == (int)RoomStatus.Active && !r.IsDeleted)
-                    .ToListAsync();
+                var teachersQuery = _teacherRepository.FindAll()
+                    .Where(t => t.Status == (int)TeacherStatus.Active && !t.IsDeleted);
+                if (request.Constraints.TeacherIds != null && request.Constraints.TeacherIds.Any())
+                {
+                    teachersQuery = teachersQuery.Where(t => request.Constraints.TeacherIds.Contains(t.Id));
+                }
+                var teachers = await teachersQuery.ToListAsync();
+
+                var roomsQuery = _roomRepository.FindAll()
+                    .Where(r => r.Status == (int)RoomStatus.Active && !r.IsDeleted);
+                if (request.Constraints.RoomIds != null && request.Constraints.RoomIds.Any())
+                {
+                    roomsQuery = roomsQuery.Where(r => request.Constraints.RoomIds.Contains(r.Id));
+                }
+                var rooms = await roomsQuery.ToListAsync();
+
                 if (!teachers.Any())
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_TEACHERS", StatusCodes.Status400BadRequest);
                 if (!rooms.Any())
@@ -1843,6 +1847,9 @@ namespace sep490_be.Services.Implementations
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
             };
             entity.WeeklySchedulesJson = System.Text.Json.JsonSerializer.Serialize(dto.WeeklySchedules, jsonOptions);
+
+            // Clear the existing navigation collection to replace old schedules
+            entity.ClassSchedules.Clear();
 
             // Cache: load existing DB time slots once, keyed by (StartTime, EndTime)
             var dbTimeSlotCache = await _timeSlotRepository.FindAll()
