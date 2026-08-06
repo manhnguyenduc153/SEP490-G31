@@ -29,6 +29,7 @@ namespace sep490_be.Extensions
             services.AddScoped<IHomeworkRepository, HomeworkRepository>();
             services.AddScoped<IHomeworkSubmissionRepository, HomeworkSubmissionRepository>();
             services.AddScoped<ILearningMaterialRepository, LearningMaterialRepository>();
+            services.AddScoped<IStudentRegistrationRepository, StudentRegistrationRepository>();
             
             // Services
             services.AddScoped<IExamService, ExamService>();
