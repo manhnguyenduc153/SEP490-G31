@@ -21,7 +21,7 @@ namespace sep490_be.Services.Implementations
     public class SemesterService : ISemesterService
     {
         private readonly IStudentRegistrationRepository _studentRegistrationRepository;
-        private readonly IBaseRepository<Semester, ApplicationDbContext> _semesterRepository;
+        private readonly ISemesterRepository _semesterRepository;
         private readonly IClassRepository _classRepository;
         private readonly IBaseRepository<ClassSchedule, ApplicationDbContext> _scheduleRepository;
         private readonly IBaseRepository<TeacherAvailability, ApplicationDbContext> _availabilityRepository;
@@ -30,7 +30,7 @@ namespace sep490_be.Services.Implementations
 
         public SemesterService(
             IStudentRegistrationRepository studentRegistrationRepository,
-            IBaseRepository<Semester, ApplicationDbContext> semesterRepository,
+            ISemesterRepository semesterRepository,
             IClassRepository classRepository,
             IBaseRepository<ClassSchedule, ApplicationDbContext> scheduleRepository,
             IBaseRepository<TeacherAvailability, ApplicationDbContext> availabilityRepository,
