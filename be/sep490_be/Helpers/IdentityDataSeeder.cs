@@ -99,19 +99,17 @@ namespace sep490_be.Helpers
             // Danh sách permissions dành cho Student
             var studentPermissions = new List<string>
             {
-                Permissions.Class.Class_StudentView,
-                Permissions.Homework.Homework_View,
-                Permissions.Homework.Homework_Create,
+                Permissions.MyClass.MyClassPage,
+                Permissions.StudentHomework.StudentHomework_View,
+                Permissions.StudentHomework.StudentHomework_Submit,
                 Permissions.Attendance.Attendance_View,
-                Permissions.StudentGrade.StudentGrade_ViewOwnGrades,
+                Permissions.MyGrade.MyGradePage,
                 Permissions.Timetable.TimetablePage,
                 Permissions.Notification.Notification_View,
                 Permissions.LearningMaterial.LearningMaterial_View,
-                Permissions.Exam.Exam_StudentView,
+                Permissions.StudentExam.StudentExamPage,
                 Permissions.ExamAttempt.ExamAttempt_View,
                 Permissions.ExamAttempt.ExamAttempt_Create,
-                Permissions.StudentProfile.StudentProfile_View,
-                Permissions.StudentProfile.StudentProfile_Edit,
             };
 
             var existingStudentClaims = await roleManager.GetClaimsAsync(studentRole!);
@@ -141,11 +139,11 @@ namespace sep490_be.Helpers
             var teacherPermissions = new List<string>
             {
                 Permissions.Class.Class_View,
-                Permissions.Class.Class_TeacherView,
-                Permissions.Homework.Homework_View,
-                Permissions.Homework.Homework_Create,
-                Permissions.Homework.Homework_Edit,
-                Permissions.Homework.Homework_Delete,
+                Permissions.TeachingClass.TeachingClassPage,
+                Permissions.HomeworkManagement.HomeworkManagement_View,
+                Permissions.HomeworkManagement.HomeworkManagement_Create,
+                Permissions.HomeworkManagement.HomeworkManagement_Edit,
+                Permissions.HomeworkManagement.HomeworkManagement_Delete,
                 Permissions.Attendance.Attendance_View,
                 Permissions.Attendance.Attendance_Create,
                 Permissions.Attendance.Attendance_Edit,
@@ -172,7 +170,7 @@ namespace sep490_be.Helpers
                 Permissions.Exam.Exam_Create,
                 Permissions.Exam.Exam_Edit,
                 Permissions.Exam.Exam_Delete,
-                Permissions.Exam.Exam_TeacherView,
+                Permissions.TeachingExam.TeachingExamPage,
                 
                 Permissions.ExamAttempt.ExamAttempt_View,
                 Permissions.ExamAttempt.ExamAttempt_Create,
@@ -188,9 +186,6 @@ namespace sep490_be.Helpers
                 Permissions.QuestionCategory.QuestionCategory_Create,
                 Permissions.QuestionCategory.QuestionCategory_Edit,
                 Permissions.QuestionCategory.QuestionCategory_Delete,
-
-                Permissions.TeacherProfile.TeacherProfile_View,
-                Permissions.TeacherProfile.TeacherProfile_Edit,
             };
 
             var existingTeacherClaims = await roleManager.GetClaimsAsync(teacherRole!);
@@ -218,6 +213,12 @@ namespace sep490_be.Helpers
                 "Academic staff",
                 "Center manager"
             };
+
+            foreach (var roleName in newRolesToSeed)
+            {
+                await EnsureRoleExistsAsync(roleManager, roleName);
+            }
+        }
 
         private static async Task EnsureRoleExistsAsync(RoleManager<IdentityRole> roleManager, string roleName)
         {
