@@ -24,7 +24,12 @@ namespace sep490_be.Services.Implementations
         private readonly IBaseRepository<ClassSchedule, ApplicationDbContext> _scheduleRepository;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
-        private readonly ApplicationDbContext _dbContext;
+        private readonly IBaseRepository<StudentRegistration, ApplicationDbContext> _studentRegistrationRepository;
+        private readonly IBaseRepository<StudentClass, ApplicationDbContext> _studentClassRepository;
+        private readonly IBaseRepository<Room, ApplicationDbContext> _roomRepository;
+        private readonly IBaseRepository<Semester, ApplicationDbContext> _semesterRepository;
+        private readonly IBaseRepository<Attendance, ApplicationDbContext> _attendanceRepository;
+        private readonly IBaseRepository<ParentStudentLink, ApplicationDbContext> _parentStudentLinkRepository;
         private readonly IScheduleOptimizationService _optService;
         private readonly INotificationService _notificationService;
  
@@ -37,7 +42,12 @@ namespace sep490_be.Services.Implementations
             IBaseRepository<ClassSchedule, ApplicationDbContext> scheduleRepository,
             UserManager<IdentityUser> userManager,
             RoleManager<IdentityRole> roleManager,
-            ApplicationDbContext dbContext,
+            IBaseRepository<StudentRegistration, ApplicationDbContext> studentRegistrationRepository,
+            IBaseRepository<StudentClass, ApplicationDbContext> studentClassRepository,
+            IBaseRepository<Room, ApplicationDbContext> roomRepository,
+            IBaseRepository<Semester, ApplicationDbContext> semesterRepository,
+            IBaseRepository<Attendance, ApplicationDbContext> attendanceRepository,
+            IBaseRepository<ParentStudentLink, ApplicationDbContext> parentStudentLinkRepository,
             IScheduleOptimizationService optService,
             INotificationService notificationService)
         {
@@ -49,7 +59,12 @@ namespace sep490_be.Services.Implementations
             _scheduleRepository = scheduleRepository;
             _userManager = userManager;
             _roleManager = roleManager;
-            _dbContext = dbContext;
+            _studentRegistrationRepository = studentRegistrationRepository;
+            _studentClassRepository = studentClassRepository;
+            _roomRepository = roomRepository;
+            _semesterRepository = semesterRepository;
+            _attendanceRepository = attendanceRepository;
+            _parentStudentLinkRepository = parentStudentLinkRepository;
             _optService = optService;
             _notificationService = notificationService;
         }
@@ -59,12 +74,7 @@ namespace sep490_be.Services.Implementations
             try
             {
                 await AutoUpdateClassStatusesAsync();
-                var query = _repository.FindAll()
-                    .Include(c => c.Course)
-                    .Include(c => c.Teacher)
-                    .Include(c => c.Semester)
-                    .Include(c => c.StudentClasses)
-                    .AsQueryable();
+                var query = _repository.GetClassesWithBasicDetails();
 
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
                 {
@@ -106,19 +116,7 @@ namespace sep490_be.Services.Implementations
             try
             {
                 await AutoUpdateClassStatusesAsync();
-                var entity = await _repository.FindAll()
-                    .Include(c => c.Course)
-                    .Include(c => c.Teacher)
-                    .Include(c => c.Semester)
-                    .Include(c => c.StudentClasses)
-                        .ThenInclude(sc => sc.Student)
-                    .Include(c => c.ClassSchedules)
-                        .ThenInclude(cs => cs.TimeSlot)
-                    .Include(c => c.ClassSchedules)
-                        .ThenInclude(cs => cs.Room)
-                    .Include(c => c.ClassSchedules)
-                        .ThenInclude(cs => cs.Teacher)
-                    .FirstOrDefaultAsync(c => c.Id == id);
+                var entity = await _repository.GetClassWithDetailsByIdAsync(id);
 
                 if (entity == null)
                 {
@@ -194,7 +192,7 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<ClassDto>> CreateAsync(ClassSaveDto dto)
         {
-            using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            using var transaction = await _repository.BeginTransactionAsync();
             try
             {
                 await ProcessNewStudentsAsync(dto);
@@ -233,7 +231,7 @@ namespace sep490_be.Services.Implementations
                 {
                     var addedStudentIds = dto.Students.Select(s => s.StudentId).ToList();
                     var semesterId = entity.SemesterId;
-                    var regsToUpdate = await _dbContext.StudentRegistrations
+                    var regsToUpdate = await _studentRegistrationRepository.FindAll(trackChanges: true)
                         .Where(r => r.CourseId == entity.CourseId
                                  && r.Status == (int)StudentRegistrationStatus.Pending
                                  && addedStudentIds.Contains(r.StudentId)
@@ -243,7 +241,7 @@ namespace sep490_be.Services.Implementations
                     foreach (var reg in regsToUpdate)
                     {
                         reg.Status = (int)StudentRegistrationStatus.Scheduled;
-                        _dbContext.StudentRegistrations.Update(reg);
+                        await _studentRegistrationRepository.UpdateAsync(reg);
                     }
                 }
 
@@ -253,12 +251,7 @@ namespace sep490_be.Services.Implementations
                 await transaction.CommitAsync();
 
                 // Reload to populate relationships for return value
-                var createdClass = await _repository.FindAll()
-                    .Include(c => c.Course)
-                    .Include(c => c.Teacher)
-                    .Include(c => c.Semester)
-                    .Include(c => c.StudentClasses)
-                    .FirstOrDefaultAsync(c => c.Id == entity.Id);
+                var createdClass = await _repository.GetClassWithBasicDetailsByIdAsync(entity.Id);
 
                 // Trigger SignalR Notification
                 if (createdClass != null)
@@ -277,7 +270,7 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<ClassDto>> EditAsync(ClassSaveDto dto)
         {
-            using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            using var transaction = await _repository.BeginTransactionAsync();
             try
             {
                 await ProcessNewStudentsAsync(dto);
@@ -291,10 +284,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ClassDto>.Fail(validationError, StatusCodes.Status400BadRequest);
                 }
 
-                var existingEntity = await _repository.FindAll(trackChanges: true)
-                    .Include(c => c.StudentClasses)
-                    .Include(c => c.ClassSchedules)
-                    .FirstOrDefaultAsync(c => c.Id == dto.Id);
+                var existingEntity = await _repository.GetClassForEditAsync(dto.Id);
 
                 if (existingEntity == null)
                 {
@@ -320,7 +310,7 @@ namespace sep490_be.Services.Implementations
                 var studentsToRemove = existingEntity.StudentClasses.Where(sc => !newStudentIds.Contains(sc.StudentId)).ToList();
                 if (studentsToRemove.Any())
                 {
-                    _dbContext.StudentClasses.RemoveRange(studentsToRemove);
+                    await _studentClassRepository.DeleteRangeAsync(studentsToRemove);
                 }
 
                 // Add new students or update EnrollType for existing ones
@@ -353,7 +343,7 @@ namespace sep490_be.Services.Implementations
                     var removeStudentIds = studentsToRemove.Select(sc => sc.StudentId).ToList();
                     if (removeStudentIds.Any())
                     {
-                        var regsToReset = await _dbContext.StudentRegistrations
+                        var regsToReset = await _studentRegistrationRepository.FindAll(trackChanges: true)
                             .Where(r => r.CourseId == existingEntity.CourseId
                                      && r.Status == (int)StudentRegistrationStatus.Scheduled
                                      && removeStudentIds.Contains(r.StudentId)
@@ -363,7 +353,7 @@ namespace sep490_be.Services.Implementations
                         foreach (var reg in regsToReset)
                         {
                             reg.Status = (int)StudentRegistrationStatus.Pending;
-                            _dbContext.StudentRegistrations.Update(reg);
+                            await _studentRegistrationRepository.UpdateAsync(reg);
                         }
                     }
 
@@ -371,7 +361,7 @@ namespace sep490_be.Services.Implementations
                     var addStudentIds = studentsToAdd.Select(s => s.StudentId).ToList();
                     if (addStudentIds.Any())
                     {
-                        var regsToUpdate = await _dbContext.StudentRegistrations
+                        var regsToUpdate = await _studentRegistrationRepository.FindAll(trackChanges: true)
                             .Where(r => r.CourseId == existingEntity.CourseId
                                      && r.Status == (int)StudentRegistrationStatus.Pending
                                      && addStudentIds.Contains(r.StudentId)
@@ -381,7 +371,7 @@ namespace sep490_be.Services.Implementations
                         foreach (var reg in regsToUpdate)
                         {
                             reg.Status = (int)StudentRegistrationStatus.Scheduled;
-                            _dbContext.StudentRegistrations.Update(reg);
+                            await _studentRegistrationRepository.UpdateAsync(reg);
                         }
                     }
                 }
@@ -397,12 +387,7 @@ namespace sep490_be.Services.Implementations
                 await transaction.CommitAsync();
 
                 // Reload to populate relationships for return value
-                var updatedClass = await _repository.FindAll()
-                    .Include(c => c.Course)
-                    .Include(c => c.Teacher)
-                    .Include(c => c.Semester)
-                    .Include(c => c.StudentClasses)
-                    .FirstOrDefaultAsync(c => c.Id == existingEntity.Id);
+                var updatedClass = await _repository.GetClassWithBasicDetailsByIdAsync(existingEntity.Id);
 
                 // Trigger SignalR Notification if class status changed
                 if (updatedClass != null && oldStatus != updatedClass.Status)
@@ -434,7 +419,7 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<bool>> DeleteAsync(int id)
         {
-            using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            using var transaction = await _repository.BeginTransactionAsync();
             try
             {
                 var existingEntity = await _repository.GetByIdAsync(id);
@@ -449,7 +434,7 @@ namespace sep490_be.Services.Implementations
                 }
 
                 // 1. Get student IDs enrolled in this class
-                var studentClasses = await _dbContext.StudentClasses
+                var studentClasses = await _studentClassRepository.FindAll()
                     .Where(sc => sc.ClassId == id)
                     .ToListAsync();
                 var studentIds = studentClasses.Select(sc => sc.StudentId).ToList();
@@ -457,7 +442,7 @@ namespace sep490_be.Services.Implementations
                 if (studentIds.Any() && existingEntity.CourseId.HasValue)
                 {
                     var semesterId = existingEntity.SemesterId;
-                    var regsToReset = await _dbContext.StudentRegistrations
+                    var regsToReset = await _studentRegistrationRepository.FindAll(trackChanges: true)
                         .Where(r => r.CourseId == existingEntity.CourseId 
                                  && r.Status == (int)StudentRegistrationStatus.Scheduled 
                                  && studentIds.Contains(r.StudentId)
@@ -467,19 +452,19 @@ namespace sep490_be.Services.Implementations
                     foreach (var reg in regsToReset)
                     {
                         reg.Status = (int)StudentRegistrationStatus.Pending;
-                        _dbContext.StudentRegistrations.Update(reg);
+                        await _studentRegistrationRepository.UpdateAsync(reg);
                     }
                 }
 
                  // Remove StudentClasses relations to avoid orphans
                  if (studentClasses.Any())
                  {
-                     _dbContext.StudentClasses.RemoveRange(studentClasses);
+                     await _studentClassRepository.DeleteRangeAsync(studentClasses);
                  }
 
                 // Delete the class itself
                 await _repository.DeleteAsync(existingEntity);
-                await _dbContext.SaveChangesAsync();
+                await _repository.SaveChangesAsync();
                 
                 await transaction.CommitAsync();
 
@@ -800,7 +785,7 @@ namespace sep490_be.Services.Implementations
 
                 if (roomIds.Any())
                 {
-                    var rooms = await _dbContext.Rooms
+                    var rooms = await _roomRepository.FindAll()
                         .Where(r => roomIds.Contains(r.Id))
                         .ToListAsync();
 
@@ -842,7 +827,7 @@ namespace sep490_be.Services.Implementations
                     {
                         var proposedStartDate = dto.StartDate.Value;
 
-                        var otherStudentClasses = await _dbContext.StudentClasses
+                        var otherStudentClasses = await _studentClassRepository.FindAll()
                             .Include(sc => sc.Student)
                             .Include(sc => sc.Class)
                             .Where(sc => dto.StudentIds.Contains(sc.StudentId)
@@ -856,7 +841,7 @@ namespace sep490_be.Services.Implementations
                         {
                             var otherClassIds = otherStudentClasses.Select(sc => sc.ClassId).Distinct().ToList();
 
-                            var conflictingSchedules = await _dbContext.ClassSchedules
+                            var conflictingSchedules = await _scheduleRepository.FindAll()
                                 .Where(cs => cs.ClassId.HasValue
                                           && otherClassIds.Contains(cs.ClassId.Value)
                                           && cs.Class != null
@@ -959,7 +944,7 @@ namespace sep490_be.Services.Implementations
 
             if (dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
             {
-                var sem = await _dbContext.Semesters.FindAsync(dto.SemesterId.Value);
+                var sem = await _semesterRepository.GetByIdAsync(dto.SemesterId.Value);
                 if (sem != null && !sem.IsDeleted)
                 {
                     currentDate = sem.StartDate;
@@ -1176,8 +1161,7 @@ namespace sep490_be.Services.Implementations
                 if (schedules.Any())
                 {
                     var scheduleIds = schedules.Select(s => s.Id).ToList();
-                    var attendances = await _dbContext.Attendances
-                        .AsNoTracking()
+                    var attendances = await _attendanceRepository.FindAll()
                         .Where(a => a.StudentId == student.Id && a.ScheduleId.HasValue && scheduleIds.Contains(a.ScheduleId.Value) && !a.IsDeleted)
                         .ToDictionaryAsync(a => a.ScheduleId!.Value, a => a.Status);
 
@@ -1214,7 +1198,7 @@ namespace sep490_be.Services.Implementations
                 var isAdminOrTeacher = roles.Contains("Admin") || roles.Contains("Teacher");
                 if (!isAdminOrTeacher)
                 {
-                    var isParentOfStudent = await _dbContext.ParentStudentLinks.AnyAsync(l => l.Parent.Email == user.Email && l.StudentId == studentId);
+                    var isParentOfStudent = await _parentStudentLinkRepository.FindAll().AnyAsync(l => l.Parent.Email == user.Email && l.StudentId == studentId);
                     if (!isParentOfStudent)
                     {
                         return ApiResponse<List<ClassScheduleDto>>.Fail("ERR_UNAUTHORIZED", StatusCodes.Status403Forbidden);
@@ -1267,8 +1251,7 @@ namespace sep490_be.Services.Implementations
                 if (schedules.Any())
                 {
                     var scheduleIds = schedules.Select(s => s.Id).ToList();
-                    var attendances = await _dbContext.Attendances
-                        .AsNoTracking()
+                    var attendances = await _attendanceRepository.FindAll()
                         .Where(a => a.StudentId == student.Id && a.ScheduleId.HasValue && scheduleIds.Contains(a.ScheduleId.Value) && !a.IsDeleted)
                         .ToDictionaryAsync(a => a.ScheduleId!.Value, a => a.Status);
 
@@ -1404,7 +1387,7 @@ namespace sep490_be.Services.Implementations
                     .Select(s => s[random.Next(s.Length)]).ToArray());
                 code = $"HS{randomString}";
 
-                exists = await _dbContext.Students.IgnoreQueryFilters().AnyAsync(s => s.Code == code) ||
+                exists = await _studentRepository.FindAll().IgnoreQueryFilters().AnyAsync(s => s.Code == code) ||
                          await _userManager.Users.AnyAsync(u => u.UserName == code);
             } while (exists);
 
