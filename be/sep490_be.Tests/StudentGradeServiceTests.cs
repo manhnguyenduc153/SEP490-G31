@@ -153,13 +153,20 @@ namespace sep490_be.Tests.Services
             var service = CreateService(context);
             var settings = await service.GetSettingsAsync(classId);
 
-            var schedule = new ClassSchedule { ClassId = classId, Status = 1 };
-            context.ClassSchedules.Add(schedule);
+            var schedules = Enumerable.Range(1, 10)
+                .Select(lessonNo => new ClassSchedule
+                {
+                    ClassId = classId,
+                    LessonNo = lessonNo,
+                    Status = 1
+                })
+                .ToList();
+            context.ClassSchedules.AddRange(schedules);
             await context.SaveChangesAsync();
             context.Attendances.AddRange(
-                new Attendance { ScheduleId = schedule.Id, StudentId = studentId, Status = 1 },
-                new Attendance { ScheduleId = schedule.Id, StudentId = studentId, Status = 0 },
-                new Attendance { ScheduleId = schedule.Id, StudentId = studentId, Status = -1 });
+                new Attendance { ScheduleId = schedules[0].Id, StudentId = studentId, Status = 1 },
+                new Attendance { ScheduleId = schedules[1].Id, StudentId = studentId, Status = 1 },
+                new Attendance { ScheduleId = schedules[2].Id, StudentId = studentId, Status = 1 });
 
             var teacher = new Teacher { Code = "TC001", Name = "Teacher One", Email = "teacher@test.com" };
             context.Teachers.Add(teacher);
@@ -179,11 +186,11 @@ namespace sep490_be.Tests.Services
             response.Success.Should().BeTrue();
             response.Data.Should().ContainSingle();
             var grade = response.Data!.Single();
-            grade.Components.Single(x => x.ComponentCode == "attendance").RawScore.Should().Be(5);
+            grade.Components.Single(x => x.ComponentCode == "attendance").RawScore.Should().Be(3);
             grade.Components.Single(x => x.ComponentCode == "homework").RawScore.Should().Be(6.5m);
             grade.Components.Where(x => new[] { "listening", "reading", "writing", "speaking" }.Contains(x.ComponentCode))
                 .Should().OnlyContain(x => x.RawScore == 0);
-            grade.AverageScore.Should().Be(3.5m);
+            grade.AverageScore.Should().Be(2.9m);
             settings.Data!.Components.Should().HaveCount(6);
         }
         [Fact]

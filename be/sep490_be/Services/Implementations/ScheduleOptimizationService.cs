@@ -14,16 +14,43 @@ using sep490_be.DTO.Teacher;
 using sep490_be.Models;
 using sep490_be.Services.Interfaces;
 using sep490_be.Enums;
+using sep490_be.Repositories.Common;
+using sep490_be.Repositories.Interfaces;
 
 namespace sep490_be.Services.Implementations
 {
     public class ScheduleOptimizationService : IScheduleOptimizationService
     {
-        private readonly ApplicationDbContext _dbContext;
+        private readonly IClassRepository _classRepository;
+        private readonly IBaseRepository<ClassSchedule, ApplicationDbContext> _scheduleRepository;
+        private readonly IBaseRepository<TeacherAvailability, ApplicationDbContext> _availabilityRepository;
+        private readonly ITeacherRepository _teacherRepository;
+        private readonly IRoomRepository _roomRepository;
+        private readonly ISemesterRepository _semesterRepository;
+        private readonly IStudentRegistrationRepository _studentRegistrationRepository;
+        private readonly IBaseRepository<StudentClass, ApplicationDbContext> _studentClassRepository;
+        private readonly IBaseRepository<TimeSlot, ApplicationDbContext> _timeSlotRepository;
 
-        public ScheduleOptimizationService(ApplicationDbContext dbContext)
+        public ScheduleOptimizationService(
+            IClassRepository classRepository,
+            IBaseRepository<ClassSchedule, ApplicationDbContext> scheduleRepository,
+            IBaseRepository<TeacherAvailability, ApplicationDbContext> availabilityRepository,
+            ITeacherRepository teacherRepository,
+            IRoomRepository roomRepository,
+            ISemesterRepository semesterRepository,
+            IStudentRegistrationRepository studentRegistrationRepository,
+            IBaseRepository<StudentClass, ApplicationDbContext> studentClassRepository,
+            IBaseRepository<TimeSlot, ApplicationDbContext> timeSlotRepository)
         {
-            _dbContext = dbContext;
+            _classRepository = classRepository;
+            _scheduleRepository = scheduleRepository;
+            _availabilityRepository = availabilityRepository;
+            _teacherRepository = teacherRepository;
+            _roomRepository = roomRepository;
+            _semesterRepository = semesterRepository;
+            _studentRegistrationRepository = studentRegistrationRepository;
+            _studentClassRepository = studentClassRepository;
+            _timeSlotRepository = timeSlotRepository;
         }
 
         public async Task<ApiResponse<ConflictCheckResultDto>> CheckConflictAsync(ClassSaveDto dto)
@@ -90,7 +117,7 @@ namespace sep490_be.Services.Implementations
                 var maxDate = proposedSchedules.Max(p => p.Date);
 
                 // Fetch existing schedules in the database for the given date range (except this class)
-                var existingSchedules = await _dbContext.ClassSchedules
+                var existingSchedules = await _scheduleRepository.FindAll()
                     .Include(cs => cs.Class)
                     .Include(cs => cs.TimeSlot)
                     .Include(cs => cs.Room)
@@ -181,7 +208,7 @@ namespace sep490_be.Services.Implementations
                     constraints.TimePreferences = new List<string> { "morning", "afternoon", "evening" };
 
                 // ── 1. Load all selected classes ────────────────────────────────────────
-                var allClasses = await _dbContext.Classes
+                var allClasses = await _classRepository.FindAll()
                     .Include(c => c.Course)
                     .Include(c => c.Teacher)
                     .Include(c => c.ClassSchedules)
@@ -223,10 +250,10 @@ namespace sep490_be.Services.Implementations
                 }
 
                 // ── 3. Load resources ───────────────────────────────────────────────────
-                var teachers = await _dbContext.Teachers
+                var teachers = await _teacherRepository.FindAll()
                     .Where(t => t.Status == (int)TeacherStatus.Active && !t.IsDeleted)
                     .ToListAsync();
-                var rooms = await _dbContext.Rooms
+                var rooms = await _roomRepository.FindAll()
                     .Where(r => r.Status == (int)RoomStatus.Active && !r.IsDeleted)
                     .ToListAsync();
                 if (!teachers.Any())
@@ -401,7 +428,7 @@ namespace sep490_be.Services.Implementations
                 // Include already-scheduled classes from this batch in the conflict scope
                 var skipIds = new HashSet<int>(classesToSchedule.Select(c => c.Id));
 
-                var dbSchedules = await _dbContext.ClassSchedules
+                var dbSchedules = await _scheduleRepository.FindAll()
                     .Include(cs => cs.Class)
                     .Include(cs => cs.TimeSlot)
                     .Where(cs => cs.Class != null && !cs.Class.IsDeleted
@@ -731,7 +758,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_FEASIBLE_SCHEDULE_FOUND", StatusCodes.Status409Conflict);
 
                 // ── 10. Persist ─────────────────────────────────────────────────────────
-                using var transaction = await _dbContext.Database.BeginTransactionAsync();
+                using var transaction = await _classRepository.BeginTransactionAsync();
                 try
                 {
                     for (int i = 0; i < numClasses; i++)
@@ -772,20 +799,20 @@ namespace sep490_be.Services.Implementations
                         };
 
                         if (entity.ClassSchedules?.Any() == true)
-                            _dbContext.ClassSchedules.RemoveRange(entity.ClassSchedules);
+                            await _scheduleRepository.DeleteRangeAsync(entity.ClassSchedules);
 
                         await GenerateClassSchedulesHelperAsync(entity, saveDto);
-                        _dbContext.Classes.Update(entity);
+                        await _classRepository.UpdateAsync(entity);
                     }
 
-                    await _dbContext.SaveChangesAsync();
+                    await _classRepository.SaveChangesAsync();
                     await transaction.CommitAsync();
 
                     // Return all classes in the original selection (scheduled + already-had-schedule)
                     var resultList = new List<ClassDto>();
                     foreach (var c in allClasses)
                     {
-                        var reloaded = await _dbContext.Classes
+                        var reloaded = await _classRepository.FindAll()
                             .Include(cl => cl.Course)
                             .Include(cl => cl.Teacher)
                             .Include(cl => cl.ClassSchedules).ThenInclude(cs => cs.TimeSlot)
@@ -995,12 +1022,12 @@ namespace sep490_be.Services.Implementations
                 if (request == null)
                     return ApiResponse<List<ClassDto>>.Fail("ERR_INVALID_REQUEST", StatusCodes.Status400BadRequest);
 
-                var semester = await _dbContext.Semesters.FindAsync(request.SemesterId);
+                var semester = await _semesterRepository.GetByIdAsync(request.SemesterId);
                 if (semester == null || semester.IsDeleted)
                     return ApiResponse<List<ClassDto>>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
 
                 // 1. Get all pending registrations for the semester
-                var registrations = await _dbContext.StudentRegistrations
+                var registrations = await _studentRegistrationRepository.FindAll()
                     .Include(sr => sr.Student)
                     .Include(sr => sr.Course)
                     .Where(sr => sr.SemesterId == request.SemesterId && sr.Status == (int)StudentRegistrationStatus.Pending && !sr.Student.IsDeleted)
@@ -1048,10 +1075,10 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_DRAFT_CLASSES_GENERATED", StatusCodes.Status400BadRequest);
 
                 // 3. Load active Teachers and Rooms
-                var teachers = await _dbContext.Teachers
+                var teachers = await _teacherRepository.FindAll()
                     .Where(t => t.Status == (int)TeacherStatus.Active && !t.IsDeleted)
                     .ToListAsync();
-                var rooms = await _dbContext.Rooms
+                var rooms = await _roomRepository.FindAll()
                     .Where(r => r.Status == (int)RoomStatus.Active && !r.IsDeleted)
                     .ToListAsync();
                 if (!teachers.Any())
@@ -1060,7 +1087,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_ROOMS", StatusCodes.Status400BadRequest);
 
                 // 4. Load teacher availabilities for the semester
-                var availabilities = await _dbContext.TeacherAvailabilities
+                var availabilities = await _availabilityRepository.FindAll()
                     .Where(ta => ta.SemesterId == request.SemesterId)
                     .ToListAsync();
 
@@ -1263,7 +1290,7 @@ namespace sep490_be.Services.Implementations
                 }
 
                 // 9. No-conflict against existing DB schedules
-                var dbSchedules = await _dbContext.ClassSchedules
+                var dbSchedules = await _scheduleRepository.FindAll()
                     .Include(cs => cs.Class)
                     .Include(cs => cs.TimeSlot)
                     .Where(cs => cs.Class != null && !cs.Class.IsDeleted
@@ -1677,11 +1704,11 @@ namespace sep490_be.Services.Implementations
                 if (request == null || request.Classes == null || !request.Classes.Any())
                     return ApiResponse<List<ClassDto>>.Fail("ERR_INVALID_DRAFT_REQUEST", StatusCodes.Status400BadRequest);
 
-                var semester = await _dbContext.Semesters.FindAsync(request.SemesterId);
+                var semester = await _semesterRepository.GetByIdAsync(request.SemesterId);
                 if (semester == null || semester.IsDeleted)
                     return ApiResponse<List<ClassDto>>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
 
-                using var transaction = await _dbContext.Database.BeginTransactionAsync();
+                using var transaction = await _classRepository.BeginTransactionAsync();
                 try
                 {
                     var createdClasses = new List<Class>();
@@ -1702,8 +1729,8 @@ namespace sep490_be.Services.Implementations
                             AutoRefund = false
                         };
 
-                        _dbContext.Classes.Add(entity);
-                        await _dbContext.SaveChangesAsync(); // get Id
+                        await _classRepository.AddAsync(entity);
+                        await _classRepository.SaveChangesAsync(); // get Id
 
                         var saveDto = new ClassSaveDto
                         {
@@ -1720,12 +1747,12 @@ namespace sep490_be.Services.Implementations
                         };
 
                         await GenerateClassSchedulesHelperAsync(entity, saveDto);
-                        _dbContext.Classes.Update(entity);
+                        await _classRepository.UpdateAsync(entity);
 
                         // Link students and mark registrations as Scheduled
                         foreach (var studentEntry in draftClass.Students)
                         {
-                            _dbContext.StudentClasses.Add(new StudentClass
+                            await _studentClassRepository.AddAsync(new StudentClass
                             {
                                 StudentId = studentEntry.StudentId,
                                 ClassId = entity.Id,
@@ -1734,7 +1761,7 @@ namespace sep490_be.Services.Implementations
                                 EnrollType = studentEntry.EnrollType
                             });
 
-                            var reg = await _dbContext.StudentRegistrations
+                            var reg = await _studentRegistrationRepository.FindAll()
                                 .FirstOrDefaultAsync(r =>
                                     r.StudentId == studentEntry.StudentId &&
                                     r.CourseId == draftClass.CourseId &&
@@ -1744,21 +1771,21 @@ namespace sep490_be.Services.Implementations
                             if (reg != null)
                             {
                                 reg.Status = (int)StudentRegistrationStatus.Scheduled;
-                                _dbContext.StudentRegistrations.Update(reg);
+                                await _studentRegistrationRepository.UpdateAsync(reg);
                             }
                         }
 
                         createdClasses.Add(entity);
                     }
 
-                    await _dbContext.SaveChangesAsync();
+                    await _classRepository.SaveChangesAsync();
                     await transaction.CommitAsync();
 
                     // Reload and return persisted classes
                     var resultList = new List<ClassDto>();
                     foreach (var c in createdClasses)
                     {
-                        var reloaded = await _dbContext.Classes
+                        var reloaded = await _classRepository.FindAll()
                             .Include(cl => cl.Course)
                             .Include(cl => cl.Teacher)
                             .Include(cl => cl.ClassSchedules).ThenInclude(cs => cs.TimeSlot)
@@ -1818,7 +1845,7 @@ namespace sep490_be.Services.Implementations
             entity.WeeklySchedulesJson = System.Text.Json.JsonSerializer.Serialize(dto.WeeklySchedules, jsonOptions);
 
             // Cache: load existing DB time slots once, keyed by (StartTime, EndTime)
-            var dbTimeSlotCache = await _dbContext.TimeSlots
+            var dbTimeSlotCache = await _timeSlotRepository.FindAll()
                 .Where(ts => !ts.IsDeleted)
                 .ToListAsync();
 
@@ -1853,8 +1880,8 @@ namespace sep490_be.Services.Implementations
                                 StartTime = startSpan,
                                 EndTime   = endSpan
                             };
-                            _dbContext.TimeSlots.Add(timeSlot);
-                            await _dbContext.SaveChangesAsync();
+                            await _timeSlotRepository.AddAsync(timeSlot);
+                            await _timeSlotRepository.SaveChangesAsync();
                             dbTimeSlotCache.Add(timeSlot);
                         }
 
@@ -1901,8 +1928,8 @@ namespace sep490_be.Services.Implementations
                                 StartTime = startSpan,
                                 EndTime   = endSpan
                             };
-                            _dbContext.TimeSlots.Add(timeSlot);
-                            await _dbContext.SaveChangesAsync();
+                            await _timeSlotRepository.AddAsync(timeSlot);
+                            await _timeSlotRepository.SaveChangesAsync();
                             dbTimeSlotCache.Add(timeSlot);
                         }
 

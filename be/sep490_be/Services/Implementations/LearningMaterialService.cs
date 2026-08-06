@@ -17,14 +17,14 @@ namespace sep490_be.Services.Implementations
     public class LearningMaterialService : ILearningMaterialService
     {
         private readonly ILearningMaterialRepository _repository;
-        private readonly ApplicationDbContext _dbContext;
+        private readonly ITeacherRepository _teacherRepository;
 
         public LearningMaterialService(
             ILearningMaterialRepository repository,
-            ApplicationDbContext dbContext)
+            ITeacherRepository teacherRepository)
         {
             _repository = repository;
-            _dbContext = dbContext;
+            _teacherRepository = teacherRepository;
         }
 
         public async Task<ApiResponse<PagingResponse<LearningMaterialDto>>> GetAllMaterialsAsync(
@@ -34,12 +34,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var query = _repository.FindAll()
-                    .Include(x => x.Class)
-                    .Include(x => x.Course)
-                    .Include(x => x.ClassSchedule)
-                    .Include(x => x.Teacher)
-                    .AsQueryable();
+                var query = _repository.GetMaterialsWithDetails();
 
 
                 // Lọc theo keyword (tiêu đề, tên, mã, mô tả thông qua TextSearch)
@@ -101,12 +96,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var entity = await _repository.FindAll()
-                    .Include(x => x.Class)
-                    .Include(x => x.Course)
-                    .Include(x => x.ClassSchedule)
-                    .Include(x => x.Teacher)
-                    .FirstOrDefaultAsync(x => x.Id == id);
+                var entity = await _repository.GetMaterialWithDetailsByIdAsync(id);
 
                 if (entity == null)
                 {
@@ -135,7 +125,7 @@ namespace sep490_be.Services.Implementations
                 entity.Id = 0; // Đảm bảo auto-increment
 
                 // Tự động gán người upload nếu người tạo là Giáo viên (Teacher)
-                var teacher = await _dbContext.Teachers
+                var teacher = await _teacherRepository.FindAll()
                     .FirstOrDefaultAsync(t => t.Email == username || t.Code == username);
                 if (teacher != null)
                 {
@@ -152,12 +142,7 @@ namespace sep490_be.Services.Implementations
                 await _repository.SaveChangesAsync();
 
                 // Load lại thông tin liên kết để trả về dữ liệu đầy đủ
-                var createdEntity = await _repository.FindAll()
-                    .Include(x => x.Class)
-                    .Include(x => x.Course)
-                    .Include(x => x.ClassSchedule)
-                    .Include(x => x.Teacher)
-                    .FirstOrDefaultAsync(x => x.Id == entity.Id);
+                var createdEntity = await _repository.GetMaterialWithDetailsByIdAsync(entity.Id);
 
                 return ApiResponse<LearningMaterialDto>.Created(MapToDto(createdEntity!), "CREATE_LEARNING_MATERIAL_SUCCESS");
             }
@@ -191,7 +176,7 @@ namespace sep490_be.Services.Implementations
                 var isAdminOrStaff = roles.Contains("Admin") || roles.Contains("AcademicStaff") || roles.Contains("Academic Staff");
                 if (!isAdminOrStaff && roles.Contains("Teacher"))
                 {
-                    var teacher = await _dbContext.Teachers
+                    var teacher = await _teacherRepository.FindAll()
                         .FirstOrDefaultAsync(t => t.Email == username || t.Code == username);
 
                     if (teacher == null || entity.UploadedBy != teacher.Id)
@@ -211,7 +196,7 @@ namespace sep490_be.Services.Implementations
                 else if (!isAdminOrStaff)
                 {
                     // Nếu là giáo viên tự sửa thì gán lại ID của mình cho chắc chắn
-                    var teacher = await _dbContext.Teachers
+                    var teacher = await _teacherRepository.FindAll()
                         .FirstOrDefaultAsync(t => t.Email == username || t.Code == username);
                     if (teacher != null)
                     {
@@ -222,12 +207,7 @@ namespace sep490_be.Services.Implementations
                 await _repository.UpdateAsync(entity);
                 await _repository.SaveChangesAsync();
 
-                var updatedEntity = await _repository.FindAll()
-                    .Include(x => x.Class)
-                    .Include(x => x.Course)
-                    .Include(x => x.ClassSchedule)
-                    .Include(x => x.Teacher)
-                    .FirstOrDefaultAsync(x => x.Id == entity.Id);
+                var updatedEntity = await _repository.GetMaterialWithDetailsByIdAsync(entity.Id);
 
                 return ApiResponse<LearningMaterialDto>.Ok(MapToDto(updatedEntity!), "UPDATE_LEARNING_MATERIAL_SUCCESS");
             }
@@ -251,7 +231,7 @@ namespace sep490_be.Services.Implementations
                 var isAdminOrStaff = roles.Contains("Admin") || roles.Contains("AcademicStaff") || roles.Contains("Academic Staff");
                 if (!isAdminOrStaff && roles.Contains("Teacher"))
                 {
-                    var teacher = await _dbContext.Teachers
+                    var teacher = await _teacherRepository.FindAll()
                         .FirstOrDefaultAsync(t => t.Email == username || t.Code == username);
 
                     if (teacher == null || entity.UploadedBy != teacher.Id)
@@ -284,7 +264,7 @@ namespace sep490_be.Services.Implementations
                 var isAdminOrStaff = roles.Contains("Admin") || roles.Contains("AcademicStaff") || roles.Contains("Academic Staff");
                 if (!isAdminOrStaff && roles.Contains("Teacher"))
                 {
-                    var teacher = await _dbContext.Teachers
+                    var teacher = await _teacherRepository.FindAll()
                         .FirstOrDefaultAsync(t => t.Email == username || t.Code == username);
 
                     if (teacher == null || entity.UploadedBy != teacher.Id)

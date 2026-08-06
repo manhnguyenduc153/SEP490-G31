@@ -10,6 +10,7 @@ using sep490_be.DTO.User;
 using sep490_be.Models;
 using sep490_be.Services.Interfaces;
 using sep490_be.Helpers;
+using sep490_be.Repositories.Common;
 
 namespace sep490_be.Services.Implementations
 {
@@ -17,16 +18,16 @@ namespace sep490_be.Services.Implementations
     {
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
-        private readonly ApplicationDbContext _dbContext;
+        private readonly IBaseRepository<IdentityUserRole<string>, ApplicationDbContext> _userRoleRepository;
 
         public UserService(
             UserManager<IdentityUser> userManager,
             RoleManager<IdentityRole> roleManager,
-            ApplicationDbContext dbContext)
+            IBaseRepository<IdentityUserRole<string>, ApplicationDbContext> userRoleRepository)
         {
             _userManager = userManager;
             _roleManager = roleManager;
-            _dbContext = dbContext;
+            _userRoleRepository = userRoleRepository;
         }
 
         public async Task<ApiResponse<PagingResponse<UserDto>>> GetAllAsync(UserSearchDto searchDto)
@@ -47,7 +48,7 @@ namespace sep490_be.Services.Implementations
                     var role = await _roleManager.FindByNameAsync(searchDto.RoleName);
                     if (role != null)
                     {
-                        var userIdsInRole = await _dbContext.UserRoles
+                        var userIdsInRole = await _userRoleRepository.FindAll()
                             .Where(ur => ur.RoleId == role.Id)
                             .Select(ur => ur.UserId)
                             .ToListAsync();

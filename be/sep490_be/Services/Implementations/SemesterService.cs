@@ -13,35 +13,56 @@ using sep490_be.Models;
 using sep490_be.Services.Interfaces;
 using sep490_be.Enums;
 using sep490_be.Helpers;
+using sep490_be.Repositories.Common;
+using sep490_be.Repositories.Interfaces;
 
 namespace sep490_be.Services.Implementations
 {
     public class SemesterService : ISemesterService
     {
-        private readonly ApplicationDbContext _dbContext;
+        private readonly IStudentRegistrationRepository _studentRegistrationRepository;
+        private readonly ISemesterRepository _semesterRepository;
+        private readonly IClassRepository _classRepository;
+        private readonly IBaseRepository<ClassSchedule, ApplicationDbContext> _scheduleRepository;
+        private readonly IBaseRepository<TeacherAvailability, ApplicationDbContext> _availabilityRepository;
+        private readonly ICourseRepository _courseRepository;
+        private readonly IStudentRepository _studentRepository;
 
-        public SemesterService(ApplicationDbContext dbContext)
+        public SemesterService(
+            IStudentRegistrationRepository studentRegistrationRepository,
+            ISemesterRepository semesterRepository,
+            IClassRepository classRepository,
+            IBaseRepository<ClassSchedule, ApplicationDbContext> scheduleRepository,
+            IBaseRepository<TeacherAvailability, ApplicationDbContext> availabilityRepository,
+            ICourseRepository courseRepository,
+            IStudentRepository studentRepository)
         {
-            _dbContext = dbContext;
+            _studentRegistrationRepository = studentRegistrationRepository;
+            _semesterRepository = semesterRepository;
+            _classRepository = classRepository;
+            _scheduleRepository = scheduleRepository;
+            _availabilityRepository = availabilityRepository;
+            _courseRepository = courseRepository;
+            _studentRepository = studentRepository;
         }
 
         public async Task<ApiResponse<List<SemesterDto>>> GetAllAsync()
         {
             try
             {
-                var entities = await _dbContext.Semesters
+                var entities = await _semesterRepository.FindAll()
                     .Where(s => !s.IsDeleted)
                     .OrderByDescending(s => s.StartDate)
                     .ToListAsync();
 
                 var semesterIds = entities.Select(e => e.Id).ToList();
-                var classCounts = await _dbContext.Classes
+                var classCounts = await _classRepository.FindAll()
                     .Where(c => !c.IsDeleted && c.SemesterId != null && semesterIds.Contains(c.SemesterId.Value))
                     .GroupBy(c => c.SemesterId)
                     .Select(g => new { SemesterId = g.Key, Count = g.Count() })
                     .ToDictionaryAsync(x => x.SemesterId!.Value, x => x.Count);
 
-                var scheduleSemesterIds = await _dbContext.ClassSchedules
+                var scheduleSemesterIds = await _scheduleRepository.FindAll()
                     .Where(cs => !cs.IsDeleted && cs.Class != null && !cs.Class.IsDeleted && cs.Class.SemesterId != null && semesterIds.Contains(cs.Class.SemesterId.Value))
                     .Select(cs => cs.Class.SemesterId!.Value)
                     .Distinct()
@@ -66,14 +87,14 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var entity = await _dbContext.Semesters.FindAsync(id);
+                var entity = await _semesterRepository.GetByIdAsync(id);
                 if (entity == null || entity.IsDeleted)
                 {
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                var classCount = await _dbContext.Classes.CountAsync(c => c.SemesterId == id && !c.IsDeleted);
-                var hasSchedules = await _dbContext.ClassSchedules.AnyAsync(cs => cs.Class.SemesterId == id && !cs.Class.IsDeleted && !cs.IsDeleted);
+                var classCount = await _classRepository.FindAll().CountAsync(c => c.SemesterId == id && !c.IsDeleted);
+                var hasSchedules = await _scheduleRepository.FindAll().AnyAsync(cs => cs.Class.SemesterId == id && !cs.Class.IsDeleted && !cs.IsDeleted);
 
                 var dto = MapToDto(entity);
                 dto.ClassCount = classCount;
@@ -97,7 +118,7 @@ namespace sep490_be.Services.Implementations
                 }
 
                 // Check existing active semester with same code
-                var existing = await _dbContext.Semesters.FirstOrDefaultAsync(s => s.Code == dto.Code && !s.IsDeleted);
+                var existing = await _semesterRepository.FindAll().FirstOrDefaultAsync(s => s.Code == dto.Code && !s.IsDeleted);
                 if (existing != null)
                 {
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_CODE_EXISTS", StatusCodes.Status400BadRequest);
@@ -113,8 +134,8 @@ namespace sep490_be.Services.Implementations
                     TextSearch = dto.TextSearch
                 };
 
-                _dbContext.Semesters.Add(entity);
-                await _dbContext.SaveChangesAsync();
+                await _semesterRepository.AddAsync(entity);
+                await _semesterRepository.SaveChangesAsync();
 
                 var result = MapToDto(entity);
                 result.ClassCount = 0;
@@ -132,14 +153,14 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var entity = await _dbContext.Semesters.FindAsync(dto.Id);
+                var entity = await _semesterRepository.GetByIdAsync(dto.Id);
                 if (entity == null || entity.IsDeleted)
                 {
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                var classCount = await _dbContext.Classes.CountAsync(c => c.SemesterId == dto.Id && !c.IsDeleted);
-                var hasSchedules = await _dbContext.ClassSchedules.AnyAsync(cs => cs.Class.SemesterId == dto.Id && !cs.Class.IsDeleted && !cs.IsDeleted);
+                var classCount = await _classRepository.FindAll().CountAsync(c => c.SemesterId == dto.Id && !c.IsDeleted);
+                var hasSchedules = await _scheduleRepository.FindAll().AnyAsync(cs => cs.Class.SemesterId == dto.Id && !cs.Class.IsDeleted && !cs.IsDeleted);
 
                 if (hasSchedules)
                 {
@@ -159,8 +180,8 @@ namespace sep490_be.Services.Implementations
                 entity.Status = dto.Status != 0 ? dto.Status : 1; // Always fallback to active if not provided or 0
                 entity.TextSearch = dto.TextSearch;
 
-                _dbContext.Semesters.Update(entity);
-                await _dbContext.SaveChangesAsync();
+                await _semesterRepository.UpdateAsync(entity);
+                await _semesterRepository.SaveChangesAsync();
 
                 var result = MapToDto(entity);
                 result.ClassCount = classCount;
@@ -178,15 +199,15 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var entity = await _dbContext.Semesters.FindAsync(id);
+                var entity = await _semesterRepository.GetByIdAsync(id);
                 if (entity == null || entity.IsDeleted)
                 {
                     return ApiResponse<bool>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
                 entity.IsDeleted = true;
-                _dbContext.Semesters.Update(entity);
-                await _dbContext.SaveChangesAsync();
+                await _semesterRepository.UpdateAsync(entity);
+                await _semesterRepository.SaveChangesAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_SEMESTER_SUCCESS");
             }
@@ -202,7 +223,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var list = await _dbContext.TeacherAvailabilities
+                var list = await _availabilityRepository.FindAll()
                     .Include(t => t.Teacher)
                     .Include(t => t.Semester)
                     .Where(t => t.SemesterId == semesterId && t.TeacherId == teacherId)
@@ -231,10 +252,10 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<bool>> SaveTeacherAvailabilityAsync(TeacherAvailabilitySaveDto dto)
         {
-            using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            using var transaction = await _semesterRepository.BeginTransactionAsync();
             try
             {
-                var hasSchedules = await _dbContext.ClassSchedules.AnyAsync(cs =>
+                var hasSchedules = await _scheduleRepository.FindAll().AnyAsync(cs =>
                     cs.Class.SemesterId == dto.SemesterId &&
                     cs.TeacherId == dto.TeacherId &&
                     !cs.IsDeleted &&
@@ -246,10 +267,10 @@ namespace sep490_be.Services.Implementations
                 }
 
                 // Clear existing availabilities for this teacher and semester
-                var existing = await _dbContext.TeacherAvailabilities
+                var existing = await _availabilityRepository.FindAll()
                     .Where(t => t.SemesterId == dto.SemesterId && t.TeacherId == dto.TeacherId)
                     .ToListAsync();
-                _dbContext.TeacherAvailabilities.RemoveRange(existing);
+                await _availabilityRepository.DeleteRangeAsync(existing);
 
                 // Add new slots
                 if (dto.Slots != null && dto.Slots.Any())
@@ -263,7 +284,7 @@ namespace sep490_be.Services.Implementations
                             return ApiResponse<bool>.Fail("ERR_INVALID_DAY_OR_SLOT", StatusCodes.Status400BadRequest);
                         }
 
-                        _dbContext.TeacherAvailabilities.Add(new TeacherAvailability
+                        await _availabilityRepository.AddAsync(new TeacherAvailability
                         {
                             TeacherId = dto.TeacherId,
                             SemesterId = dto.SemesterId,
@@ -273,7 +294,7 @@ namespace sep490_be.Services.Implementations
                     }
                 }
 
-                await _dbContext.SaveChangesAsync();
+                await _semesterRepository.SaveChangesAsync();
                 await transaction.CommitAsync();
 
                 return ApiResponse<bool>.Ok(true, "SAVE_TEACHER_AVAILABILITY_SUCCESS");
@@ -289,7 +310,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var hasSchedules = await _dbContext.ClassSchedules.AnyAsync(cs =>
+                var hasSchedules = await _scheduleRepository.FindAll().AnyAsync(cs =>
                     cs.Class.SemesterId == semesterId &&
                     cs.TeacherId == teacherId &&
                     !cs.IsDeleted &&
@@ -309,10 +330,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var list = await _dbContext.StudentRegistrations
-                    .Include(sr => sr.Student)
-                    .Include(sr => sr.Course)
-                    .Include(sr => sr.Semester)
+                var list = await _studentRegistrationRepository.GetRegistrationsWithDetails()
                     .Where(sr => sr.SemesterId == semesterId)
                     .OrderByDescending(sr => sr.Id)
                     .ToListAsync();
@@ -331,11 +349,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var query = _dbContext.StudentRegistrations
-                    .Include(sr => sr.Student)
-                    .Include(sr => sr.Course)
-                    .Include(sr => sr.Semester)
-                    .AsQueryable();
+                var query = _studentRegistrationRepository.GetRegistrationsWithDetails();
 
                 if (semesterId > 0)
                 {
@@ -382,7 +396,7 @@ namespace sep490_be.Services.Implementations
 
         public async Task<ApiResponse<List<StudentRegistrationDto>>> ImportStudentRegistrationsAsync(List<StudentRegistrationSaveDto> dtos)
         {
-            using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            using var transaction = await _studentRegistrationRepository.BeginTransactionAsync();
             try
             {
                 var resultDtos = new List<StudentRegistrationDto>();
@@ -408,7 +422,7 @@ namespace sep490_be.Services.Implementations
                             }
 
                             var courseName = dto.CourseName.Trim();
-                            var course = await _dbContext.Courses
+                            var course = await _courseRepository.FindAll()
                                 .FirstOrDefaultAsync(c => !c.IsDeleted && c.Name != null 
                                     && c.Name.ToLower() == courseName.ToLower());
 
@@ -423,15 +437,15 @@ namespace sep490_be.Services.Implementations
                                     Status = 1,
                                     TextSearch = StringHelper.GenerateTextSearch(courseCode, courseName)
                                 };
-                                _dbContext.Courses.Add(course);
-                                await _dbContext.SaveChangesAsync();
+                                await _courseRepository.AddAsync(course);
+                                await _courseRepository.SaveChangesAsync();
                             }
 
                             dto.CourseId = course.Id;
                         }
 
                         // 1. Find or create Student
-                        var student = await _dbContext.Students
+                        var student = await _studentRepository.FindAll()
                             .FirstOrDefaultAsync(s => s.Email == dto.StudentEmail && !s.IsDeleted);
                         
                         if (student == null)
@@ -451,15 +465,12 @@ namespace sep490_be.Services.Implementations
                                 TextSearch = StringHelper.GenerateTextSearch(studentCode, dto.StudentName, dto.StudentEmail)
                             };
 
-                            _dbContext.Students.Add(student);
-                            await _dbContext.SaveChangesAsync();
+                            await _studentRepository.AddAsync(student);
+                            await _studentRepository.SaveChangesAsync();
                         }
 
                         // 2. Clear existing registration for this student/semester/course to avoid duplication
-                        var existing = await _dbContext.StudentRegistrations
-                            .FirstOrDefaultAsync(sr => sr.SemesterId == dto.SemesterId 
-                                                    && sr.StudentId == student.Id 
-                                                    && sr.CourseId == dto.CourseId);
+                        var existing = await _studentRegistrationRepository.GetRegistrationByStudentCourseSemesterAsync(student.Id, dto.CourseId, dto.SemesterId);
                         
                         if (existing != null)
                         {
@@ -467,14 +478,10 @@ namespace sep490_be.Services.Implementations
                             existing.PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>());
                             existing.Status = (int)StudentRegistrationStatus.Pending;
                             existing.EnrollType = dto.EnrollType;
-                            _dbContext.StudentRegistrations.Update(existing);
-                            await _dbContext.SaveChangesAsync();
+                            await _studentRegistrationRepository.UpdateAsync(existing);
+                            await _studentRegistrationRepository.SaveChangesAsync();
 
-                            var reloaded = await _dbContext.StudentRegistrations
-                                .Include(sr => sr.Student)
-                                .Include(sr => sr.Course)
-                                .Include(sr => sr.Semester)
-                                .FirstOrDefaultAsync(sr => sr.Id == existing.Id);
+                            var reloaded = await _studentRegistrationRepository.GetRegistrationWithDetailsByIdAsync(existing.Id);
 
                             if (reloaded != null) resultDtos.Add(MapRegistrationToDto(reloaded));
                         }
@@ -490,14 +497,10 @@ namespace sep490_be.Services.Implementations
                                 EnrollType = dto.EnrollType
                             };
 
-                            _dbContext.StudentRegistrations.Add(reg);
-                            await _dbContext.SaveChangesAsync();
+                            await _studentRegistrationRepository.AddAsync(reg);
+                            await _studentRegistrationRepository.SaveChangesAsync();
 
-                            var reloaded = await _dbContext.StudentRegistrations
-                                .Include(sr => sr.Student)
-                                .Include(sr => sr.Course)
-                                .Include(sr => sr.Semester)
-                                .FirstOrDefaultAsync(sr => sr.Id == reg.Id);
+                            var reloaded = await _studentRegistrationRepository.GetRegistrationWithDetailsByIdAsync(reg.Id);
 
                             if (reloaded != null) resultDtos.Add(MapRegistrationToDto(reloaded));
                         }
@@ -514,15 +517,15 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<StudentRegistrationDto>>.Fail(string.Join("; ", errors), StatusCodes.Status400BadRequest);
                 }
 
-                await _dbContext.SaveChangesAsync();
+                await _studentRegistrationRepository.SaveChangesAsync();
                 await transaction.CommitAsync();
 
                 return ApiResponse<List<StudentRegistrationDto>>.Ok(resultDtos, "IMPORT_STUDENT_REGISTRATION_SUCCESS");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                return ApiResponse<List<StudentRegistrationDto>>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
+                return ApiResponse<List<StudentRegistrationDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -541,7 +544,7 @@ namespace sep490_be.Services.Implementations
                 }
 
                 // 1. Find or create Student
-                var student = await _dbContext.Students
+                var student = await _studentRepository.FindAll()
                     .FirstOrDefaultAsync(s => s.Email == dto.StudentEmail && !s.IsDeleted);
                 
                 if (student == null)
@@ -560,15 +563,12 @@ namespace sep490_be.Services.Implementations
                         TextSearch = StringHelper.GenerateTextSearch(studentCode, dto.StudentName, dto.StudentEmail)
                     };
 
-                    _dbContext.Students.Add(student);
-                    await _dbContext.SaveChangesAsync();
+                    await _studentRepository.AddAsync(student);
+                    await _studentRepository.SaveChangesAsync();
                 }
 
                 // 2. Check existing registration for this student/semester/course
-                var existing = await _dbContext.StudentRegistrations
-                    .FirstOrDefaultAsync(sr => sr.SemesterId == dto.SemesterId 
-                                            && sr.StudentId == student.Id 
-                                            && sr.CourseId == dto.CourseId);
+                var existing = await _studentRegistrationRepository.GetRegistrationByStudentCourseSemesterAsync(student.Id, dto.CourseId, dto.SemesterId);
 
                 if (existing != null)
                 {
@@ -586,14 +586,10 @@ namespace sep490_be.Services.Implementations
                     EnrollType = dto.EnrollType
                 };
 
-                _dbContext.StudentRegistrations.Add(reg);
-                await _dbContext.SaveChangesAsync();
+                await _studentRegistrationRepository.AddAsync(reg);
+                await _studentRegistrationRepository.SaveChangesAsync();
 
-                var reloaded = await _dbContext.StudentRegistrations
-                    .Include(sr => sr.Student)
-                    .Include(sr => sr.Course)
-                    .Include(sr => sr.Semester)
-                    .FirstOrDefaultAsync(sr => sr.Id == reg.Id);
+                var reloaded = await _studentRegistrationRepository.GetRegistrationWithDetailsByIdAsync(reg.Id);
 
                 return ApiResponse<StudentRegistrationDto>.Created(MapRegistrationToDto(reloaded!), "CREATE_REGISTRATION_SUCCESS");
             }
@@ -607,8 +603,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var existing = await _dbContext.StudentRegistrations
-                    .FirstOrDefaultAsync(sr => sr.Id == id);
+                var existing = await _studentRegistrationRepository.GetByIdAsync(id);
 
                 if (existing == null)
                 {
@@ -627,14 +622,10 @@ namespace sep490_be.Services.Implementations
                 existing.Status = dto.Status;
                 existing.EnrollType = dto.EnrollType;
 
-                _dbContext.StudentRegistrations.Update(existing);
-                await _dbContext.SaveChangesAsync();
+                await _studentRegistrationRepository.UpdateAsync(existing);
+                await _studentRegistrationRepository.SaveChangesAsync();
 
-                var reloaded = await _dbContext.StudentRegistrations
-                    .Include(sr => sr.Student)
-                    .Include(sr => sr.Course)
-                    .Include(sr => sr.Semester)
-                    .FirstOrDefaultAsync(sr => sr.Id == existing.Id);
+                var reloaded = await _studentRegistrationRepository.GetRegistrationWithDetailsByIdAsync(existing.Id);
 
                 return ApiResponse<StudentRegistrationDto>.Ok(MapRegistrationToDto(reloaded!), "UPDATE_REGISTRATION_SUCCESS");
             }
@@ -648,8 +639,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var existing = await _dbContext.StudentRegistrations
-                    .FirstOrDefaultAsync(sr => sr.Id == id);
+                var existing = await _studentRegistrationRepository.GetByIdAsync(id);
 
                 if (existing == null)
                 {
@@ -661,8 +651,8 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_REGISTRATION_ALREADY_SCHEDULED_CANNOT_DELETE", StatusCodes.Status400BadRequest);
                 }
 
-                _dbContext.StudentRegistrations.Remove(existing);
-                await _dbContext.SaveChangesAsync();
+                await _studentRegistrationRepository.DeleteAsync(existing);
+                await _studentRegistrationRepository.SaveChangesAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_REGISTRATION_SUCCESS");
             }
@@ -721,7 +711,7 @@ namespace sep490_be.Services.Implementations
 
         private async Task<string> GenerateCourseCodeAsync()
         {
-            var maxCourse = await _dbContext.Courses
+            var maxCourse = await _courseRepository.FindAll()
                 .Where(c => !c.IsDeleted && c.Code != null && c.Code.StartsWith("KH"))
                 .OrderByDescending(c => c.Code)
                 .FirstOrDefaultAsync();

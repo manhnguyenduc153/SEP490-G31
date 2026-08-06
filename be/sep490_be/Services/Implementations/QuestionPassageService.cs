@@ -15,16 +15,13 @@ namespace sep490_be.Services.Implementations
     {
         private readonly IQuestionPassageRepository _repository;
         private readonly IQuestionRepository _questionRepository;
-        private readonly ApplicationDbContext _dbContext;
 
         public QuestionPassageService(
             IQuestionPassageRepository repository,
-            IQuestionRepository questionRepository,
-            ApplicationDbContext dbContext)
+            IQuestionRepository questionRepository)
         {
             _repository = repository;
             _questionRepository = questionRepository;
-            _dbContext = dbContext;
         }
 
         public async Task<ApiResponse<PagingResponse<QuestionPassageDto>>> GetAllAsync(QuestionPassageSearchDto searchDto)
@@ -51,6 +48,8 @@ namespace sep490_be.Services.Implementations
                 {
                     query = query.Where(p => p.CategoryId == searchDto.CategoryId.Value);
                 }
+
+                query = query.OrderByDescending(p => p.Id);
 
                 var totalRecords = await query.CountAsync();
                 var entities = await query.ApplyPagingAsync(searchDto);
@@ -95,6 +94,14 @@ namespace sep490_be.Services.Implementations
             {
                 if (string.IsNullOrWhiteSpace(dto.Title))
                     return ApiResponse<QuestionPassageDto>.Fail("ERR_TITLE_EMPTY", StatusCodes.Status400BadRequest);
+
+                if (!string.IsNullOrWhiteSpace(dto.Code))
+                {
+                    var duplicateCode = await _repository.FindAll()
+                        .FirstOrDefaultAsync(p => p.Code == dto.Code);
+                    if (duplicateCode != null)
+                        return ApiResponse<QuestionPassageDto>.Fail("ERR_CODE_DUPLICATE", StatusCodes.Status400BadRequest);
+                }
 
                 var entity = new QuestionPassage
                 {
@@ -171,6 +178,14 @@ namespace sep490_be.Services.Implementations
                 if (string.IsNullOrWhiteSpace(dto.Title))
                     return ApiResponse<QuestionPassageDto>.Fail("ERR_TITLE_EMPTY", StatusCodes.Status400BadRequest);
 
+                if (!string.IsNullOrWhiteSpace(dto.Code))
+                {
+                    var duplicateCode = await _repository.FindAll()
+                        .FirstOrDefaultAsync(p => p.Code == dto.Code && p.Id != dto.Id);
+                    if (duplicateCode != null)
+                        return ApiResponse<QuestionPassageDto>.Fail("ERR_CODE_DUPLICATE", StatusCodes.Status400BadRequest);
+                }
+
                 existingEntity.Title = dto.Title.Trim();
                 existingEntity.Content = dto.Content;
                 existingEntity.AudioUrl = dto.AudioUrl;
@@ -181,11 +196,27 @@ namespace sep490_be.Services.Implementations
                 // Update Child Questions
                 if (dto.Questions != null)
                 {
-                    // Remove missing questions
+                    // Remove missing questions. existingEntity was loaded via FindAll() (AsNoTracking),
+                    // so simply removing an item from the in-memory Questions collection has no effect
+                    // on the database — the row (and its answers) would silently stay behind, still
+                    // linked to this passage. Delete it for real, then drop it from the in-memory graph
+                    // so the later Update()+SaveChanges() call doesn't try to re-attach it.
                     var incomingIds = dto.Questions.Where(q => q.Id > 0).Select(q => q.Id).ToList();
                     var toDelete = existingEntity.Questions.Where(q => !incomingIds.Contains(q.Id)).ToList();
+
+                    // Check all of them up-front — HardDeleteAsync commits immediately (ExecuteDelete),
+                    // so we must not delete some and then fail partway through on one that's in use.
                     foreach (var q in toDelete)
                     {
+                        if (await _questionRepository.IsUsedInExamAsync(q.Id))
+                        {
+                            return ApiResponse<QuestionPassageDto>.Fail("ERR_QUESTION_IN_USE", StatusCodes.Status400BadRequest);
+                        }
+                    }
+
+                    foreach (var q in toDelete)
+                    {
+                        await _questionRepository.HardDeleteAsync(q.Id);
                         existingEntity.Questions.Remove(q);
                     }
 
@@ -204,17 +235,41 @@ namespace sep490_be.Services.Implementations
                                 existingQ.Point = qDto.Point;
                                 existingQ.CategoryId = dto.CategoryId;
 
-                                existingQ.QuestionAnswers.Clear();
-                                if (qDto.Answers != null)
+                                // Upsert by Id instead of Clear()+Add(): QuestionAnswer.QuestionId is a
+                                // nullable FK, so Clear() only orphans the old rows (sets QuestionId = NULL)
+                                // instead of deleting them — blindly re-adding also discards their Ids and
+                                // amplifies any duplicate/concurrent save into visibly duplicated answers.
+                                var incomingAnswers = qDto.Answers ?? new List<QuestionAnswerDto>();
+                                var answersToRemove = existingQ.QuestionAnswers
+                                    .Where(a => !incomingAnswers.Any(ia => ia.Id > 0 && ia.Id == a.Id))
+                                    .ToList();
+                                if (answersToRemove.Count > 0)
                                 {
-                                    foreach (var aDto in qDto.Answers)
+                                    await _questionRepository.RemoveAnswersAsync(answersToRemove.Select(a => a.Id));
+                                    foreach (var removed in answersToRemove)
                                     {
-                                        existingQ.QuestionAnswers.Add(new QuestionAnswer
-                                        {
-                                            Content = aDto.Content,
-                                            IsCorrect = aDto.IsCorrect
-                                        });
+                                        existingQ.QuestionAnswers.Remove(removed);
                                     }
+                                }
+
+                                foreach (var aDto in incomingAnswers)
+                                {
+                                    if (aDto.Id > 0)
+                                    {
+                                        var existingAnswer = existingQ.QuestionAnswers.FirstOrDefault(a => a.Id == aDto.Id);
+                                        if (existingAnswer != null)
+                                        {
+                                            existingAnswer.Content = aDto.Content;
+                                            existingAnswer.IsCorrect = aDto.IsCorrect;
+                                            continue;
+                                        }
+                                    }
+
+                                    existingQ.QuestionAnswers.Add(new QuestionAnswer
+                                    {
+                                        Content = aDto.Content,
+                                        IsCorrect = aDto.IsCorrect
+                                    });
                                 }
                             }
                         }
@@ -267,59 +322,21 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var passage = await _repository.FindAll()
-                    .Include(p => p.Questions)
-                    .FirstOrDefaultAsync(p => p.Id == id);
-
-                if (passage == null)
+                var passageExists = await _repository.ExistsAsync(p => p.Id == id);
+                if (!passageExists)
                 {
                     return ApiResponse<bool>.Fail("ERR_PASSAGE_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                // Collect all child question IDs
-                var childQuestionIds = passage.Questions.Select(q => q.Id).ToList();
-                var standaloneQuestionIds = await _dbContext.Questions
-                    .Where(q => q.PassageId == id || (q.Code != null && passage.Code != null && q.Code.StartsWith(passage.Code)))
-                    .Select(q => q.Id)
-                    .ToListAsync();
+                var questionIds = await _repository.GetQuestionIdsAsync(id);
 
-                var allQuestionIds = childQuestionIds.Union(standaloneQuestionIds).Distinct().ToList();
-
-                // 1. Check if being used in any Exam
-                var isUsedInExam = await _dbContext.ExamQuestions
-                    .AnyAsync(eq => (eq.PassageId.HasValue && eq.PassageId.Value == id) || allQuestionIds.Contains(eq.QuestionId));
-
-                if (!isUsedInExam)
-                {
-                    isUsedInExam = await _dbContext.ExamAnswers
-                        .AnyAsync(ea => allQuestionIds.Contains(ea.QuestionId));
-                }
-
-                if (isUsedInExam)
+                if (await _repository.IsUsedInExamAsync(id, questionIds))
                 {
                     return ApiResponse<bool>.Fail("ERR_PASSAGE_IN_USE", StatusCodes.Status400BadRequest);
                 }
 
-                // 2. Hard Delete (Xóa cứng)
-                var questionsToDelete = await _dbContext.Questions
-                    .Where(q => q.PassageId == id || allQuestionIds.Contains(q.Id))
-                    .Include(q => q.QuestionAnswers)
-                    .ToListAsync();
-
-                if (questionsToDelete.Count > 0)
-                {
-                    foreach (var q in questionsToDelete)
-                    {
-                        if (q.QuestionAnswers.Count > 0)
-                        {
-                            _dbContext.QuestionAnswers.RemoveRange(q.QuestionAnswers);
-                        }
-                    }
-                    _dbContext.Questions.RemoveRange(questionsToDelete);
-                }
-
-                _dbContext.QuestionPassages.Remove(passage);
-                await _dbContext.SaveChangesAsync();
+                // Real removal from DB (not IsDeleted = true) — see IQuestionPassageRepository.HardDeleteAsync.
+                await _repository.HardDeleteAsync(id, questionIds);
 
                 return ApiResponse<bool>.Ok(true, "DELETE_PASSAGE_SUCCESS");
             }
