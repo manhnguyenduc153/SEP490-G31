@@ -18,16 +18,13 @@ namespace sep490_be.Services.Implementations
     {
         private readonly IQuestionRepository _repository;
         private readonly IQuestionCategoryRepository _categoryRepository;
-        private readonly ApplicationDbContext _dbContext;
 
         public QuestionService(
             IQuestionRepository repository,
-            IQuestionCategoryRepository categoryRepository,
-            ApplicationDbContext dbContext = null)
+            IQuestionCategoryRepository categoryRepository)
         {
             _repository = repository;
             _categoryRepository = categoryRepository;
-            _dbContext = dbContext;
         }
 
         public async Task<ApiResponse<PagingResponse<QuestionDto>>> GetAllAsync(QuestionSearchDto searchDto)

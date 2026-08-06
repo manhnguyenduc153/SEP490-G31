@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using FluentAssertions;
 using Moq;
 using Xunit;
@@ -14,7 +17,9 @@ using sep490_be.Models;
 using sep490_be.Enums;
 using sep490_be.Repositories.Common;
 using sep490_be.Repositories.Implementations;
+using sep490_be.Repositories.Interfaces;
 using sep490_be.Services.Implementations;
+using sep490_be.Services.Interfaces;
 
 namespace sep490_be.Tests.Services
 {
@@ -37,6 +42,42 @@ namespace sep490_be.Tests.Services
             return new Mock<IHttpContextAccessor>();
         }
 
+        private UserManager<IdentityUser> CreateUserManager(ApplicationDbContext context)
+        {
+            var userStore = new UserStore<IdentityUser>(context);
+
+            var optionsAccessorMock = new Mock<Microsoft.Extensions.Options.IOptions<IdentityOptions>>();
+            optionsAccessorMock.Setup(o => o.Value).Returns(new IdentityOptions());
+
+            var servicesMock = new Mock<IServiceProvider>();
+
+            return new UserManager<IdentityUser>(
+                userStore,
+                optionsAccessor: optionsAccessorMock.Object,
+                passwordHasher: new PasswordHasher<IdentityUser>(),
+                userValidators: new List<IUserValidator<IdentityUser>> { new UserValidator<IdentityUser>() },
+                passwordValidators: new List<IPasswordValidator<IdentityUser>>(),
+                keyNormalizer: new UpperInvariantLookupNormalizer(),
+                errors: new IdentityErrorDescriber(),
+                services: servicesMock.Object,
+                logger: new NullLogger<UserManager<IdentityUser>>());
+        }
+
+        // ExamService no longer takes ApplicationDbContext directly — it goes through
+        // IExamRepository/IStudentRepository/ITeacherRepository/IClassRepository instead, so every
+        // test wires up the same real (InMemory-backed) repositories rather than constructing the
+        // service by hand.
+        private ExamService CreateService(ApplicationDbContext context, INotificationService notificationService = null)
+        {
+            var uow = new UnitOfWork<ApplicationDbContext>(context);
+            var examRepository = new ExamRepository(context, uow);
+            var studentRepository = new StudentRepository(context, uow);
+            var teacherRepository = new TeacherRepository(context, uow);
+            var classRepository = new ClassRepository(context, uow);
+            var userManager = CreateUserManager(context);
+            return new ExamService(examRepository, studentRepository, teacherRepository, classRepository, userManager, notificationService);
+        }
+
         #region Normal Test Cases (Kiểm thử giá trị thông thường)
 
         [Fact]
@@ -57,7 +98,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var searchDto = new ExamSearchDto
                 {
                     Keyword = "Math",
@@ -96,7 +137,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.GetByIdAsync(examId);
 
                 // Assert
@@ -138,7 +179,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.CreateAsync(saveDto);
 
                 // Assert
@@ -189,7 +230,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.EditAsync(saveDto);
 
                 // Assert
@@ -226,9 +267,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var uow = new UnitOfWork<ApplicationDbContext>(context);
-                var examRepository = new ExamRepository(context, uow);
-                var service = new ExamService(context, null, examRepository);
+                var service = CreateService(context);
                 var response = await service.DeleteAsync(examId);
 
                 // Assert
@@ -267,7 +306,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.CopyAsync(examId);
 
                 // Assert
@@ -302,7 +341,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.StartAttemptAsync(examId, "ST001");
 
                 // Assert
@@ -339,7 +378,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.StartAttemptAsync(examId, "ST001");
 
                 // Assert
@@ -402,7 +441,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.SubmitAttemptAsync(examId, submitDto, "a@test.com");
 
                 // Assert
@@ -450,7 +489,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.GradeAttemptAsync(attemptId, gradeDto, "teacher@test.com");
 
                 // Assert
@@ -486,7 +525,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.GetStudentExamsAsync("student@test.com");
 
                 // Assert
@@ -521,7 +560,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.CreateAsync(saveDto);
 
                 // Assert
@@ -547,7 +586,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.CreateAsync(saveDto);
 
                 // Assert
@@ -574,7 +613,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.CreateAsync(saveDto);
 
                 // Assert
@@ -598,7 +637,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.GetByIdAsync(9999);
 
                 // Assert
@@ -633,9 +672,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var uow = new UnitOfWork<ApplicationDbContext>(context);
-                var examRepository = new ExamRepository(context, uow);
-                var service = new ExamService(context, null, examRepository);
+                var service = CreateService(context);
                 var response = await service.DeleteAsync(examId);
 
                 // Assert
@@ -655,7 +692,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.StartAttemptAsync(1, "NON_EXISTENT_STUDENT");
 
                 // Assert
@@ -682,7 +719,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.StartAttemptAsync(9999, "ST01");
 
                 // Assert
@@ -713,7 +750,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.StartAttemptAsync(examId, "ST01");
 
                 // Assert
@@ -754,7 +791,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.StartAttemptAsync(examId, "ST01");
 
                 // Assert
@@ -789,7 +826,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.StartAttemptAsync(examId, "ST01");
 
                 // Assert
@@ -826,7 +863,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.SubmitAttemptAsync(examId, submitDto, "a@test.com");
 
                 // Assert
@@ -869,7 +906,7 @@ namespace sep490_be.Tests.Services
             // Act
             using (var context = new ApplicationDbContext(options, mockHttp.Object))
             {
-                var service = new ExamService(context);
+                var service = CreateService(context);
                 var response = await service.SubmitAttemptAsync(examId, submitDto, "a@test.com");
 
                 // Assert
