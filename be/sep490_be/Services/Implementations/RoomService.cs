@@ -360,19 +360,12 @@ namespace sep490_be.Services.Implementations
             if (dto.Capacity.HasValue && dto.Capacity < 1)
                 return "ERR_CAPACITY_INVALID";
 
+            var (codeExists, nameExists) = await ValidationHelper.CheckDuplicateCodeAndNameAsync(_repository, isEdit ? dto.Id : (int?)null, dto.Code, dto.Name);
+            if (codeExists)
+                return "ERR_CODE_DUPLICATE";
 
-
-            // BR-11: Kiểm tra trùng tên phòng
-            var duplicateName = await _repository.FindAll()
-                .FirstOrDefaultAsync(r => r.Name == dto.Name.Trim() && (!isEdit || r.Id != dto.Id));
-            if (duplicateName != null)
-                return "ERR_ROOM_NAME_DUPLICATE";
-
-            // Kiểm tra trùng mã phòng
-            var duplicateCode = await _repository.FindAll()
-                .FirstOrDefaultAsync(r => r.Code == dto.Code.Trim() && (!isEdit || r.Id != dto.Id));
-            if (duplicateCode != null)
-                return "ERR_ROOM_CODE_DUPLICATE";
+            if (nameExists)
+                return "ERR_NAME_DUPLICATE";
 
             return null;
         }
