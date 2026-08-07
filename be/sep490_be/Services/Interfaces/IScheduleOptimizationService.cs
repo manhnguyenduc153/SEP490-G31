@@ -10,6 +10,7 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<List<ClassDto>>> AutoScheduleAsync(List<int> classIds, AutoScheduleConstraintDto constraints);
         Task<ApiResponse<List<ClassDto>>> AutoScheduleSemesterAsync(AutoScheduleSemesterRequestDto request);
         Task<ApiResponse<List<ClassDto>>> SaveSemesterScheduleDraftAsync(SaveScheduleDraftRequestDto request);
+        Task<ApiResponse<List<ClassDto>>> RollbackSemesterScheduleAsync(int semesterId);
         Task<ApiResponse<ConflictCheckResultDto>> CheckConflictAsync(ClassSaveDto dto);
     }
 }

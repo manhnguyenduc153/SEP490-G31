@@ -20,6 +20,7 @@ namespace sep490_be.DTO.Student
         public string? ParentName { get; set; }
         public string? ParentPhone { get; set; }
         public string? Avatar { get; set; }
+        public bool CreateAccount { get; set; }
 
         public string TextSearch => StringHelper.GenerateTextSearch(Code, Name, Email, Phone, ParentName, ParentPhone, SchoolName, Description);
     }

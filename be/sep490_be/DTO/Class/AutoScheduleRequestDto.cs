@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace sep490_be.DTO.Class
 {
@@ -21,7 +21,7 @@ namespace sep490_be.DTO.Class
     {
         /// <summary>
         /// Number of weekly sessions per class (applies only to classes that have no existing schedule).
-        /// Range: 1–3. Default = 2.
+        /// Range: 1–7. Default = 2.
         /// </summary>
         public int SessionsPerWeek { get; set; } = 2;
 
@@ -43,10 +43,22 @@ namespace sep490_be.DTO.Class
         public bool AllowConsecutiveDays { get; set; } = false;
 
         /// <summary>
-        /// When false (default) only Mon–Fri (1–5) are considered.
-        /// When true Sat (6) and Sun (0) are also available.
+        /// When false only Mon–Fri (1–5) are considered.
+        /// When true (default) Sat (6) and Sun (0) are also available.
         /// </summary>
-        public bool AllowWeekend { get; set; } = false;
+        public bool AllowWeekend { get; set; } = true;
+
+        /// <summary>
+        /// Optional list of Teacher IDs to restrict the auto-scheduling to.
+        /// If null or empty, all active teachers will be considered.
+        /// </summary>
+        public List<int>? TeacherIds { get; set; }
+
+        /// <summary>
+        /// Optional list of Room IDs to restrict the auto-scheduling to.
+        /// If null or empty, all active rooms will be considered.
+        /// </summary>
+        public List<int>? RoomIds { get; set; }
     }
 }
 

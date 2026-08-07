@@ -130,44 +130,14 @@ namespace sep490_be.Services.Implementations
                 await _repository.AddAsync(entity);
                 await _repository.SaveChangesAsync();
 
-                // Automatically provision user account
-                if (!string.IsNullOrWhiteSpace(entity.Email))
+                // Account provisioning is opt-in only, via BulkProvisionAccountsAsync
+                // (triggered when the user ticks a student and requests an account).
+                if (dto.CreateAccount && !string.IsNullOrWhiteSpace(entity.Email))
                 {
-                    var emailTrimmed = entity.Email.Trim();
-                    
-                    if (!await _roleManager.RoleExistsAsync("Student"))
+                    var provisionResult = await BulkProvisionAccountsAsync(new List<int> { entity.Id });
+                    if (!provisionResult.Success)
                     {
-                        await _roleManager.CreateAsync(new IdentityRole("Student"));
-                    }
-
-                    var existingUser = await _userManager.FindByEmailAsync(emailTrimmed);
-                    if (existingUser == null)
-                    {
-                        var identityUser = new IdentityUser
-                        {
-                            UserName = emailTrimmed,
-                            Email = emailTrimmed,
-                            PhoneNumber = entity.Phone?.Trim(),
-                            EmailConfirmed = true
-                        };
-
-                        var userResult = await _userManager.CreateAsync(identityUser, "123456");
-                        if (userResult.Succeeded)
-                        {
-                            await _userManager.AddToRoleAsync(identityUser, "Student");
-                        }
-                        else
-                        {
-                            var errMsgs = string.Join(", ", userResult.Errors.Select(e => e.Description));
-                            return ApiResponse<StudentDto>.Fail($"ERR_ACCOUNT_CREATION_FAILED: {errMsgs}", StatusCodes.Status400BadRequest);
-                        }
-                    }
-                    else
-                    {
-                        if (!await _userManager.IsInRoleAsync(existingUser, "Student"))
-                        {
-                            await _userManager.AddToRoleAsync(existingUser, "Student");
-                        }
+                        return ApiResponse<StudentDto>.Fail($"ERR_ACCOUNT_CREATION_FAILED: {provisionResult.Message}", StatusCodes.Status400BadRequest);
                     }
                 }
 
@@ -266,6 +236,11 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                if (await _repository.IsInUseAsync(id))
+                {
+                    return ApiResponse<bool>.Fail("ERR_STUDENT_IN_USE", StatusCodes.Status400BadRequest);
+                }
+
                 // Delete IdentityUser if it exists
                 if (!string.IsNullOrEmpty(existingEntity.Email))
                 {
@@ -276,8 +251,8 @@ namespace sep490_be.Services.Implementations
                     }
                 }
 
-                await _repository.DeleteAsync(existingEntity);
-                await _repository.SaveChangesAsync();
+                // Real removal from DB (not IsDeleted = true) — see IStudentRepository.HardDeleteAsync.
+                await _repository.HardDeleteAsync(id);
 
                 return ApiResponse<bool>.Ok(true, "DELETE_STUDENT_SUCCESS");
             }

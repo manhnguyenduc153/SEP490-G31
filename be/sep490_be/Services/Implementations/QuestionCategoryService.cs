@@ -138,8 +138,13 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_CATEGORY_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                await _repository.DeleteAsync(existingEntity);
-                await _repository.SaveChangesAsync();
+                if (await _repository.IsUsedInQuestionsAsync(id))
+                {
+                    return ApiResponse<bool>.Fail("ERR_CATEGORY_IN_USE", StatusCodes.Status400BadRequest);
+                }
+
+                // Real removal from DB (not IsDeleted = true) — see IQuestionCategoryRepository.HardDeleteAsync.
+                await _repository.HardDeleteAsync(id);
 
                 return ApiResponse<bool>.Ok(true, "DELETE_CATEGORY_SUCCESS");
             }

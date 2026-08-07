@@ -170,6 +170,15 @@ namespace sep490_be.DTO.Common
             public const string Question_Delete = "Question.Delete";
         }
 
+        public static class QuestionPassage
+        {
+            public const string QuestionPassagePage = "QuestionPassage";
+            public const string QuestionPassage_View = "QuestionPassage.View";
+            public const string QuestionPassage_Create = "QuestionPassage.Create";
+            public const string QuestionPassage_Edit = "QuestionPassage.Edit";
+            public const string QuestionPassage_Delete = "QuestionPassage.Delete";
+        }
+
         public static class QuestionAnswer
         {
             public const string QuestionAnswerPage = "QuestionAnswer";
