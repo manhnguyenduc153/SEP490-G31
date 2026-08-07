@@ -238,6 +238,9 @@ namespace sep490_be.Services.Implementations
                     .Include(e => e.ExamQuestions)
                         .ThenInclude(eq => eq.Question)
                             .ThenInclude(q => q.QuestionAnswers)
+                    .Include(e => e.ExamQuestions)
+                        .ThenInclude(eq => eq.Question)
+                            .ThenInclude(q => q.QuestionPassage)
                     .Include(e => e.ExamAttempts)
                     .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
 
@@ -308,6 +311,16 @@ namespace sep490_be.Services.Implementations
                         Explanation = eq.Question.Explanation,
                         MediaUrl = eq.Question.MediaUrl,
                         PassageId = eq.Question.PassageId,
+                        Passage = eq.Question.QuestionPassage == null ? null : new DTO.QuestionPassage.QuestionPassageSummaryDto
+                        {
+                            Id = eq.Question.QuestionPassage.Id,
+                            Code = eq.Question.QuestionPassage.Code,
+                            Title = eq.Question.QuestionPassage.Title,
+                            Content = eq.Question.QuestionPassage.Content,
+                            AudioUrl = eq.Question.QuestionPassage.AudioUrl,
+                            AttachmentUrl = eq.Question.QuestionPassage.AttachmentUrl,
+                            SkillType = eq.Question.QuestionPassage.SkillType
+                        },
                         Status = eq.Question.Status,
                         CategoryId = eq.Question.CategoryId,
                         Point = eq.Point,
@@ -1154,6 +1167,9 @@ namespace sep490_be.Services.Implementations
                     .Include(e => e.ExamQuestions)
                         .ThenInclude(eq => eq.Question)
                             .ThenInclude(q => q.QuestionAnswers)
+                    .Include(e => e.ExamQuestions)
+                        .ThenInclude(eq => eq.Question)
+                            .ThenInclude(q => q.QuestionPassage)
                     .Include(e => e.ExamAttempts)
                     .FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
                 if (exam == null)
