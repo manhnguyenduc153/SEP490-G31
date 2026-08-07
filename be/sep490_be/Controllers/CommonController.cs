@@ -72,7 +72,7 @@ namespace sep490_be.Controllers
         [HttpGet("teachers")]
         public async Task<IActionResult> GetTeachers([FromQuery] TeacherSearchDto searchDto)
         {
-            var response = await _teacherService.GetAllAsync(searchDto);
+            var response = await _teacherService.GetAllAsync(searchDto, null, false);
             return StatusCode(response.StatusCode, response);
         }
 

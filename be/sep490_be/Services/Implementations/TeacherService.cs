@@ -1,4 +1,4 @@
-﻿
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Mapster;
@@ -32,10 +32,44 @@ namespace sep490_be.Services.Implementations
             _roleManager = roleManager;
         }
 
-        public async Task<ApiResponse<PagingResponse<TeacherDto>>> GetAllAsync(TeacherSearchDto searchDto)
+        public async Task<ApiResponse<PagingResponse<TeacherDto>>> GetAllAsync(TeacherSearchDto searchDto, string? username, bool hasViewPermission)
         {
             try
             {
+                if (!hasViewPermission)
+                {
+                    if (string.IsNullOrEmpty(username))
+                    {
+                        return ApiResponse<PagingResponse<TeacherDto>>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
+                    }
+
+                    var user = await _userManager.FindByNameAsync(username);
+                    if (user == null)
+                    {
+                        return ApiResponse<PagingResponse<TeacherDto>>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
+                    }
+
+                    var isSearchingSelf = !string.IsNullOrEmpty(searchDto.Keyword) && 
+                        (string.Equals(searchDto.Keyword, user.UserName, StringComparison.OrdinalIgnoreCase) || 
+                         string.Equals(searchDto.Keyword, user.Email, StringComparison.OrdinalIgnoreCase));
+
+                    if (!isSearchingSelf)
+                    {
+                        if (string.IsNullOrEmpty(searchDto.Keyword))
+                        {
+                            searchDto.Keyword = user.Email;
+                        }
+                        else
+                        {
+                            return ApiResponse<PagingResponse<TeacherDto>>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
+                        }
+                    }
+                    else
+                    {
+                        searchDto.Keyword = user.Email;
+                    }
+                }
+
                 var query = _repository.FindAll();
 
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
@@ -81,7 +115,7 @@ namespace sep490_be.Services.Implementations
             }
         }
 
-        public async Task<ApiResponse<TeacherDto>> GetByIdAsync(int id)
+        public async Task<ApiResponse<TeacherDto>> GetByIdAsync(int id, string? username, bool hasViewPermission)
         {
             try
             {
@@ -95,6 +129,23 @@ namespace sep490_be.Services.Implementations
                 if (!string.IsNullOrEmpty(dto.Email))
                 {
                     dto.HasAccount = await _userManager.Users.AnyAsync(u => u.Email == dto.Email);
+                }
+
+                if (!hasViewPermission)
+                {
+                    var isViewingSelf = false;
+                    if (!string.IsNullOrEmpty(username))
+                    {
+                        var user = await _userManager.FindByNameAsync(username);
+                        if (user != null && string.Equals(dto.Email, user.Email, StringComparison.OrdinalIgnoreCase))
+                        {
+                            isViewingSelf = true;
+                        }
+                    }
+                    if (!isViewingSelf)
+                    {
+                        return ApiResponse<TeacherDto>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
+                    }
                 }
 
                 return ApiResponse<TeacherDto>.Ok(dto, "GET_TEACHER_DETAIL_SUCCESS");
@@ -140,7 +191,7 @@ namespace sep490_be.Services.Implementations
             }
         }
 
-        public async Task<ApiResponse<TeacherDto>> EditAsync(TeacherSaveDto dto)
+        public async Task<ApiResponse<TeacherDto>> EditAsync(TeacherSaveDto dto, string? username, bool hasEditPermission)
         {
             try
             {
@@ -154,6 +205,23 @@ namespace sep490_be.Services.Implementations
                 if (existingEntity == null)
                 {
                     return ApiResponse<TeacherDto>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                if (!hasEditPermission)
+                {
+                    var isEditingSelf = false;
+                    if (!string.IsNullOrEmpty(username))
+                    {
+                        var user = await _userManager.FindByNameAsync(username);
+                        if (user != null && string.Equals(existingEntity.Email, user.Email, StringComparison.OrdinalIgnoreCase))
+                        {
+                            isEditingSelf = true;
+                        }
+                    }
+                    if (!isEditingSelf)
+                    {
+                        return ApiResponse<TeacherDto>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
+                    }
                 }
 
                 var oldEmail = existingEntity.Email;

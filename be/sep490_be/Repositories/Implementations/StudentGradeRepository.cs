@@ -1,0 +1,165 @@
+using sep490_be.Models;
+using sep490_be.Repositories.Interfaces;
+using sep490_be.Repositories.Common;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+
+namespace sep490_be.Repositories.Implementations
+{
+    public class StudentGradeRepository : BaseRepository<StudentGrade, ApplicationDbContext>, IStudentGradeRepository
+    {
+        public StudentGradeRepository(ApplicationDbContext context, IUnitOfWork unitOfWork) : base(context, unitOfWork)
+        {
+        }
+
+        public async Task<(int Id, int? CourseId)?> GetClassInfoAsync(int classId)
+        {
+            var c = await _dbContext.Classes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == classId && !x.IsDeleted);
+            if (c == null) return null;
+            return (c.Id, c.CourseId);
+        }
+
+        public async Task<List<GradeComponent>> GetComponentsAsync(int courseId)
+        {
+            return await _dbContext.GradeComponents.Where(x => x.CourseId == courseId).OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToListAsync();
+        }
+
+        public async Task<List<int>> GetStudentClassIdsAsync(int classId)
+        {
+            return await _dbContext.StudentClasses.Where(sc => sc.ClassId == classId).Select(sc => sc.Id).ToListAsync();
+        }
+
+        public async Task<List<StudentGradeOverride>> GetOverridesAsync(List<int> studentClassIds, List<int> componentIds)
+        {
+            return await _dbContext.StudentGradeOverrides.Include(x => x.StudentClass).Include(x => x.GradeComponent)
+                .Where(x => studentClassIds.Contains(x.StudentClassId) && componentIds.Contains(x.GradeComponentId))
+                .OrderBy(x => x.StudentClassId).ThenBy(x => x.GradeComponent.SortOrder).ToListAsync();
+        }
+
+        public async Task<List<sep490_be.Models.StudentClass>> GetStudentEnrollmentsAsync(int studentId)
+        {
+            return await _dbContext.StudentClasses.AsNoTracking().Include(sc => sc.Class).ThenInclude(c => c.Course)
+                .Where(sc => sc.StudentId == studentId && !sc.Class.IsDeleted).OrderByDescending(sc => sc.EnrollDate).ThenBy(sc => sc.Class.Name).ToListAsync();
+        }
+
+        public async Task<Dictionary<int, decimal?>> GetStudentOverridesAsync(int studentClassId, List<int> componentIds)
+        {
+            return await _dbContext.StudentGradeOverrides.AsNoTracking()
+                .Where(x => x.StudentClassId == studentClassId && componentIds.Contains(x.GradeComponentId))
+                .ToDictionaryAsync(x => x.GradeComponentId, x => (decimal?)x.Score);
+        }
+
+        public async Task<decimal> CalculateAttendanceScoreAsync(int classId, int studentId)
+        {
+            var totalSessions = await _dbContext.ClassSchedules.AsNoTracking().CountAsync(x => x.ClassId == classId);
+            if (totalSessions == 0) return 0m;
+            var attendances = await _dbContext.Attendances.AsNoTracking().Include(x => x.ClassSchedule)
+                .Where(x => x.StudentId == studentId && x.ClassSchedule != null && x.ClassSchedule.ClassId == classId && x.Status != -1)
+                .Select(x => x.Status).ToListAsync();
+            var attended = attendances.Count(x => x > 0);
+            return (decimal)attended / totalSessions * 10m;
+        }
+
+        public async Task<decimal> CalculateHomeworkScoreAsync(int classId, int studentId)
+        {
+            var homeworks = await _dbContext.Homeworks.AsNoTracking().Where(x => x.ClassId == classId).Select(x => new { x.Id, x.TotalScore }).ToListAsync();
+            if (homeworks.Count == 0) return 0m;
+            var homeworkIds = homeworks.Select(x => x.Id).ToList();
+            var submissions = await _dbContext.HomeworkSubmissions.AsNoTracking().Where(x => x.StudentId == studentId && homeworkIds.Contains(x.HomeworkId))
+                .GroupBy(x => x.HomeworkId).Select(g => new { HomeworkId = g.Key, Score = g.Max(x => x.Score) }).ToListAsync();
+            var scoreByHomework = submissions.ToDictionary(x => x.HomeworkId, x => x.Score);
+            var normalizedScores = homeworks.Select(homework => NormalizeScore(scoreByHomework.TryGetValue(homework.Id, out var s) ? s : null, homework.TotalScore));
+            return normalizedScores.Sum() / homeworks.Count;
+        }
+
+        private static decimal NormalizeScore(decimal? score, decimal total)
+        {
+            if (!score.HasValue || total <= 0) return 0m;
+            return Math.Max(0m, Math.Min(10m, score.Value / total * 10m));
+        }
+
+        public async Task<Student?> ResolveStudentByIdentifiersAsync(IEnumerable<string> identifiers, HashSet<string> lookupSet)
+        {
+            var lookup = identifiers.ToList();
+            var student = await _dbContext.Students.AsNoTracking().FirstOrDefaultAsync(s => (s.Email != null && lookup.Contains(s.Email)) || (s.Code != null && lookup.Contains(s.Code)));
+            if (student == null)
+            {
+                var candidates = await _dbContext.Students.AsNoTracking().Where(s => s.Email != null || s.Code != null).ToListAsync();
+                student = candidates.FirstOrDefault(s => (!string.IsNullOrWhiteSpace(s.Email) && (lookupSet.Contains(s.Email) || lookupSet.Contains(s.Email.Split('@')[0]))) || (!string.IsNullOrWhiteSpace(s.Code) && lookupSet.Contains(s.Code)));
+            }
+            return student;
+        }
+
+        public async Task<bool> IsParentOfStudentAsync(string email, int studentId)
+        {
+            return await _dbContext.ParentStudentLinks.AnyAsync(l => l.Parent.Email == email && l.StudentId == studentId);
+        }
+
+        public async Task<bool> StudentExistsAsync(int studentId)
+        {
+            return await _dbContext.Students.AnyAsync(s => s.Id == studentId);
+        }
+
+        public async Task<bool> CourseExistsAsync(int courseId)
+        {
+            return await _dbContext.Courses.AnyAsync(c => c.Id == courseId && !c.IsDeleted);
+        }
+
+        public async Task<List<GradeComponent>> GetExistingComponentsAsync(int courseId)
+        {
+            return await _dbContext.GradeComponents.Where(x => x.CourseId == courseId).ToListAsync();
+        }
+
+        public async Task EnsureDefaultComponentsAsync(int courseId)
+        {
+            var existingComponents = await _dbContext.GradeComponents.Where(x => x.CourseId == courseId).ToListAsync();
+            if (existingComponents.Count == 0)
+            {
+                _dbContext.GradeComponents.AddRange(
+                    new GradeComponent { CourseId = courseId, Code = "listening", Name = "Listening", Weight = 10, SortOrder = 1, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "reading", Name = "Reading", Weight = 10, SortOrder = 2, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "writing", Name = "Writing", Weight = 10, SortOrder = 3, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "speaking", Name = "Speaking", Weight = 10, SortOrder = 4, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "homework", Name = "Homework", Weight = 30, SortOrder = 5, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "attendance", Name = "Attendance", Weight = 30, SortOrder = 6, IsSystem = true }
+                );
+                await _dbContext.SaveChangesAsync();
+                return;
+            }
+            var legacyExam = existingComponents.FirstOrDefault(x => x.IsSystem && x.Code.Equals("exam", StringComparison.OrdinalIgnoreCase));
+            if (legacyExam == null) return;
+            var skills = new[] { (Code: "listening", Name: "Listening", SortOrder: 1), (Code: "reading", Name: "Reading", SortOrder: 2), (Code: "writing", Name: "Writing", SortOrder: 3), (Code: "speaking", Name: "Speaking", SortOrder: 4) };
+            var missingSkills = skills.Where(skill => existingComponents.All(component => !component.Code.Equals(skill.Code, StringComparison.OrdinalIgnoreCase))).ToList();
+            var skillWeight = missingSkills.Count > 0 ? legacyExam.Weight / missingSkills.Count : 0m;
+            legacyExam.IsDeleted = true;
+            foreach (var skill in missingSkills)
+            {
+                _dbContext.GradeComponents.Add(new GradeComponent { CourseId = courseId, Code = skill.Code, Name = skill.Name, Weight = skillWeight, SortOrder = skill.SortOrder, IsSystem = true });
+            }
+            var homework = existingComponents.FirstOrDefault(x => x.Code.Equals("homework", StringComparison.OrdinalIgnoreCase));
+            if (homework != null) homework.SortOrder = 5;
+            var attendance = existingComponents.FirstOrDefault(x => x.Code.Equals("attendance", StringComparison.OrdinalIgnoreCase));
+            if (attendance != null) attendance.SortOrder = 6;
+            await _dbContext.SaveChangesAsync();
+        }
+
+        public async Task SaveCourseComponentsAsync(int courseId, List<GradeComponent> toAdd, List<GradeComponent> toUpdate, List<GradeComponent> toRemove)
+        {
+            if (toRemove.Count > 0) _dbContext.GradeComponents.RemoveRange(toRemove);
+            if (toAdd.Count > 0) await _dbContext.GradeComponents.AddRangeAsync(toAdd);
+            // toUpdate is tracked so savechanges will catch it
+            await _dbContext.SaveChangesAsync();
+        }
+
+        public async Task SaveOverridesAsync(List<StudentGradeOverride> toAdd, List<StudentGradeOverride> toUpdate, List<StudentGradeOverride> toRemove)
+        {
+            if (toRemove.Count > 0) _dbContext.StudentGradeOverrides.RemoveRange(toRemove);
+            if (toAdd.Count > 0) await _dbContext.StudentGradeOverrides.AddRangeAsync(toAdd);
+            await _dbContext.SaveChangesAsync();
+        }
+    }
+}

@@ -14,12 +14,9 @@ namespace sep490_be.Controllers
     public class TeacherController : ControllerBase
     {
         private readonly ITeacherService _service;
-        private readonly UserManager<IdentityUser> _userManager;
-
-        public TeacherController(ITeacherService service, UserManager<IdentityUser> userManager)
+        public TeacherController(ITeacherService service)
         {
             _service = service;
-            _userManager = userManager;
         }
 
         // GET: api/Teacher
@@ -31,41 +28,7 @@ namespace sep490_be.Controllers
                 c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) && 
                 c.Value.Equals(Permissions.Teacher.Teacher_View, StringComparison.OrdinalIgnoreCase));
 
-            if (!hasViewPermission)
-            {
-                if (string.IsNullOrEmpty(username))
-                {
-                    return Forbid();
-                }
-
-                var user = await _userManager.FindByNameAsync(username);
-                if (user == null)
-                {
-                    return Forbid();
-                }
-
-                var isSearchingSelf = !string.IsNullOrEmpty(searchDto.Keyword) && 
-                    (string.Equals(searchDto.Keyword, user.UserName, StringComparison.OrdinalIgnoreCase) || 
-                     string.Equals(searchDto.Keyword, user.Email, StringComparison.OrdinalIgnoreCase));
-
-                if (!isSearchingSelf)
-                {
-                    if (string.IsNullOrEmpty(searchDto.Keyword))
-                    {
-                        searchDto.Keyword = user.Email;
-                    }
-                    else
-                    {
-                        return Forbid();
-                    }
-                }
-                else
-                {
-                    searchDto.Keyword = user.Email;
-                }
-            }
-
-            var response = await _service.GetAllAsync(searchDto);
+            var response = await _service.GetAllAsync(searchDto, username, hasViewPermission);
             return StatusCode(response.StatusCode, response);
         }
 
@@ -78,18 +41,8 @@ namespace sep490_be.Controllers
                 c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) && 
                 c.Value.Equals(Permissions.Teacher.Teacher_View, StringComparison.OrdinalIgnoreCase));
 
-            var isViewingSelf = false;
-            var response = await _service.GetByIdAsync(id);
-            if (response.StatusCode == 200 && response.Data != null && !string.IsNullOrEmpty(username))
-            {
-                var user = await _userManager.FindByNameAsync(username);
-                if (user != null && string.Equals(response.Data.Email, user.Email, StringComparison.OrdinalIgnoreCase))
-                {
-                    isViewingSelf = true;
-                }
-            }
-
-            if (!hasViewPermission && !isViewingSelf)
+            var response = await _service.GetByIdAsync(id, username, hasViewPermission);
+            if (response.StatusCode == 403)
             {
                 return Forbid();
             }
@@ -124,27 +77,12 @@ namespace sep490_be.Controllers
                 c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) && 
                 c.Value.Equals(Permissions.Teacher.Teacher_Edit, StringComparison.OrdinalIgnoreCase));
 
-            var isEditingSelf = false;
-            if (!string.IsNullOrEmpty(username))
-            {
-                var teacherResponse = await _service.GetByIdAsync(id);
-                if (teacherResponse.StatusCode == 200 && teacherResponse.Data != null)
-                {
-                    var user = await _userManager.FindByNameAsync(username);
-                    if (user != null && string.Equals(teacherResponse.Data.Email, user.Email, StringComparison.OrdinalIgnoreCase))
-                    {
-                        isEditingSelf = true;
-                    }
-                }
-            }
-
-            if (!hasEditPermission && !isEditingSelf)
+            dto.Id = id;
+            var response = await _service.EditAsync(dto, username, hasEditPermission);
+            if (response.StatusCode == 403)
             {
                 return Forbid();
             }
-
-            dto.Id = id;
-            var response = await _service.EditAsync(dto);
             return StatusCode(response.StatusCode, response);
         }
 

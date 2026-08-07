@@ -22,6 +22,9 @@ namespace sep490_be.Extensions
             services.AddScoped<IQuestionPassageRepository, QuestionPassageRepository>();
             services.AddScoped<ITeacherRepository, TeacherRepository>();
             services.AddScoped<IRoomRepository, RoomRepository>();
+            services.AddScoped<IStudentGradeRepository, StudentGradeRepository>();
+            services.AddScoped<IGradeComponentRepository, GradeComponentRepository>();
+            services.AddScoped<IStudentGradeOverrideRepository, StudentGradeOverrideRepository>();
             services.AddScoped<ICourseRepository, CourseRepository>();
             services.AddScoped<IClassRepository, ClassRepository>();
             services.AddScoped<IStudentRepository, StudentRepository>();
