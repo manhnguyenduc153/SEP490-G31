@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using sep490_be.DTO.QuestionPassage;
 
 namespace sep490_be.DTO.Question
 {
@@ -21,6 +22,7 @@ namespace sep490_be.DTO.Question
         public int? CategoryId { get; set; }
         public string? CategoryName { get; set; }
         public int? PassageId { get; set; }
+        public QuestionPassageSummaryDto? Passage { get; set; }
         public decimal? Point { get; set; }
         public DateTime CreatedAt { get; set; }
         public string? CreatedBy { get; set; }
