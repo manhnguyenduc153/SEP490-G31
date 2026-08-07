@@ -1765,7 +1765,7 @@ namespace sep490_be.Services.Implementations
                                 EnrollType = studentEntry.EnrollType
                             });
 
-                            var reg = await _studentRegistrationRepository.FindAll()
+                            var reg = await _studentRegistrationRepository.FindAll(true)
                                 .FirstOrDefaultAsync(r =>
                                     r.StudentId == studentEntry.StudentId &&
                                     r.CourseId == draftClass.CourseId &&
@@ -1781,6 +1781,10 @@ namespace sep490_be.Services.Implementations
 
                         createdClasses.Add(entity);
                     }
+
+                    // Save original request JSON payload to Semester for future rollback
+                    semester.OriginalScheduleDraftJson = JsonSerializer.Serialize(request);
+                    await _semesterRepository.UpdateAsync(semester);
 
                     await _classRepository.SaveChangesAsync();
                     await transaction.CommitAsync();
@@ -1805,6 +1809,165 @@ namespace sep490_be.Services.Implementations
                 {
                     await transaction.RollbackAsync();
                     throw new Exception("Error saving schedule draft: " + ex.Message, ex);
+                }
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<ClassDto>>> RollbackSemesterScheduleAsync(int semesterId)
+        {
+            try
+            {
+                var semester = await _semesterRepository.GetByIdAsync(semesterId);
+                if (semester == null || semester.IsDeleted)
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                if (string.IsNullOrEmpty(semester.OriginalScheduleDraftJson))
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ORIGINAL_SCHEDULE_BACKUP", StatusCodes.Status400BadRequest);
+
+                using var transaction = await _classRepository.BeginTransactionAsync();
+                try
+                {
+                    // 1. Fetch all classes in this semester with status Planning (0) and not deleted
+                    var classesToDelete = await _classRepository.FindAll()
+                        .Include(c => c.StudentClasses)
+                        .Include(c => c.ClassSchedules)
+                        .Where(c => c.SemesterId == semesterId && c.Status == (int)ClassStatus.Planning && !c.IsDeleted)
+                        .ToListAsync();
+
+                    if (classesToDelete.Any())
+                    {
+                        foreach (var c in classesToDelete)
+                        {
+                            // 2. Revert student registrations back to Pending
+                            var studentIds = c.StudentClasses.Select(sc => sc.StudentId).ToList();
+                            if (studentIds.Any())
+                            {
+                                var registrationsToRevert = await _studentRegistrationRepository.FindAll(true)
+                                    .Where(r => r.SemesterId == semesterId && r.CourseId == c.CourseId && studentIds.Contains(r.StudentId))
+                                    .ToListAsync();
+
+                                foreach (var reg in registrationsToRevert)
+                                {
+                                    reg.Status = (int)StudentRegistrationStatus.Pending;
+                                    await _studentRegistrationRepository.UpdateAsync(reg);
+                                }
+                            }
+
+                            // 3. Clear student classes and schedules to ensure smooth cascading delete (if any manual tracking exists)
+                            if (c.StudentClasses?.Any() == true)
+                                await _studentClassRepository.DeleteRangeAsync(c.StudentClasses);
+                            if (c.ClassSchedules?.Any() == true)
+                                await _scheduleRepository.DeleteRangeAsync(c.ClassSchedules);
+
+                            // 4. Delete the class itself
+                            await _classRepository.DeleteAsync(c);
+                        }
+                        await _classRepository.SaveChangesAsync();
+                    }
+
+                    // 5. Deserialize the OriginalScheduleDraftJson
+                    var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    var originalRequest = JsonSerializer.Deserialize<SaveScheduleDraftRequestDto>(semester.OriginalScheduleDraftJson, jsonOpts);
+                    if (originalRequest == null || originalRequest.Classes == null || !originalRequest.Classes.Any())
+                    {
+                        return ApiResponse<List<ClassDto>>.Fail("ERR_CORRUPTED_BACKUP_DATA", StatusCodes.Status400BadRequest);
+                    }
+
+                    // 6. Re-create the classes using the original saved request DTO
+                    var createdClasses = new List<Class>();
+
+                    foreach (var draftClass in originalRequest.Classes)
+                    {
+                        var entity = new Class
+                        {
+                            Code = draftClass.Code,
+                            Name = draftClass.Name,
+                            Status = (int)ClassStatus.Planning,
+                            Type = draftClass.EnrollType,
+                            StartDate = semester.StartDate,
+                            EndDate = semester.EndDate,
+                            CourseId = draftClass.CourseId,
+                            TeacherId = draftClass.TeacherId,
+                            SemesterId = semester.Id,
+                            AutoRefund = false
+                        };
+
+                        await _classRepository.AddAsync(entity);
+                        await _classRepository.SaveChangesAsync(); // get Id
+
+                        var saveDto = new ClassSaveDto
+                        {
+                            Id = entity.Id,
+                            Code = entity.Code ?? string.Empty,
+                            Name = entity.Name ?? string.Empty,
+                            Status = entity.Status,
+                            StartDate = entity.StartDate,
+                            EndDate = entity.EndDate,
+                            SemesterId = entity.SemesterId,
+                            ExpectedLessons = draftClass.ExpectedLessons,
+                            TeacherId = entity.TeacherId,
+                            WeeklySchedules = draftClass.WeeklySchedules
+                        };
+
+                        await GenerateClassSchedulesHelperAsync(entity, saveDto);
+                        await _classRepository.UpdateAsync(entity);
+
+                        // Link students and mark registrations as Scheduled
+                        foreach (var studentEntry in draftClass.Students)
+                        {
+                            await _studentClassRepository.AddAsync(new StudentClass
+                            {
+                                StudentId = studentEntry.StudentId,
+                                ClassId = entity.Id,
+                                EnrollDate = DateTime.UtcNow,
+                                Status = (int)StudentClassStatus.Enrolled,
+                                EnrollType = studentEntry.EnrollType
+                            });
+
+                            var reg = await _studentRegistrationRepository.FindAll(true)
+                                .FirstOrDefaultAsync(r =>
+                                    r.StudentId == studentEntry.StudentId &&
+                                    r.CourseId == draftClass.CourseId &&
+                                    r.SemesterId == semesterId &&
+                                    r.Status == (int)StudentRegistrationStatus.Pending);
+
+                            if (reg != null)
+                            {
+                                reg.Status = (int)StudentRegistrationStatus.Scheduled;
+                                await _studentRegistrationRepository.UpdateAsync(reg);
+                            }
+                        }
+
+                        createdClasses.Add(entity);
+                    }
+
+                    await _classRepository.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    // Reload and return recreated classes
+                    var resultList = new List<ClassDto>();
+                    foreach (var c in createdClasses)
+                    {
+                        var reloaded = await _classRepository.FindAll()
+                            .Include(cl => cl.Course)
+                            .Include(cl => cl.Teacher)
+                            .Include(cl => cl.ClassSchedules).ThenInclude(cs => cs.TimeSlot)
+                            .Include(cl => cl.ClassSchedules).ThenInclude(cs => cs.Room)
+                            .Include(cl => cl.StudentClasses).ThenInclude(sc => sc.Student)
+                            .FirstOrDefaultAsync(cl => cl.Id == c.Id);
+                        if (reloaded != null) resultList.Add(MapToDto(reloaded));
+                    }
+
+                    return ApiResponse<List<ClassDto>>.Ok(resultList, "SCHEDULE_DRAFT_ROLLBACK_SUCCESS");
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    throw new Exception("Error executing schedule rollback: " + ex.Message, ex);
                 }
             }
             catch (Exception ex)

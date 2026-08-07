@@ -211,6 +211,15 @@ namespace sep490_be.Controllers
             var response = await _optService.SaveSemesterScheduleDraftAsync(request);
             return StatusCode(response.StatusCode, response);
         }
+
+        // POST: api/Class/rollback-semester/5
+        [HttpPost("rollback-semester/{semesterId:int}")]
+        [HasPermission(Permissions.Semester.Semester_Scheduling)]
+        public async Task<IActionResult> RollbackSemesterSchedule(int semesterId)
+        {
+            var response = await _optService.RollbackSemesterScheduleAsync(semesterId);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }
 
