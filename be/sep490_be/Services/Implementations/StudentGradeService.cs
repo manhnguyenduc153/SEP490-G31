@@ -93,7 +93,6 @@ namespace sep490_be.Services.Implementations
 
                 var rawScores = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["attendance"] = await _repository.CalculateAttendanceScoreAsync(classInfo.Id, studentId),
                     ["homework"] = await _repository.CalculateHomeworkScoreAsync(classInfo.Id, studentId)
                 };
 

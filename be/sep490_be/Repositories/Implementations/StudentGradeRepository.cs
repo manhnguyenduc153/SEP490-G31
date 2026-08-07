@@ -120,12 +120,11 @@ namespace sep490_be.Repositories.Implementations
             if (existingComponents.Count == 0)
             {
                 _dbContext.GradeComponents.AddRange(
-                    new GradeComponent { CourseId = courseId, Code = "listening", Name = "Listening", Weight = 10, SortOrder = 1, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "reading", Name = "Reading", Weight = 10, SortOrder = 2, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "writing", Name = "Writing", Weight = 10, SortOrder = 3, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "speaking", Name = "Speaking", Weight = 10, SortOrder = 4, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "homework", Name = "Homework", Weight = 30, SortOrder = 5, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "attendance", Name = "Attendance", Weight = 30, SortOrder = 6, IsSystem = true }
+                    new GradeComponent { CourseId = courseId, Code = "listening", Name = "Listening", Weight = 17.5m, SortOrder = 1, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "reading", Name = "Reading", Weight = 17.5m, SortOrder = 2, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "writing", Name = "Writing", Weight = 17.5m, SortOrder = 3, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "speaking", Name = "Speaking", Weight = 17.5m, SortOrder = 4, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "homework", Name = "Homework", Weight = 30m, SortOrder = 5, IsSystem = true }
                 );
                 await _dbContext.SaveChangesAsync();
                 return;
@@ -142,8 +141,6 @@ namespace sep490_be.Repositories.Implementations
             }
             var homework = existingComponents.FirstOrDefault(x => x.Code.Equals("homework", StringComparison.OrdinalIgnoreCase));
             if (homework != null) homework.SortOrder = 5;
-            var attendance = existingComponents.FirstOrDefault(x => x.Code.Equals("attendance", StringComparison.OrdinalIgnoreCase));
-            if (attendance != null) attendance.SortOrder = 6;
             await _dbContext.SaveChangesAsync();
         }
 
