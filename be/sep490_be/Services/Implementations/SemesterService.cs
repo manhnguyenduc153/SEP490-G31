@@ -124,6 +124,21 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_CODE_EXISTS", StatusCodes.Status400BadRequest);
                 }
 
+                if (dto.EndDate < dto.StartDate)
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_END_DATE_BEFORE_START_DATE", StatusCodes.Status400BadRequest);
+                }
+
+                if (dto.StartDate.AddMonths(1) > dto.EndDate)
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_DURATION_MIN_ONE_MONTH", StatusCodes.Status400BadRequest);
+                }
+
+                if (dto.EndDate > dto.StartDate.AddMonths(3))
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_DURATION_MAX_THREE_MONTHS", StatusCodes.Status400BadRequest);
+                }
+
                 var entity = new Semester
                 {
                     Code = dto.Code,
@@ -167,6 +182,23 @@ namespace sep490_be.Services.Implementations
                     if (entity.StartDate != dto.StartDate || entity.EndDate != dto.EndDate)
                     {
                         return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_HAS_SCHEDULES_CANNOT_CHANGE_DATES", StatusCodes.Status400BadRequest);
+                    }
+                }
+                else
+                {
+                    if (dto.EndDate < dto.StartDate)
+                    {
+                        return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_END_DATE_BEFORE_START_DATE", StatusCodes.Status400BadRequest);
+                    }
+
+                    if (dto.StartDate.AddMonths(1) > dto.EndDate)
+                    {
+                        return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_DURATION_MIN_ONE_MONTH", StatusCodes.Status400BadRequest);
+                    }
+
+                    if (dto.EndDate > dto.StartDate.AddMonths(3))
+                    {
+                        return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_DURATION_MAX_THREE_MONTHS", StatusCodes.Status400BadRequest);
                     }
                 }
 
