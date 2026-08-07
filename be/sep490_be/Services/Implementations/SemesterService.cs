@@ -116,29 +116,32 @@ namespace sep490_be.Services.Implementations
                 {
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_CODE_NAME_REQUIRED", StatusCodes.Status400BadRequest);
                 }
-
-                // Check existing active semester with same code
-                var existing = await _semesterRepository.FindAll().FirstOrDefaultAsync(s => s.Code == dto.Code && !s.IsDeleted);
-                if (existing != null)
+                
+                var (codeExists, nameExists) = await ValidationHelper.CheckDuplicateCodeAndNameAsync(_semesterRepository, null, dto.Code, dto.Name);
+                if (codeExists)
                 {
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_CODE_EXISTS", StatusCodes.Status400BadRequest);
                 }
-
+                if (nameExists)
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_NAME_EXISTS", StatusCodes.Status400BadRequest);
+                }
+                
                 if (dto.EndDate < dto.StartDate)
                 {
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_END_DATE_BEFORE_START_DATE", StatusCodes.Status400BadRequest);
                 }
-
+                
                 if (dto.StartDate.AddMonths(1) > dto.EndDate)
                 {
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_DURATION_MIN_ONE_MONTH", StatusCodes.Status400BadRequest);
                 }
-
+                
                 if (dto.EndDate > dto.StartDate.AddMonths(3))
                 {
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_DURATION_MAX_THREE_MONTHS", StatusCodes.Status400BadRequest);
                 }
-
+                
                 var entity = new Semester
                 {
                     Code = dto.Code,
@@ -148,14 +151,14 @@ namespace sep490_be.Services.Implementations
                     Status = dto.Status != 0 ? dto.Status : (int)SemesterStatus.Active,
                     TextSearch = dto.TextSearch
                 };
-
+                
                 await _semesterRepository.AddAsync(entity);
                 await _semesterRepository.SaveChangesAsync();
-
+                
                 var result = MapToDto(entity);
                 result.ClassCount = 0;
                 result.HasSchedules = false;
-
+                
                 return ApiResponse<SemesterDto>.Created(result, "CREATE_SEMESTER_SUCCESS");
             }
             catch (Exception)
@@ -176,6 +179,16 @@ namespace sep490_be.Services.Implementations
 
                 var classCount = await _classRepository.FindAll().CountAsync(c => c.SemesterId == dto.Id && !c.IsDeleted);
                 var hasSchedules = await _scheduleRepository.FindAll().AnyAsync(cs => cs.Class.SemesterId == dto.Id && !cs.Class.IsDeleted && !cs.IsDeleted);
+
+                var (codeExists, nameExists) = await ValidationHelper.CheckDuplicateCodeAndNameAsync(_semesterRepository, dto.Id, dto.Code, dto.Name);
+                if (codeExists)
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_CODE_EXISTS", StatusCodes.Status400BadRequest);
+                }
+                if (nameExists)
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_NAME_EXISTS", StatusCodes.Status400BadRequest);
+                }
 
                 if (hasSchedules)
                 {

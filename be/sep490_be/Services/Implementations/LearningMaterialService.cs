@@ -283,12 +283,13 @@ namespace sep490_be.Services.Implementations
             }
         }
 
-        // ===================== PRIVATE VALIDATE =====================
         private async Task<string?> ValidateAsync(LearningMaterialSaveDto dto, bool isEdit)
         {
             if (string.IsNullOrWhiteSpace(dto.Code)) return "ERR_CODE_EMPTY";
+            if (dto.Code.Length < 5) return "ERR_CODE_MIN_LENGTH";
             if (dto.Code.Length > 50) return "ERR_CODE_MAX_LENGTH";
             if (string.IsNullOrWhiteSpace(dto.Name)) return "ERR_NAME_EMPTY";
+            if (dto.Name.Length < 5) return "ERR_NAME_MIN_LENGTH";
             if (dto.Name.Length > 200) return "ERR_NAME_MAX_LENGTH";
 
             if (dto.Title != null && dto.Title.Length > 250) return "ERR_TITLE_MAX_LENGTH";
@@ -296,10 +297,9 @@ namespace sep490_be.Services.Implementations
             if (dto.FileUrl != null && dto.FileUrl.Length > 500) return "ERR_FILE_URL_MAX_LENGTH";
             if (dto.FileType != null && dto.FileType.Length > 50) return "ERR_FILE_TYPE_MAX_LENGTH";
 
-            // Kiểm tra trùng Code
-            var duplicate = await _repository.FindAll()
-                .FirstOrDefaultAsync(x => x.Code == dto.Code && (!isEdit || x.Id != dto.Id));
-            if (duplicate != null) return "ERR_CODE_DUPLICATE";
+            var (codeExists, nameExists) = await ValidationHelper.CheckDuplicateCodeAndNameAsync(_repository, isEdit ? dto.Id : (int?)null, dto.Code, dto.Name);
+            if (codeExists) return "ERR_CODE_DUPLICATE";
+            if (nameExists) return "ERR_NAME_DUPLICATE";
 
             return null;
         }

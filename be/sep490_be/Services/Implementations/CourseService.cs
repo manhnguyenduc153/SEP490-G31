@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Mapster;
 using sep490_be.DTO;
@@ -193,29 +193,20 @@ namespace sep490_be.Services.Implementations
 
             if (dto.Description != null && dto.Description.Length > 1000)
                 return "ERR_DESC_MAX_LENGTH";
-
             if (dto.Duration.HasValue && dto.Duration.Value <= 0)
                 return "ERR_DURATION_INVALID";
 
             if (dto.Price.HasValue && dto.Price.Value < 0)
                 return "ERR_PRICE_INVALID";
 
-            // Code duplication check
-            var duplicateCode = await _repository.FindAll()
-                .FirstOrDefaultAsync(c => c.Code == dto.Code && (!isEdit || c.Id != dto.Id));
-
-            if (duplicateCode != null)
+            var (codeExists, nameExists) = await ValidationHelper.CheckDuplicateCodeAndNameAsync(_repository, isEdit ? dto.Id : (int?)null, dto.Code, dto.Name);
+            if (codeExists)
                 return "ERR_CODE_DUPLICATE";
 
-            // Name duplication check
-            var duplicateName = await _repository.FindAll()
-                .FirstOrDefaultAsync(c => c.Name == dto.Name && (!isEdit || c.Id != dto.Id));
-
-            if (duplicateName != null)
+            if (nameExists)
                 return "ERR_NAME_DUPLICATE";
 
             return null;
         }
     }
 }
-
