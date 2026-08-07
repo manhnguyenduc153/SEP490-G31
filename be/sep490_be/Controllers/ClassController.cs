@@ -194,6 +194,11 @@ namespace sep490_be.Controllers
         [HasPermission(Permissions.Semester.Semester_Scheduling)]
         public async Task<IActionResult> AutoScheduleSemester([FromBody] AutoScheduleSemesterRequestDto request)
         {
+            // DEBUG: log what TeacherIds/RoomIds were received
+            var teacherIds = request?.Constraints?.TeacherIds;
+            var roomIds = request?.Constraints?.RoomIds;
+            Console.WriteLine($"[DEBUG] AutoScheduleSemester - TeacherIds: [{(teacherIds == null ? "null" : string.Join(",", teacherIds))}], RoomIds: [{(roomIds == null ? "null" : string.Join(",", roomIds))}]");
+
             var response = await _optService.AutoScheduleSemesterAsync(request);
             return StatusCode(response.StatusCode, response);
         }
@@ -204,6 +209,15 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> SaveScheduleDraft([FromBody] SaveScheduleDraftRequestDto request)
         {
             var response = await _optService.SaveSemesterScheduleDraftAsync(request);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Class/rollback-semester/5
+        [HttpPost("rollback-semester/{semesterId:int}")]
+        [HasPermission(Permissions.Semester.Semester_Scheduling)]
+        public async Task<IActionResult> RollbackSemesterSchedule(int semesterId)
+        {
+            var response = await _optService.RollbackSemesterScheduleAsync(semesterId);
             return StatusCode(response.StatusCode, response);
         }
     }
