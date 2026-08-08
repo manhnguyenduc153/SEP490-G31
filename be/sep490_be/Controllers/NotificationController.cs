@@ -27,6 +27,54 @@ namespace sep490_be.Controllers
             _userManager = userManager;
         }
 
+        // POST: api/Notification/register-device
+        [HttpPost("register-device")]
+        public async Task<IActionResult> RegisterDevice([FromBody] DTO.Notification.RegisterDeviceTokenDto dto)
+        {
+            try
+            {
+                var username = User.Identity?.Name;
+                if (string.IsNullOrEmpty(username))
+                {
+                    return Unauthorized();
+                }
+
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
+                {
+                    return NotFound(new { success = false, message = "User not found" });
+                }
+
+                var existingToken = await _dbContext.UserDeviceTokens
+                    .FirstOrDefaultAsync(t => t.FcmToken == dto.FcmToken);
+
+                if (existingToken != null)
+                {
+                    existingToken.UserId = user.Id;
+                    existingToken.LastActiveAt = DateTime.UtcNow;
+                    existingToken.DeviceType = dto.DeviceType;
+                }
+                else
+                {
+                    var deviceToken = new UserDeviceToken
+                    {
+                        UserId = user.Id,
+                        FcmToken = dto.FcmToken,
+                        DeviceType = dto.DeviceType,
+                        LastActiveAt = DateTime.UtcNow
+                    };
+                    _dbContext.UserDeviceTokens.Add(deviceToken);
+                }
+
+                await _dbContext.SaveChangesAsync();
+                return Ok(new { success = true, message = "Device token registered successfully" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = ex.Message });
+            }
+        }
+
         // GET: api/Notification
         [HttpGet]
         public async Task<IActionResult> GetMyNotifications()

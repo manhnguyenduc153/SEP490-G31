@@ -66,6 +66,28 @@ builder.Services.AddSecurityServices(builder.Configuration);
 // 4. Thêm Rate Limiting
 builder.Services.AddRateLimitingServices(builder.Configuration);
 
+// Initialize Firebase Admin SDK
+var firebaseCredPath = Path.Combine(builder.Environment.ContentRootPath, "firebase_service_account.json");
+if (File.Exists(firebaseCredPath))
+{
+    try
+    {
+        FirebaseAdmin.FirebaseApp.Create(new FirebaseAdmin.AppOptions()
+        {
+            Credential = Google.Apis.Auth.OAuth2.GoogleCredential.FromFile(firebaseCredPath)
+        });
+        Console.WriteLine("Firebase Admin SDK initialized successfully.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error initializing Firebase Admin SDK: {ex.Message}");
+    }
+}
+else
+{
+    Console.WriteLine("Warning: firebase_service_account.json not found. Push notifications will be disabled.");
+}
+
 // 5. Đăng ký các Dependency Injection (DI) riêng của dự án
 builder.Services.RegisterCustomServices();
 
