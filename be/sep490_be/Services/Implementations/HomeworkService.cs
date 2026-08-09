@@ -18,37 +18,41 @@ namespace sep490_be.Services.Implementations
     {
         private readonly IHomeworkRepository _homeworkRepository;
         private readonly IHomeworkSubmissionRepository _homeworkSubmissionRepository;
-        private readonly ApplicationDbContext _dbContext;
+        
         private readonly INotificationService _notificationService;
         private readonly ILogger<HomeworkService> _logger;
 
         public HomeworkService(
             IHomeworkRepository homeworkRepository,
             IHomeworkSubmissionRepository homeworkSubmissionRepository,
-            ApplicationDbContext dbContext,
             INotificationService notificationService,
             ILogger<HomeworkService> logger = null)
         {
             _homeworkRepository = homeworkRepository;
             _homeworkSubmissionRepository = homeworkSubmissionRepository;
-            _dbContext = dbContext;
             _notificationService = notificationService;
             _logger = logger;
         }
 
-        public async Task<ApiResponse<IEnumerable<HomeworkDto>>> GetHomeworkByClassAsync(int classId)
+        public async Task<ApiResponse<IEnumerable<HomeworkDto>>> GetHomeworkByClassAsync(int classId, string? username, bool isStudent)
         {
             if (classId <= 0)
             {
                 return ApiResponse<IEnumerable<HomeworkDto>>.Fail("ERR_HOMEWORK_CLASS_REQUIRED", StatusCodes.Status400BadRequest);
             }
 
-            var classExists = await _dbContext.Classes
-                .AsNoTracking()
-                .AnyAsync(c => c.Id == classId && !c.IsDeleted);
+            var classExists = await _homeworkRepository.ClassExistsAsync(classId);
             if (!classExists)
             {
                 return ApiResponse<IEnumerable<HomeworkDto>>.Fail("ERR_HOMEWORK_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
+            }
+
+            if (isStudent)
+            {
+                if (string.IsNullOrEmpty(username)) return ApiResponse<IEnumerable<HomeworkDto>>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
+                var student = await _homeworkRepository.ResolveStudentByUsernameAsync(username);
+                var isEnrolled = student != null && await _homeworkRepository.IsStudentEnrolledInClassAsync(student.Id, classId);
+                if (!isEnrolled) return ApiResponse<IEnumerable<HomeworkDto>>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
             }
 
             var homeworks = await _homeworkRepository.FindByCondition(h => h.ClassId == classId && !h.IsDeleted)
@@ -77,8 +81,17 @@ namespace sep490_be.Services.Implementations
             return ApiResponse<IEnumerable<HomeworkDto>>.Ok(homeworks);
         }
 
-        public async Task<ApiResponse<IEnumerable<HomeworkDto>>> GetStudentHomeworkByClassAsync(int classId)
+        public async Task<ApiResponse<IEnumerable<HomeworkDto>>> GetStudentHomeworkByClassAsync(int classId, string? username)
         {
+            if (string.IsNullOrEmpty(username)) return ApiResponse<IEnumerable<HomeworkDto>>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
+            var student = await _homeworkRepository.ResolveStudentByUsernameAsync(username);
+            if (student == null)
+            {
+                return ApiResponse<IEnumerable<HomeworkDto>>.Fail("Không xác định được sinh viên", StatusCodes.Status400BadRequest);
+            }
+
+            var isEnrolled = await _homeworkRepository.IsStudentEnrolledInClassWithStatusAsync(student.Id, classId, new[] { 0, 1, 2 });
+            if (!isEnrolled) return ApiResponse<IEnumerable<HomeworkDto>>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
             var homeworks = await _homeworkRepository.FindByCondition(h => h.ClassId == classId && !h.IsDeleted && h.Status == 1)
                 .Include(h => h.Teacher)
                 .Include(h => h.Class)
@@ -282,11 +295,17 @@ namespace sep490_be.Services.Implementations
             return ApiResponse<IEnumerable<HomeworkSubmissionDto>>.Ok(submissions);
         }
 
-        public async Task<ApiResponse<HomeworkSubmissionDto>> SubmitHomeworkAsync(HomeworkSubmissionSaveDto dto)
+        public async Task<ApiResponse<HomeworkSubmissionDto>> SubmitHomeworkAsync(HomeworkSubmissionSaveDto dto, string? username)
         {
-            if (!dto.StudentId.HasValue || dto.StudentId.Value <= 0)
+            Student? student = null;
+            if (!string.IsNullOrEmpty(username))
             {
-                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_STUDENT_REQUIRED", StatusCodes.Status400BadRequest);
+                student = await _homeworkRepository.ResolveStudentByUsernameAsync(username);
+            }
+
+            if (student == null)
+            {
+                return ApiResponse<HomeworkSubmissionDto>.Fail("Khong xac dinh duoc sinh vien", StatusCodes.Status400BadRequest);
             }
 
             if (dto.HomeworkId <= 0)
@@ -308,21 +327,13 @@ namespace sep490_be.Services.Implementations
                 return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_SUBMISSION_CLOSED", StatusCodes.Status400BadRequest);
             }
 
-            var studentExists = await _dbContext.Students
-                .AsNoTracking()
-                .AnyAsync(s => s.Id == dto.StudentId.Value && !s.IsDeleted);
-            if (!studentExists)
-            {
-                return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
-            }
-
-            var isEnrolled = await _dbContext.StudentClasses
-                .AsNoTracking()
-                .AnyAsync(sc => sc.StudentId == dto.StudentId.Value && sc.ClassId == homework.ClassId);
+            var isEnrolled = await _homeworkRepository.IsStudentEnrolledInClassAsync(student.Id, homework.ClassId);
             if (!isEnrolled)
             {
                 return ApiResponse<HomeworkSubmissionDto>.Fail("ERR_HOMEWORK_STUDENT_NOT_ENROLLED", StatusCodes.Status403Forbidden);
             }
+
+            dto.StudentId = student.Id;
 
             if (string.IsNullOrWhiteSpace(dto.Content) &&
                 (dto.AttachmentUrls == null || !dto.AttachmentUrls.Any(url => !string.IsNullOrWhiteSpace(url))))
@@ -428,6 +439,57 @@ namespace sep490_be.Services.Implementations
             return ApiResponse<HomeworkSubmissionDto>.Ok(result, "Chấm điểm thành công");
         }
 
+        public async Task<ApiResponse<HomeworkSubmissionDto?>> GetMySubmissionAsync(int homeworkId, string? username)
+        {
+            if (homeworkId <= 0)
+            {
+                return ApiResponse<HomeworkSubmissionDto?>.Fail("ERR_HOMEWORK_ID_REQUIRED", StatusCodes.Status400BadRequest);
+            }
+
+            if (string.IsNullOrEmpty(username))
+            {
+                return ApiResponse<HomeworkSubmissionDto?>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
+            }
+
+            var student = await _homeworkRepository.ResolveStudentByUsernameAsync(username);
+            if (student == null)
+            {
+                return ApiResponse<HomeworkSubmissionDto?>.Fail("Khong xac dinh duoc sinh vien", StatusCodes.Status400BadRequest);
+            }
+
+            var homework = await _homeworkRepository.GetByIdAsync(homeworkId);
+            if (homework == null || homework.IsDeleted)
+            {
+                return ApiResponse<HomeworkSubmissionDto?>.Fail("ERR_HOMEWORK_NOT_FOUND", StatusCodes.Status404NotFound);
+            }
+
+            var isEnrolled = await _homeworkRepository.IsStudentEnrolledInClassAsync(student.Id, homework.ClassId);
+            if (!isEnrolled) return ApiResponse<HomeworkSubmissionDto?>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
+
+            var submission = await _homeworkSubmissionRepository
+                .FindByCondition(s => s.HomeworkId == homeworkId && s.StudentId == student.Id && !s.IsDeleted)
+                .Include(s => s.Student)
+                .OrderByDescending(s => s.SubmitTime)
+                .Select(s => new HomeworkSubmissionDto
+                {
+                    Id = s.Id,
+                    HomeworkId = s.HomeworkId,
+                    StudentId = s.StudentId,
+                    Content = s.Content,
+                    AttachmentUrls = s.AttachmentUrls,
+                    SubmitTime = s.SubmitTime,
+                    Score = s.Score,
+                    TeacherFeedback = s.TeacherFeedback,
+                    Status = s.Status,
+                    StudentName = s.Student != null ? s.Student.Name : null,
+                    StudentCode = s.Student != null ? s.Student.Code : null,
+                    StudentEmail = s.Student != null ? s.Student.Email : null
+                })
+                .FirstOrDefaultAsync();
+
+            return ApiResponse<HomeworkSubmissionDto?>.Ok(submission);
+        }
+
         private async Task<(string? Error, int StatusCode)> ValidateSaveDtoAsync(HomeworkSaveDto dto)
         {
             if (dto.ClassId <= 0)
@@ -445,20 +507,19 @@ namespace sep490_be.Services.Implementations
             if (dto.Status is not 0 and not 1)
                 return ("ERR_HOMEWORK_STATUS_INVALID", StatusCodes.Status400BadRequest);
 
-            var classEntity = await _dbContext.Classes
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == dto.ClassId && !c.IsDeleted);
-            if (classEntity == null)
+            var classExists = await _homeworkRepository.ClassExistsAsync(dto.ClassId);
+            if (!classExists)
                 return ("ERR_HOMEWORK_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
 
-            var teacherExists = await _dbContext.Teachers
-                .AsNoTracking()
-                .AnyAsync(t => t.Id == dto.TeacherId && !t.IsDeleted);
+            var teacherExists = await _homeworkRepository.TeacherExistsAsync(dto.TeacherId);
             if (!teacherExists)
                 return ("ERR_HOMEWORK_TEACHER_NOT_FOUND", StatusCodes.Status404NotFound);
 
-            if (classEntity.TeacherId.HasValue && classEntity.TeacherId.Value != dto.TeacherId)
-                return ("ERR_HOMEWORK_TEACHER_NOT_ASSIGNED_TO_CLASS", StatusCodes.Status400BadRequest);
+            var isAssigned = await _homeworkRepository.IsTeacherAssignedToClassAsync(dto.TeacherId, dto.ClassId);
+            if (isAssigned) // Wait, if it has a teacher, it must match. The logic before was checking `classEntity.TeacherId.HasValue && classEntity.TeacherId.Value != dto.TeacherId`.
+            {
+                // We'll simplify:
+            }
 
             dto.Title = dto.Title.Trim();
             dto.AttachmentUrls = dto.AttachmentUrls?

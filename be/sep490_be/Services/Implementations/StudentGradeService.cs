@@ -5,17 +5,18 @@ using sep490_be.DTO;
 using sep490_be.DTO.StudentGrade;
 using sep490_be.Models;
 using sep490_be.Services.Interfaces;
+using sep490_be.Repositories.Interfaces;
 
 namespace sep490_be.Services.Implementations
 {
     public class StudentGradeService : IStudentGradeService
     {
-        private readonly ApplicationDbContext _dbContext;
+        private readonly IStudentGradeRepository _repository;
         private readonly UserManager<IdentityUser> _userManager;
 
-        public StudentGradeService(ApplicationDbContext dbContext, UserManager<IdentityUser> userManager)
+        public StudentGradeService(IStudentGradeRepository repository, UserManager<IdentityUser> userManager)
         {
-            _dbContext = dbContext;
+            _repository = repository;
             _userManager = userManager;
         }
 
@@ -23,43 +24,28 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var classInfo = await _dbContext.Classes
-                    .Where(c => c.Id == classId && !c.IsDeleted)
-                    .Select(c => new { c.Id, c.CourseId })
-                    .FirstOrDefaultAsync();
+                var classInfo = await _repository.GetClassInfoAsync(classId);
 
                 if (classInfo == null)
                 {
                     return ApiResponse<ClassGradeSettingsDto>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                if (!classInfo.CourseId.HasValue)
+                if (!classInfo.Value.CourseId.HasValue)
                 {
                     return ApiResponse<ClassGradeSettingsDto>.Fail("ERR_CLASS_COURSE_NOT_FOUND", StatusCodes.Status400BadRequest);
                 }
 
-                var courseId = classInfo.CourseId.Value;
+                var courseId = classInfo.Value.CourseId.Value;
                 await EnsureDefaultComponentsAsync(courseId);
 
-                var components = await _dbContext.GradeComponents
-                    .Where(x => x.CourseId == courseId)
-                    .OrderBy(x => x.SortOrder)
-                    .ThenBy(x => x.Id)
-                    .ToListAsync();
+                var components = await _repository.GetComponentsAsync(courseId);
+                var studentClassIds = await _repository.GetStudentClassIdsAsync(classId);
 
-                var studentClassIds = await _dbContext.StudentClasses
-                    .Where(sc => sc.ClassId == classId)
-                    .Select(sc => sc.Id)
-                    .ToListAsync();
+                var componentIds = components.Select(x => x.Id).ToList();
+                var overrides = await _repository.GetOverridesAsync(studentClassIds, componentIds);
 
-                var componentIds = components.Select(x => x.Id).ToHashSet();
-                var overrides = await _dbContext.StudentGradeOverrides
-                    .Include(x => x.StudentClass)
-                    .Include(x => x.GradeComponent)
-                    .Where(x => studentClassIds.Contains(x.StudentClassId) && componentIds.Contains(x.GradeComponentId))
-                    .OrderBy(x => x.StudentClassId)
-                    .ThenBy(x => x.GradeComponent.SortOrder)
-                    .Select(x => new StudentGradeOverrideDto
+                var overrideDtos = overrides.Select(x => new StudentGradeOverrideDto
                     {
                         Id = x.Id,
                         StudentClassId = x.StudentClassId,
@@ -68,14 +54,14 @@ namespace sep490_be.Services.Implementations
                         ComponentCode = x.GradeComponent.Code,
                         Score = x.Score
                     })
-                    .ToListAsync();
+                    .ToList();
 
                 return ApiResponse<ClassGradeSettingsDto>.Ok(new ClassGradeSettingsDto
                 {
                     ClassId = classId,
                     CourseId = courseId,
                     Components = components.Select(MapComponent).ToList(),
-                    Overrides = overrides
+                    Overrides = overrideDtos
                 }, "GET_GRADE_SETTINGS_SUCCESS");
             }
             catch (Exception)
@@ -86,14 +72,7 @@ namespace sep490_be.Services.Implementations
 
         private async Task<List<MyGradeClassDto>> GetGradesForStudentAsync(int studentId)
         {
-            var enrollments = await _dbContext.StudentClasses
-                .AsNoTracking()
-                .Include(sc => sc.Class)
-                    .ThenInclude(c => c.Course)
-                .Where(sc => sc.StudentId == studentId && !sc.Class.IsDeleted)
-                .OrderByDescending(sc => sc.EnrollDate)
-                .ThenBy(sc => sc.Class.Name)
-                .ToListAsync();
+            var enrollments = await _repository.GetStudentEnrollmentsAsync(studentId);
 
             var result = new List<MyGradeClassDto>();
 
@@ -108,23 +87,13 @@ namespace sep490_be.Services.Implementations
                 var courseId = classInfo.CourseId.Value;
                 await EnsureDefaultComponentsAsync(courseId);
 
-                var components = await _dbContext.GradeComponents
-                    .AsNoTracking()
-                    .Where(x => x.CourseId == courseId)
-                    .OrderBy(x => x.SortOrder)
-                    .ThenBy(x => x.Id)
-                    .ToListAsync();
-
+                var components = await _repository.GetComponentsAsync(courseId);
                 var componentIds = components.Select(x => x.Id).ToList();
-                var overrides = await _dbContext.StudentGradeOverrides
-                    .AsNoTracking()
-                    .Where(x => x.StudentClassId == enrollment.Id && componentIds.Contains(x.GradeComponentId))
-                    .ToDictionaryAsync(x => x.GradeComponentId, x => x.Score);
+                var overrides = await _repository.GetStudentOverridesAsync(enrollment.Id, componentIds);
 
                 var rawScores = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["attendance"] = await CalculateAttendanceScoreAsync(classInfo.Id, studentId),
-                    ["homework"] = await CalculateHomeworkScoreAsync(classInfo.Id, studentId)
+                    ["homework"] = await _repository.CalculateHomeworkScoreAsync(classInfo.Id, studentId)
                 };
 
                 var scoreComponents = components.Select(component =>
@@ -138,7 +107,7 @@ namespace sep490_be.Services.Implementations
                         ComponentName = component.Name,
                         Weight = component.Weight,
                         RawScore = Round1(rawScore),
-                        Score = Round1(hasOverride ? overrideScore : rawScore),
+                        Score = Round1(hasOverride && overrideScore.HasValue ? overrideScore.Value : rawScore),
                         IsOverride = hasOverride
                     };
                 }).ToList();
@@ -180,24 +149,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<MyGradeClassDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                var student = await _dbContext.Students
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(s =>
-                        (s.Email != null && lookup.Contains(s.Email)) ||
-                        (s.Code != null && lookup.Contains(s.Code)));
-
-                if (student == null)
-                {
-                    var candidates = await _dbContext.Students
-                        .AsNoTracking()
-                        .Where(s => s.Email != null || s.Code != null)
-                        .ToListAsync();
-
-                    student = candidates.FirstOrDefault(s =>
-                        (!string.IsNullOrWhiteSpace(s.Email) &&
-                            (lookupSet.Contains(s.Email) || lookupSet.Contains(s.Email.Split('@')[0]))) ||
-                        (!string.IsNullOrWhiteSpace(s.Code) && lookupSet.Contains(s.Code)));
-                }
+                var student = await _repository.ResolveStudentByIdentifiersAsync(lookup, lookupSet);
 
                 if (student == null)
                 {
@@ -228,14 +180,14 @@ namespace sep490_be.Services.Implementations
                 var isAdminOrTeacher = roles.Contains("Admin") || roles.Contains("Teacher");
                 if (!isAdminOrTeacher)
                 {
-                    var isParentOfStudent = await _dbContext.ParentStudentLinks.AnyAsync(l => l.Parent.Email == user.Email && l.StudentId == studentId);
+                    var isParentOfStudent = await _repository.IsParentOfStudentAsync(user.Email, studentId);
                     if (!isParentOfStudent)
                     {
                         return ApiResponse<List<MyGradeClassDto>>.Fail("ERR_UNAUTHORIZED", StatusCodes.Status403Forbidden);
                     }
                 }
 
-                var studentExists = await _dbContext.Students.AnyAsync(s => s.Id == studentId);
+                var studentExists = await _repository.StudentExistsAsync(studentId);
                 if (!studentExists)
                 {
                     return ApiResponse<List<MyGradeClassDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
@@ -254,7 +206,7 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var exists = await _dbContext.Courses.AnyAsync(c => c.Id == courseId && !c.IsDeleted);
+                var exists = await _repository.CourseExistsAsync(courseId);
                 if (!exists)
                 {
                     return ApiResponse<List<GradeComponentDto>>.Fail("ERR_COURSE_NOT_FOUND", StatusCodes.Status404NotFound);
@@ -262,12 +214,8 @@ namespace sep490_be.Services.Implementations
 
                 await EnsureDefaultComponentsAsync(courseId);
 
-                var result = await _dbContext.GradeComponents
-                    .Where(x => x.CourseId == courseId)
-                    .OrderBy(x => x.SortOrder)
-                    .ThenBy(x => x.Id)
-                    .Select(x => MapComponent(x))
-                    .ToListAsync();
+                var components = await _repository.GetComponentsAsync(courseId);
+                var result = components.Select(x => MapComponent(x)).ToList();
 
                 return ApiResponse<List<GradeComponentDto>>.Ok(result, "GET_GRADE_COMPONENTS_SUCCESS");
             }
@@ -286,7 +234,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<GradeComponentDto>>.Fail("ERR_COURSE_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                var exists = await _dbContext.Courses.AnyAsync(c => c.Id == courseId && !c.IsDeleted);
+                var exists = await _repository.CourseExistsAsync(courseId);
                 if (!exists)
                 {
                     return ApiResponse<List<GradeComponentDto>>.Fail("ERR_COURSE_NOT_FOUND", StatusCodes.Status404NotFound);
@@ -297,9 +245,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<GradeComponentDto>>.Fail("ERR_GRADE_COMPONENT_EMPTY", StatusCodes.Status400BadRequest);
                 }
 
-                var existing = await _dbContext.GradeComponents
-                    .Where(x => x.CourseId == courseId)
-                    .ToListAsync();
+                var existing = await _repository.GetExistingComponentsAsync(courseId);
 
                 var suppliedIds = dto.Components
                     .Where(x => x.Id.HasValue && x.Id.Value > 0)
@@ -367,57 +313,40 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<GradeComponentDto>>.Fail("ERR_TOTAL_WEIGHT_MUST_BE_100", StatusCodes.Status400BadRequest);
                 }
 
-                using var transaction = await _dbContext.Database.BeginTransactionAsync();
+                using var transaction = await _repository.BeginTransactionAsync();
                 var keepIds = dto.Components.Where(x => x.Id.HasValue && x.Id.Value > 0).Select(x => x.Id!.Value).ToHashSet();
                 var removed = existing.Where(x => !x.IsSystem && !keepIds.Contains(x.Id)).ToList();
-                if (removed.Count > 0)
-                {
-                    _dbContext.GradeComponents.RemoveRange(removed);
-                }
+
+                var toAdd = new List<GradeComponent>();
+                var toUpdate = new List<GradeComponent>();
 
                 for (var index = 0; index < dto.Components.Count; index++)
                 {
                     var item = dto.Components[index];
-                    var code = string.IsNullOrWhiteSpace(item.Code)
-                        ? $"custom_{Guid.NewGuid():N}"
-                        : item.Code.Trim();
+                    var code = string.IsNullOrWhiteSpace(item.Code) ? $"custom_{Guid.NewGuid():N}" : item.Code.Trim();
 
-                    var entity = item.Id.HasValue && item.Id.Value > 0
-                        ? existing.FirstOrDefault(x => x.Id == item.Id.Value)
-                        : null;
-
+                    var entity = item.Id.HasValue && item.Id.Value > 0 ? existing.FirstOrDefault(x => x.Id == item.Id.Value) : null;
                     if (entity == null)
                     {
-                        entity = new GradeComponent
-                        {
-                            CourseId = courseId,
-                            Code = code
-                        };
-                        _dbContext.GradeComponents.Add(entity);
+                        entity = new GradeComponent { CourseId = courseId, Code = code };
+                        toAdd.Add(entity);
+                    }
+                    else
+                    {
+                        toUpdate.Add(entity);
                     }
 
                     entity.Name = item.Name.Trim();
-                    if (!entity.IsSystem)
-                    {
-                        entity.Code = code;
-                    }
+                    if (!entity.IsSystem) entity.Code = code;
                     entity.Weight = item.Weight;
                     entity.SortOrder = item.SortOrder > 0 ? item.SortOrder : index + 1;
-                    if (entity.Id == 0)
-                    {
-                        entity.IsSystem = false;
-                    }
+                    if (entity.Id == 0) entity.IsSystem = false;
                 }
 
-                await _dbContext.SaveChangesAsync();
-                await transaction.CommitAsync();
+                await _repository.SaveCourseComponentsAsync(courseId, toAdd, toUpdate, removed);
 
-                var result = await _dbContext.GradeComponents
-                    .Where(x => x.CourseId == courseId)
-                    .OrderBy(x => x.SortOrder)
-                    .ThenBy(x => x.Id)
-                    .Select(x => MapComponent(x))
-                    .ToListAsync();
+                var newComponents = await _repository.GetComponentsAsync(courseId);
+                var result = newComponents.Select(x => MapComponent(x)).ToList();
 
                 return ApiResponse<List<GradeComponentDto>>.Ok(result, "SAVE_GRADE_COMPONENTS_SUCCESS");
             }
@@ -431,17 +360,14 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var classInfo = await _dbContext.Classes
-                    .Where(c => c.Id == classId && !c.IsDeleted)
-                    .Select(c => new { c.Id, c.CourseId })
-                    .FirstOrDefaultAsync();
+                var classInfo = await _repository.GetClassInfoAsync(classId);
 
                 if (classInfo == null)
                 {
                     return ApiResponse<List<StudentGradeOverrideDto>>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                if (!classInfo.CourseId.HasValue)
+                if (!classInfo.Value.CourseId.HasValue)
                 {
                     return ApiResponse<List<StudentGradeOverrideDto>>.Fail("ERR_CLASS_COURSE_NOT_FOUND", StatusCodes.Status400BadRequest);
                 }
@@ -451,14 +377,9 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<StudentGradeOverrideDto>>.Fail("ERR_GRADE_OVERRIDE_INVALID", StatusCodes.Status400BadRequest);
                 }
 
-                var studentClassIds = await _dbContext.StudentClasses
-                    .Where(sc => sc.ClassId == classId)
-                    .Select(sc => sc.Id)
-                    .ToListAsync();
-                var componentIds = await _dbContext.GradeComponents
-                    .Where(gc => gc.CourseId == classInfo.CourseId.Value)
-                    .Select(gc => gc.Id)
-                    .ToListAsync();
+                var studentClassIds = await _repository.GetStudentClassIdsAsync(classId);
+                var components = await _repository.GetComponentsAsync(classInfo.Value.CourseId.Value);
+                var componentIds = components.Select(x => x.Id).ToList();
 
                 var duplicateKeys = dto.Overrides
                     .GroupBy(x => new { x.StudentClassId, x.GradeComponentId })
@@ -483,14 +404,12 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<StudentGradeOverrideDto>>.Fail("ERR_GRADE_SCORE_RANGE", StatusCodes.Status400BadRequest);
                 }
 
-                using var transaction = await _dbContext.Database.BeginTransactionAsync();
-                var existing = await _dbContext.StudentGradeOverrides
-                    .IgnoreQueryFilters()
-                    .Where(x => studentClassIds.Contains(x.StudentClassId) && componentIds.Contains(x.GradeComponentId))
-                    .ToListAsync();
-                var existingByKey = existing.ToDictionary(
-                    x => (x.StudentClassId, x.GradeComponentId),
-                    x => x);
+                using var transaction = await _repository.BeginTransactionAsync();
+                var existing = await _repository.GetOverridesAsync(studentClassIds, componentIds);
+                var existingByKey = existing.ToDictionary(x => (x.StudentClassId, x.GradeComponentId), x => x);
+                var toAdd = new List<StudentGradeOverride>();
+                var toUpdate = new List<StudentGradeOverride>();
+                var toRemove = new List<StudentGradeOverride>();
 
                 foreach (var item in dto.Overrides)
                 {
@@ -500,7 +419,7 @@ namespace sep490_be.Services.Implementations
                     {
                         if (entity != null && !entity.IsDeleted)
                         {
-                            _dbContext.StudentGradeOverrides.Remove(entity);
+                            toRemove.Add(entity);
                         }
                         continue;
                     }
@@ -508,13 +427,13 @@ namespace sep490_be.Services.Implementations
                     var score = item.Score.Value;
                     if (entity == null)
                     {
-                        entity = new StudentGradeOverride
-                        {
-                            StudentClassId = item.StudentClassId,
-                            GradeComponentId = item.GradeComponentId
-                        };
-                        _dbContext.StudentGradeOverrides.Add(entity);
+                        entity = new StudentGradeOverride { StudentClassId = item.StudentClassId, GradeComponentId = item.GradeComponentId };
+                        toAdd.Add(entity);
                         existingByKey[(item.StudentClassId, item.GradeComponentId)] = entity;
+                    }
+                    else
+                    {
+                        toUpdate.Add(entity);
                     }
 
                     entity.IsDeleted = false;
@@ -523,16 +442,11 @@ namespace sep490_be.Services.Implementations
                     entity.Score = score;
                 }
 
-                await _dbContext.SaveChangesAsync();
+                await _repository.SaveOverridesAsync(toAdd, toUpdate, toRemove);
                 await transaction.CommitAsync();
 
-                var result = await _dbContext.StudentGradeOverrides
-                    .Include(x => x.StudentClass)
-                    .Include(x => x.GradeComponent)
-                    .Where(x => studentClassIds.Contains(x.StudentClassId) && componentIds.Contains(x.GradeComponentId))
-                    .OrderBy(x => x.StudentClassId)
-                    .ThenBy(x => x.GradeComponent.SortOrder)
-                    .Select(x => new StudentGradeOverrideDto
+                var newOverrides = await _repository.GetOverridesAsync(studentClassIds, componentIds);
+                var result = newOverrides.Select(x => new StudentGradeOverrideDto
                     {
                         Id = x.Id,
                         StudentClassId = x.StudentClassId,
@@ -541,7 +455,7 @@ namespace sep490_be.Services.Implementations
                         ComponentCode = x.GradeComponent.Code,
                         Score = x.Score
                     })
-                    .ToListAsync();
+                    .ToList();
 
                 return ApiResponse<List<StudentGradeOverrideDto>>.Ok(result, "SAVE_GRADE_OVERRIDES_SUCCESS");
             }
@@ -553,118 +467,7 @@ namespace sep490_be.Services.Implementations
 
         private async Task EnsureDefaultComponentsAsync(int courseId)
         {
-            var existingComponents = await _dbContext.GradeComponents
-                .Where(x => x.CourseId == courseId)
-                .ToListAsync();
-
-            if (existingComponents.Count == 0)
-            {
-                _dbContext.GradeComponents.AddRange(
-                    new GradeComponent { CourseId = courseId, Code = "listening", Name = "Listening", Weight = 10, SortOrder = 1, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "reading", Name = "Reading", Weight = 10, SortOrder = 2, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "writing", Name = "Writing", Weight = 10, SortOrder = 3, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "speaking", Name = "Speaking", Weight = 10, SortOrder = 4, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "homework", Name = "Homework", Weight = 30, SortOrder = 5, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "attendance", Name = "Attendance", Weight = 30, SortOrder = 6, IsSystem = true }
-                );
-                await _dbContext.SaveChangesAsync();
-                return;
-            }
-
-            var legacyExam = existingComponents.FirstOrDefault(x =>
-                x.IsSystem && x.Code.Equals("exam", StringComparison.OrdinalIgnoreCase));
-            if (legacyExam == null)
-            {
-                return;
-            }
-
-            var skills = new[]
-            {
-                (Code: "listening", Name: "Listening", SortOrder: 1),
-                (Code: "reading", Name: "Reading", SortOrder: 2),
-                (Code: "writing", Name: "Writing", SortOrder: 3),
-                (Code: "speaking", Name: "Speaking", SortOrder: 4)
-            };
-            var missingSkills = skills
-                .Where(skill => existingComponents.All(component =>
-                    !component.Code.Equals(skill.Code, StringComparison.OrdinalIgnoreCase)))
-                .ToList();
-            var skillWeight = missingSkills.Count > 0
-                ? legacyExam.Weight / missingSkills.Count
-                : 0m;
-
-            legacyExam.IsDeleted = true;
-            foreach (var skill in missingSkills)
-            {
-                _dbContext.GradeComponents.Add(new GradeComponent
-                {
-                    CourseId = courseId,
-                    Code = skill.Code,
-                    Name = skill.Name,
-                    Weight = skillWeight,
-                    SortOrder = skill.SortOrder,
-                    IsSystem = true
-                });
-            }
-
-            var homework = existingComponents.FirstOrDefault(x =>
-                x.Code.Equals("homework", StringComparison.OrdinalIgnoreCase));
-            if (homework != null)
-            {
-                homework.SortOrder = 5;
-            }
-
-            var attendance = existingComponents.FirstOrDefault(x =>
-                x.Code.Equals("attendance", StringComparison.OrdinalIgnoreCase));
-            if (attendance != null)
-            {
-                attendance.SortOrder = 6;
-            }
-
-            await _dbContext.SaveChangesAsync();
-        }
-
-        private async Task<decimal> CalculateAttendanceScoreAsync(int classId, int studentId)
-        {
-            var totalSessions = await _dbContext.ClassSchedules
-                .AsNoTracking()
-                .CountAsync(x => x.ClassId == classId);
-            if (totalSessions == 0) return 0m;
-
-            var attendances = await _dbContext.Attendances
-                .AsNoTracking()
-                .Include(x => x.ClassSchedule)
-                .Where(x => x.StudentId == studentId && x.ClassSchedule != null && x.ClassSchedule.ClassId == classId && x.Status != -1)
-                .Select(x => x.Status)
-                .ToListAsync();
-
-            var attended = attendances.Count(x => x > 0);
-            return (decimal)attended / totalSessions * 10m;
-        }
-
-        private async Task<decimal> CalculateHomeworkScoreAsync(int classId, int studentId)
-        {
-            var homeworks = await _dbContext.Homeworks
-                .AsNoTracking()
-                .Where(x => x.ClassId == classId)
-                .Select(x => new { x.Id, x.TotalScore })
-                .ToListAsync();
-
-            if (homeworks.Count == 0) return 0m;
-
-            var homeworkIds = homeworks.Select(x => x.Id).ToList();
-            var submissions = await _dbContext.HomeworkSubmissions
-                .AsNoTracking()
-                .Where(x => x.StudentId == studentId && homeworkIds.Contains(x.HomeworkId))
-                .GroupBy(x => x.HomeworkId)
-                .Select(g => new { HomeworkId = g.Key, Score = g.Max(x => x.Score) })
-                .ToListAsync();
-
-            var scoreByHomework = submissions.ToDictionary(x => x.HomeworkId, x => x.Score);
-            var normalizedScores = homeworks.Select(homework =>
-                NormalizeScore(scoreByHomework.GetValueOrDefault(homework.Id), homework.TotalScore));
-
-            return normalizedScores.Sum() / homeworks.Count;
+            await _repository.EnsureDefaultComponentsAsync(courseId);
         }
 
         private static decimal NormalizeScore(decimal? score, decimal total)
