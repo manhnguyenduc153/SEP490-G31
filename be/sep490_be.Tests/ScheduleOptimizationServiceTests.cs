@@ -11,6 +11,8 @@ using sep490_be.DTO;
 using sep490_be.DTO.Class;
 using sep490_be.Enums;
 using sep490_be.Models;
+using sep490_be.Repositories.Common;
+using sep490_be.Repositories.Implementations;
 using sep490_be.Services.Implementations;
 
 namespace sep490_be.Tests.Services
@@ -21,6 +23,23 @@ namespace sep490_be.Tests.Services
     /// </summary>
     public class ScheduleOptimizationServiceTests
     {
+        private sealed class ScheduleOptimizationService : sep490_be.Services.Implementations.ScheduleOptimizationService
+        {
+            public ScheduleOptimizationService(ApplicationDbContext context)
+                : base(
+                    new ClassRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    new BaseRepository<ClassSchedule, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    new BaseRepository<TeacherAvailability, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    new TeacherRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    new RoomRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    new SemesterRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    new StudentRegistrationRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    new BaseRepository<StudentClass, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    new BaseRepository<TimeSlot, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)))
+            {
+            }
+        }
+
         private DbContextOptions<ApplicationDbContext> CreateNewContextOptions()
         {
             return new DbContextOptionsBuilder<ApplicationDbContext>()
