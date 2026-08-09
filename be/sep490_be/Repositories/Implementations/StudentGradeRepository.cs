@@ -129,16 +129,75 @@ namespace sep490_be.Repositories.Implementations
                 await _dbContext.SaveChangesAsync();
                 return;
             }
-            var legacyExam = existingComponents.FirstOrDefault(x => x.IsSystem && x.Code.Equals("exam", StringComparison.OrdinalIgnoreCase));
-            if (legacyExam == null) return;
-            var skills = new[] { (Code: "listening", Name: "Listening", SortOrder: 1), (Code: "reading", Name: "Reading", SortOrder: 2), (Code: "writing", Name: "Writing", SortOrder: 3), (Code: "speaking", Name: "Speaking", SortOrder: 4) };
-            var missingSkills = skills.Where(skill => existingComponents.All(component => !component.Code.Equals(skill.Code, StringComparison.OrdinalIgnoreCase))).ToList();
-            var skillWeight = missingSkills.Count > 0 ? legacyExam.Weight / missingSkills.Count : 0m;
-            legacyExam.IsDeleted = true;
-            foreach (var skill in missingSkills)
+
+            var skills = new[]
             {
-                _dbContext.GradeComponents.Add(new GradeComponent { CourseId = courseId, Code = skill.Code, Name = skill.Name, Weight = skillWeight, SortOrder = skill.SortOrder, IsSystem = true });
+                (Code: "listening", Name: "Listening", SortOrder: 1),
+                (Code: "reading", Name: "Reading", SortOrder: 2),
+                (Code: "writing", Name: "Writing", SortOrder: 3),
+                (Code: "speaking", Name: "Speaking", SortOrder: 4)
+            };
+
+            var legacyExam = existingComponents.FirstOrDefault(x => x.IsSystem && x.Code.Equals("exam", StringComparison.OrdinalIgnoreCase));
+            if (legacyExam != null)
+            {
+                var missingSkills = skills.Where(skill => existingComponents.All(component => !component.Code.Equals(skill.Code, StringComparison.OrdinalIgnoreCase))).ToList();
+                var skillWeight = missingSkills.Count > 0 ? legacyExam.Weight / missingSkills.Count : 0m;
+                legacyExam.IsDeleted = true;
+                foreach (var skill in missingSkills)
+                {
+                    var component = new GradeComponent
+                    {
+                        CourseId = courseId,
+                        Code = skill.Code,
+                        Name = skill.Name,
+                        Weight = skillWeight,
+                        SortOrder = skill.SortOrder,
+                        IsSystem = true
+                    };
+                    _dbContext.GradeComponents.Add(component);
+                    existingComponents.Add(component);
+                }
             }
+
+            var legacyAttendance = existingComponents.FirstOrDefault(x => x.Code.Equals("attendance", StringComparison.OrdinalIgnoreCase));
+            if (legacyAttendance != null)
+            {
+                var redistributedWeight = legacyAttendance.Weight / skills.Length;
+                foreach (var skill in skills)
+                {
+                    var component = existingComponents.FirstOrDefault(x => x.Code.Equals(skill.Code, StringComparison.OrdinalIgnoreCase));
+                    if (component == null)
+                    {
+                        component = new GradeComponent
+                        {
+                            CourseId = courseId,
+                            Code = skill.Code,
+                            Name = skill.Name,
+                            Weight = redistributedWeight,
+                            SortOrder = skill.SortOrder,
+                            IsSystem = true
+                        };
+                        _dbContext.GradeComponents.Add(component);
+                        existingComponents.Add(component);
+                    }
+                    else
+                    {
+                        component.Weight += redistributedWeight;
+                    }
+                }
+
+                await _dbContext.StudentGradeOverrides.IgnoreQueryFilters()
+                    .Where(x => x.GradeComponentId == legacyAttendance.Id)
+                    .ExecuteDeleteAsync();
+                await _dbContext.GradeComponents.IgnoreQueryFilters()
+                    .Where(x => x.Id == legacyAttendance.Id)
+                    .ExecuteDeleteAsync();
+                _dbContext.Entry(legacyAttendance).State = EntityState.Detached;
+            }
+
+            if (legacyExam == null && legacyAttendance == null) return;
+
             var homework = existingComponents.FirstOrDefault(x => x.Code.Equals("homework", StringComparison.OrdinalIgnoreCase));
             if (homework != null) homework.SortOrder = 5;
             await _dbContext.SaveChangesAsync();
