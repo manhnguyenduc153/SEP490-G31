@@ -1593,7 +1593,12 @@ namespace sep490_be.Services.Implementations
                     var teacher = teachers[tIdx];
                     var room = rooms[rIdx];
 
-                    var classCode = $"{draft.CourseCode}_{semester.Code}_{draft.PreferredSlotBucket.Substring(0, 3).ToUpper()}_{i + 1}";
+                    var coursePrefix = new string(draft.CourseCode.TakeWhile(c => !char.IsDigit(c)).ToArray());
+                    if (string.IsNullOrEmpty(coursePrefix))
+                    {
+                        coursePrefix = "KH";
+                    }
+                    var classCode = $"{coursePrefix}{DateTime.Now:ddMMHH}_{semester.Code}_{draft.PreferredSlotBucket.Substring(0, 3).ToUpper()}_{i + 1}";
                     var className = $"Lớp {draft.CourseName} - {semester.Name} ({draft.PreferredSlotBucket}) - Lớp {i + 1}";
 
                     // Build weekly schedules for this draft class
