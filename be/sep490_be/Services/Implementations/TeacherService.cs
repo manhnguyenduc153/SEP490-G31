@@ -380,8 +380,8 @@ namespace sep490_be.Services.Implementations
                     }
                 }
 
-                await _repository.DeleteAsync(existingEntity);
-                await _repository.SaveChangesAsync();
+                await _repository.FindByCondition(t => t.Id == existingEntity.Id)
+                    .ExecuteDeleteAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_TEACHER_SUCCESS");
             }

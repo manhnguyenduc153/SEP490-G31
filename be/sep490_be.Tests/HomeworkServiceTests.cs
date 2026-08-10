@@ -2,12 +2,15 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using sep490_be.DTO;
 using sep490_be.DTO.Homework;
 using sep490_be.Enums;
 using sep490_be.Models;
 using sep490_be.Repositories.Common;
 using sep490_be.Repositories.Implementations;
+using sep490_be.Repositories.Interfaces;
 using sep490_be.Services.Implementations;
+using sep490_be.Services.Interfaces;
 using ModelClass = sep490_be.Models.Class;
 
 namespace sep490_be.Tests.Services
@@ -26,14 +29,47 @@ namespace sep490_be.Tests.Services
             return new Mock<IHttpContextAccessor>();
         }
 
-        private static HomeworkService CreateService(ApplicationDbContext context)
+        private static TestHomeworkService CreateService(ApplicationDbContext context)
         {
             var unitOfWork = new UnitOfWork<ApplicationDbContext>(context);
-            return new HomeworkService(
+            var notificationService = new Mock<INotificationService>();
+            notificationService
+                .Setup(service => service.SendHomeworkCreatedNotificationAsync(It.IsAny<Homework>()))
+                .Returns(Task.CompletedTask);
+            return new TestHomeworkService(
                 new HomeworkRepository(context, unitOfWork),
                 new HomeworkSubmissionRepository(context, unitOfWork),
-                context,
-                null!);
+                notificationService.Object,
+                context);
+        }
+
+        private sealed class TestHomeworkService : HomeworkService
+        {
+            private readonly ApplicationDbContext _context;
+
+            public TestHomeworkService(
+                IHomeworkRepository homeworkRepository,
+                IHomeworkSubmissionRepository homeworkSubmissionRepository,
+                INotificationService notificationService,
+                ApplicationDbContext context)
+                : base(homeworkRepository, homeworkSubmissionRepository, notificationService)
+            {
+                _context = context;
+            }
+
+            public Task<ApiResponse<IEnumerable<HomeworkDto>>> GetHomeworkByClassAsync(int classId) =>
+                base.GetHomeworkByClassAsync(classId, null, false);
+
+            public Task<ApiResponse<HomeworkSubmissionDto>> SubmitHomeworkAsync(HomeworkSubmissionSaveDto dto)
+            {
+                var username = dto.StudentId is > 0
+                    ? _context.Students
+                        .Where(student => student.Id == dto.StudentId.Value)
+                        .Select(student => student.Email ?? student.Code)
+                        .FirstOrDefault()
+                    : null;
+                return base.SubmitHomeworkAsync(dto, username);
+            }
         }
 
         private static async Task<(int classId, int teacherId, int studentId)> SeedActorsAsync(ApplicationDbContext context)

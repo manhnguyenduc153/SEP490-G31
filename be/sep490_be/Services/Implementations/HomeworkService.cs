@@ -253,8 +253,8 @@ namespace sep490_be.Services.Implementations
                 return ApiResponse<bool>.Fail("ERR_HOMEWORK_NOT_FOUND", StatusCodes.Status404NotFound);
             }
 
-            await _homeworkRepository.DeleteAsync(homework);
-            await _homeworkRepository.SaveChangesAsync();
+            await _homeworkRepository.FindByCondition(h => h.Id == homework.Id)
+                .ExecuteDeleteAsync();
 
             return ApiResponse<bool>.Ok(true, "Xóa bài tập thành công");
         }
