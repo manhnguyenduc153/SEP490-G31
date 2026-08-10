@@ -47,7 +47,7 @@ namespace sep490_be.Services.Implementations
 
             // 1. Prepare title and content
             string title = "Cập nhật trạng thái lớp học";
-            string content = $"Lớp học {classEntity.Name} ({classEntity.Code}) đã đổi trạng thái từ '{oldStatusStr}' sang '{newStatusStr}'.";
+            string content = $"Lớp học {classEntity.Name} {classEntity.Code} đã đổi trạng thái từ {oldStatusStr} sang {newStatusStr}.";
 
             await SaveAndBroadcastNotificationAsync(classEntity, title, content);
         }

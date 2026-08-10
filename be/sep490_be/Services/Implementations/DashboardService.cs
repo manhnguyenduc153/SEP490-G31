@@ -32,7 +32,11 @@ namespace sep490_be.Services.Implementations
                     CoursePopularity = await GetCoursePopularityAsync(),
                     ClassStatusDistribution = await GetClassStatusDistributionAsync(),
                     RecentRegistrations = await GetRecentRegistrationsAsync(),
-                    LowAttendanceAlerts = await GetLowAttendanceAlertsAsync()
+                    LowAttendanceAlerts = await GetLowAttendanceAlertsAsync(),
+                    RoomUtilization = await GetRoomUtilizationAsync(),
+                    TeacherWorkload = await GetTeacherWorkloadsAsync(),
+                    GradingProgress = await GetGradingProgressAsync(),
+                    ExamGradeDistribution = await GetExamGradeDistributionAsync()
                 };
 
                 return ApiResponse<DashboardDataDto>.Ok(result, "Dashboard data retrieved successfully.");
@@ -260,6 +264,115 @@ namespace sep490_be.Services.Implementations
                 .ToList();
 
             return grouped;
+        }
+
+        // ── 7. Room Utilization ─────────────────────────────────────────────
+        private async Task<List<RoomUtilizationDto>> GetRoomUtilizationAsync()
+        {
+            var activeRooms = await _dbContext.Rooms
+                .Where(r => !r.IsDeleted && r.Status == 1)
+                .ToListAsync();
+
+            var now = DateTime.Today;
+            var startDate = now.AddDays(-15);
+            var endDate = now.AddDays(15);
+
+            var roomScheduleCounts = await _dbContext.ClassSchedules
+                .Where(cs => !cs.IsDeleted && cs.RoomId.HasValue && cs.ScheduleDate >= startDate && cs.ScheduleDate <= endDate)
+                .GroupBy(cs => cs.RoomId!.Value)
+                .Select(g => new { RoomId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.RoomId, x => x.Count);
+
+            var result = new List<RoomUtilizationDto>();
+            foreach (var room in activeRooms)
+            {
+                var occupied = roomScheduleCounts.ContainsKey(room.Id) ? roomScheduleCounts[room.Id] : 0;
+                double capacity = 120; // 30 slots per week * 4 weeks
+                var rate = Math.Round((double)occupied / capacity * 100, 1);
+                if (rate > 100) rate = 100;
+
+                result.Add(new RoomUtilizationDto
+                {
+                    RoomId = room.Id,
+                    RoomName = room.Name,
+                    TotalSlots = (int)capacity,
+                    OccupiedSlots = occupied,
+                    UtilizationRate = rate
+                });
+            }
+
+            return result.OrderByDescending(r => r.UtilizationRate).Take(10).ToList();
+        }
+
+        // ── 8. Teacher Workload ─────────────────────────────────────────────
+        private async Task<List<TeacherWorkloadDto>> GetTeacherWorkloadsAsync()
+        {
+            var activeTeachers = await _dbContext.Teachers
+                .Where(t => !t.IsDeleted && t.Status == 1)
+                .ToListAsync();
+
+            var now = DateTime.Today;
+            var startDate = now.AddDays(-15);
+            var endDate = now.AddDays(15);
+
+            var teacherScheduleCounts = await _dbContext.ClassSchedules
+                .Where(cs => !cs.IsDeleted && cs.TeacherId.HasValue && cs.ScheduleDate >= startDate && cs.ScheduleDate <= endDate)
+                .GroupBy(cs => cs.TeacherId!.Value)
+                .Select(g => new { TeacherId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.TeacherId, x => x.Count);
+
+            var result = new List<TeacherWorkloadDto>();
+            foreach (var teacher in activeTeachers)
+            {
+                var sessions = teacherScheduleCounts.ContainsKey(teacher.Id) ? teacherScheduleCounts[teacher.Id] : 0;
+                result.Add(new TeacherWorkloadDto
+                {
+                    TeacherId = teacher.Id,
+                    TeacherName = teacher.Name,
+                    TeacherCode = teacher.Code,
+                    TotalSessions = sessions
+                });
+            }
+
+            return result.OrderByDescending(t => t.TotalSessions).Take(10).ToList();
+        }
+
+        // ── 9. Grading Progress ─────────────────────────────────────────────
+        private async Task<GradingProgressDto> GetGradingProgressAsync()
+        {
+            var pendingHomeworks = await _dbContext.HomeworkSubmissions
+                .CountAsync(s => !s.IsDeleted && s.Score == null);
+
+            var pendingExams = await _dbContext.ExamAttempts
+                .CountAsync(ea => !ea.IsDeleted && ea.SubmitTime != null && ea.Score == null);
+
+            return new GradingProgressDto
+            {
+                PendingHomeworksCount = pendingHomeworks,
+                PendingExamsCount = pendingExams
+            };
+        }
+
+        // ── 10. Exam Grade Distribution ──────────────────────────────────────
+        private async Task<List<ExamGradeDistributionDto>> GetExamGradeDistributionAsync()
+        {
+            var examScores = await _dbContext.ExamAttempts
+                .Where(ea => !ea.IsDeleted && ea.Score.HasValue)
+                .Select(ea => (double)ea.Score!.Value)
+                .ToListAsync();
+
+            var weakCount = examScores.Count(s => s < 5.0);
+            var averageCount = examScores.Count(s => s >= 5.0 && s < 6.5);
+            var goodCount = examScores.Count(s => s >= 6.5 && s < 8.0);
+            var outstandingCount = examScores.Count(s => s >= 8.0);
+
+            return new List<ExamGradeDistributionDto>
+            {
+                new() { ScoreBand = "< 5.0 (Weak)", StudentCount = weakCount },
+                new() { ScoreBand = "5.0 - 6.5 (Average)", StudentCount = averageCount },
+                new() { ScoreBand = "6.5 - 8.0 (Good)", StudentCount = goodCount },
+                new() { ScoreBand = "8.0 - 10.0 (Excellent)", StudentCount = outstandingCount }
+            };
         }
     }
 }
