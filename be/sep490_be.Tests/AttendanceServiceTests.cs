@@ -72,7 +72,7 @@ namespace sep490_be.Tests.Services
             {
                 var uow = new UnitOfWork<ApplicationDbContext>(context);
                 var attRepo = new AttendanceRepository(context, uow);
-                var service = new AttendanceService(attRepo, context);
+                var service = new AttendanceService(attRepo);
 
                 var response = await service.GetByScheduleIdAsync(scheduleId);
 
@@ -117,7 +117,7 @@ namespace sep490_be.Tests.Services
             {
                 var uow = new UnitOfWork<ApplicationDbContext>(context);
                 var attRepo = new AttendanceRepository(context, uow);
-                var service = new AttendanceService(attRepo, context);
+                var service = new AttendanceService(attRepo);
 
                 var response = await service.GetByScheduleIdAsync(scheduleId);
 
@@ -172,7 +172,7 @@ namespace sep490_be.Tests.Services
             {
                 var uow = new UnitOfWork<ApplicationDbContext>(context);
                 var attRepo = new AttendanceRepository(context, uow);
-                var service = new AttendanceService(attRepo, context);
+                var service = new AttendanceService(attRepo);
 
                 var response = await service.BulkSaveAsync(saveDto);
 
@@ -222,7 +222,7 @@ namespace sep490_be.Tests.Services
             {
                 var uow = new UnitOfWork<ApplicationDbContext>(context);
                 var attRepo = new AttendanceRepository(context, uow);
-                var service = new AttendanceService(attRepo, context);
+                var service = new AttendanceService(attRepo);
 
                 var response = await service.GetReportByClassIdAsync(classId);
 
@@ -267,7 +267,7 @@ namespace sep490_be.Tests.Services
             {
                 var uow = new UnitOfWork<ApplicationDbContext>(context);
                 var attRepo = new AttendanceRepository(context, uow);
-                var service = new AttendanceService(attRepo, context);
+                var service = new AttendanceService(attRepo);
 
                 var response = await service.BulkSaveAsync(saveDto);
 
@@ -302,8 +302,7 @@ namespace sep490_be.Tests.Services
             context.ChangeTracker.Clear();
 
             var service = new AttendanceService(
-                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
-                context);
+                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)));
             var response = await service.BulkSaveAsync(new AttendanceBulkSaveDto
             {
                 ScheduleId = schedule.Id,
@@ -342,8 +341,7 @@ namespace sep490_be.Tests.Services
             await context.SaveChangesAsync();
 
             var service = new AttendanceService(
-                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
-                context);
+                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)));
             var response = await service.BulkSaveAsync(new AttendanceBulkSaveDto
             {
                 ScheduleId = secondSchedule.Id,
@@ -378,8 +376,7 @@ namespace sep490_be.Tests.Services
             context.ChangeTracker.Clear();
 
             var service = new AttendanceService(
-                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
-                context);
+                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)));
             var response = await service.BulkSaveAsync(new AttendanceBulkSaveDto
             {
                 ScheduleId = schedule.Id,
@@ -411,8 +408,7 @@ namespace sep490_be.Tests.Services
             await context.SaveChangesAsync();
 
             var service = new AttendanceService(
-                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
-                context);
+                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)));
             var response = await service.BulkSaveAsync(new AttendanceBulkSaveDto
             {
                 ScheduleId = schedule.Id,
@@ -447,8 +443,7 @@ namespace sep490_be.Tests.Services
             context.ChangeTracker.Clear();
 
             var service = new AttendanceService(
-                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
-                context);
+                new AttendanceRepository(context, new UnitOfWork<ApplicationDbContext>(context)));
             var response = await service.BulkSaveAsync(new AttendanceBulkSaveDto
             {
                 ScheduleId = schedule.Id,
@@ -478,7 +473,7 @@ namespace sep490_be.Tests.Services
             {
                 var uow = new UnitOfWork<ApplicationDbContext>(context);
                 var attRepo = new AttendanceRepository(context, uow);
-                var service = new AttendanceService(attRepo, context);
+                var service = new AttendanceService(attRepo);
 
                 var response = await service.GetByScheduleIdAsync(9999);
 
@@ -507,7 +502,7 @@ namespace sep490_be.Tests.Services
             {
                 var uow = new UnitOfWork<ApplicationDbContext>(context);
                 var attRepo = new AttendanceRepository(context, uow);
-                var service = new AttendanceService(attRepo, context);
+                var service = new AttendanceService(attRepo);
 
                 var response = await service.BulkSaveAsync(saveDto);
 
@@ -530,7 +525,7 @@ namespace sep490_be.Tests.Services
             {
                 var uow = new UnitOfWork<ApplicationDbContext>(context);
                 var attRepo = new AttendanceRepository(context, uow);
-                var service = new AttendanceService(attRepo, context);
+                var service = new AttendanceService(attRepo);
 
                 var response = await service.GetReportByClassIdAsync(9999);
 

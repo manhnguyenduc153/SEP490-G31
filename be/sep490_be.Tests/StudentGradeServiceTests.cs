@@ -7,6 +7,8 @@ using Moq;
 using sep490_be.DTO.StudentGrade;
 using sep490_be.Enums;
 using sep490_be.Models;
+using sep490_be.Repositories.Common;
+using sep490_be.Repositories.Implementations;
 using sep490_be.Services.Implementations;
 using ModelClass = sep490_be.Models.Class;
 
@@ -33,7 +35,9 @@ namespace sep490_be.Tests.Services
             var userManager = new Mock<UserManager<IdentityUser>>(
                 store.Object, null!, null!, Array.Empty<IUserValidator<IdentityUser>>(),
                 Array.Empty<IPasswordValidator<IdentityUser>>(), null!, null!, null!, null!);
-            return new StudentGradeService(context, userManager.Object);
+            return new StudentGradeService(
+                new StudentGradeRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
+                userManager.Object);
         }
 
         private static async Task<(int courseId, int classId, int studentClassId)> SeedClassAsync(ApplicationDbContext context)
@@ -69,9 +73,9 @@ namespace sep490_be.Tests.Services
             response.Success.Should().BeTrue();
             response.Data!.ClassId.Should().Be(classId);
             response.Data.Components.Select(x => x.Code).Should().Equal(
-                "listening", "reading", "writing", "speaking", "homework", "attendance");
+                "listening", "reading", "writing", "speaking", "homework");
             response.Data.Components.Select(x => x.Weight).Should().Equal(
-                10m, 10m, 10m, 10m, 30m, 30m);
+                17.5m, 17.5m, 17.5m, 17.5m, 30m);
         }
         [Fact]
         public async Task GetCourseComponentsAsync_WhenCourseExistsWithoutComponents_ShouldCreateDefaults()
@@ -88,9 +92,9 @@ namespace sep490_be.Tests.Services
             var response = await service.GetCourseComponentsAsync(course.Id);
 
             response.Success.Should().BeTrue();
-            response.Data.Should().HaveCount(6);
+            response.Data.Should().HaveCount(5);
             response.Data!.Select(x => x.Code).Should().Equal(
-                "listening", "reading", "writing", "speaking", "homework", "attendance");
+                "listening", "reading", "writing", "speaking", "homework");
         }
 
         [Fact]
@@ -111,11 +115,15 @@ namespace sep490_be.Tests.Services
 
             response.Success.Should().BeTrue();
             response.Data!.Select(x => x.Code).Should().Equal(
-                "listening", "reading", "writing", "speaking", "homework", "attendance");
+                "listening", "reading", "writing", "speaking", "homework");
             response.Data!.Sum(x => x.Weight).Should().Be(100);
+            response.Data!.Where(x => x.Code != "homework").Select(x => x.Weight).Should().AllBeEquivalentTo(17.5m);
             (await context.GradeComponents.IgnoreQueryFilters()
                 .SingleAsync(x => x.CourseId == course.Id && x.Code == "exam"))
                 .IsDeleted.Should().BeTrue();
+            (await context.GradeComponents.IgnoreQueryFilters()
+                .AnyAsync(x => x.CourseId == course.Id && x.Code == "attendance"))
+                .Should().BeFalse();
         }
         [Fact]
         public async Task SaveCourseComponentsAsync_WithValidComponents_ShouldCreateAndOrderComponents()
@@ -153,21 +161,6 @@ namespace sep490_be.Tests.Services
             var service = CreateService(context);
             var settings = await service.GetSettingsAsync(classId);
 
-            var schedules = Enumerable.Range(1, 10)
-                .Select(lessonNo => new ClassSchedule
-                {
-                    ClassId = classId,
-                    LessonNo = lessonNo,
-                    Status = 1
-                })
-                .ToList();
-            context.ClassSchedules.AddRange(schedules);
-            await context.SaveChangesAsync();
-            context.Attendances.AddRange(
-                new Attendance { ScheduleId = schedules[0].Id, StudentId = studentId, Status = 1 },
-                new Attendance { ScheduleId = schedules[1].Id, StudentId = studentId, Status = 1 },
-                new Attendance { ScheduleId = schedules[2].Id, StudentId = studentId, Status = 1 });
-
             var teacher = new Teacher { Code = "TC001", Name = "Teacher One", Email = "teacher@test.com" };
             context.Teachers.Add(teacher);
             await context.SaveChangesAsync();
@@ -186,12 +179,11 @@ namespace sep490_be.Tests.Services
             response.Success.Should().BeTrue();
             response.Data.Should().ContainSingle();
             var grade = response.Data!.Single();
-            grade.Components.Single(x => x.ComponentCode == "attendance").RawScore.Should().Be(3);
             grade.Components.Single(x => x.ComponentCode == "homework").RawScore.Should().Be(6.5m);
             grade.Components.Where(x => new[] { "listening", "reading", "writing", "speaking" }.Contains(x.ComponentCode))
                 .Should().OnlyContain(x => x.RawScore == 0);
-            grade.AverageScore.Should().Be(2.9m);
-            settings.Data!.Components.Should().HaveCount(6);
+            grade.AverageScore.Should().Be(2m);
+            settings.Data!.Components.Should().HaveCount(5);
         }
         [Fact]
         public async Task GetMyGradesAsync_WhenOverrideExists_ShouldUseOverrideButKeepRawScore()
@@ -202,22 +194,22 @@ namespace sep490_be.Tests.Services
             var (_, classId, studentClassId) = await SeedClassAsync(context);
             var service = CreateService(context);
             var settings = await service.GetSettingsAsync(classId);
-            var attendance = settings.Data!.Components.Single(x => x.Code == "attendance");
+            var speaking = settings.Data!.Components.Single(x => x.Code == "speaking");
             await service.SaveOverridesAsync(classId, new StudentGradeOverridesSaveDto
             {
                 Overrides = new List<StudentGradeOverrideSaveDto>
                 {
-                    new() { StudentClassId = studentClassId, GradeComponentId = attendance.Id, Score = 9 }
+                    new() { StudentClassId = studentClassId, GradeComponentId = speaking.Id, Score = 9 }
                 }
             });
 
             var response = await service.GetMyGradesAsync(new[] { "ST001" });
 
-            var component = response.Data!.Single().Components.Single(x => x.ComponentCode == "attendance");
+            var component = response.Data!.Single().Components.Single(x => x.ComponentCode == "speaking");
             component.RawScore.Should().Be(0);
             component.Score.Should().Be(9);
             component.IsOverride.Should().BeTrue();
-            response.Data!.Single().AverageScore.Should().Be(2.7m);
+            response.Data!.Single().AverageScore.Should().Be(1.6m);
         }
 
         #endregion
@@ -234,14 +226,14 @@ namespace sep490_be.Tests.Services
             var (_, classId, studentClassId) = await SeedClassAsync(context);
             var service = CreateService(context);
             var settings = await service.GetSettingsAsync(classId);
-            var attendanceId = settings.Data!.Components.First(x => x.Code == "attendance").Id;
+            var speakingId = settings.Data!.Components.First(x => x.Code == "speaking").Id;
             var listeningId = settings.Data.Components.First(x => x.Code == "listening").Id;
 
             var response = await service.SaveOverridesAsync(classId, new StudentGradeOverridesSaveDto
             {
                 Overrides = new List<StudentGradeOverrideSaveDto>
                 {
-                    new() { StudentClassId = studentClassId, GradeComponentId = attendanceId, Score = 12 },
+                    new() { StudentClassId = studentClassId, GradeComponentId = speakingId, Score = 12 },
                     new() { StudentClassId = studentClassId, GradeComponentId = listeningId, Score = -2 }
                 }
             });
@@ -284,13 +276,13 @@ namespace sep490_be.Tests.Services
             var (_, classId, studentClassId) = await SeedClassAsync(context);
             var service = CreateService(context);
             var settings = await service.GetSettingsAsync(classId);
-            var attendanceId = settings.Data!.Components.First(x => x.Code == "attendance").Id;
+            var speakingId = settings.Data!.Components.First(x => x.Code == "speaking").Id;
 
             await service.SaveOverridesAsync(classId, new StudentGradeOverridesSaveDto
             {
                 Overrides = new List<StudentGradeOverrideSaveDto>
                 {
-                    new() { StudentClassId = studentClassId, GradeComponentId = attendanceId, Score = 8 }
+                    new() { StudentClassId = studentClassId, GradeComponentId = speakingId, Score = 8 }
                 }
             });
 
@@ -298,7 +290,7 @@ namespace sep490_be.Tests.Services
             {
                 Overrides = new List<StudentGradeOverrideSaveDto>
                 {
-                    new() { StudentClassId = studentClassId, GradeComponentId = attendanceId, Score = null }
+                    new() { StudentClassId = studentClassId, GradeComponentId = speakingId, Score = null }
                 }
             });
 
@@ -546,9 +538,9 @@ namespace sep490_be.Tests.Services
             });
 
             response.Success.Should().BeTrue();
-            response.Data.Should().HaveCount(6);
+            response.Data.Should().HaveCount(5);
             response.Data!.First(x => x.Id == kept.Id).Name.Should().Be("Updated listening");
-            (await context.GradeComponents.CountAsync(x => x.CourseId == course.Id)).Should().Be(6);
+            (await context.GradeComponents.CountAsync(x => x.CourseId == course.Id)).Should().Be(5);
         }
 
         [Fact]
