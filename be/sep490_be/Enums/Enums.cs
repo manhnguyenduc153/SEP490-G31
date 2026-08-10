@@ -139,7 +139,11 @@ namespace sep490_be.Enums
         [StringValue("True or False")]
         TrueFalse = 4,
         [StringValue("Audio Recording")]
-        AudioRecord = 5
+        AudioRecord = 5,
+        [StringValue("Fill in the Blank")]
+        FillInBlank = 6,
+        [StringValue("Paragraph Matching")]
+        ParagraphMatching = 7
     }
 
     public enum DifficultyLevel

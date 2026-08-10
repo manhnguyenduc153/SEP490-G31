@@ -8,6 +8,11 @@ namespace sep490_be.Models
         public int? CategoryId { get; set; }
         public int? PassageId { get; set; }
         public string Content { get; set; } = string.Empty;
+        // Shared instruction shown once above a group of questions of the same sub-format
+        // (e.g. "Which paragraph contains each of the following pieces of information?").
+        // Only the first question of a group needs it set; later questions in the same
+        // group leave it null.
+        public string? Instruction { get; set; }
         public int QuestionType { get; set; }
         public int SkillType { get; set; } = 1;
         public int DifficultyLevel { get; set; }
