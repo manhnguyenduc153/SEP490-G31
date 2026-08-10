@@ -8,6 +8,7 @@ namespace sep490_be.DTO.Question
         public string? Code { get; set; }
         public string Name { get; set; } = string.Empty; // Title
         public string Content { get; set; } = string.Empty;
+        public string? Instruction { get; set; }
         public int QuestionType { get; set; }
         public int SkillType { get; set; }
         public int DifficultyLevel { get; set; }

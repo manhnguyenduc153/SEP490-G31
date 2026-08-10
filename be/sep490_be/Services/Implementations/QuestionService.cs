@@ -120,6 +120,7 @@ namespace sep490_be.Services.Implementations
                     Code = string.IsNullOrWhiteSpace(dto.Code) ? $"Q_{Guid.NewGuid().ToString().Substring(0, 8)}" : dto.Code,
                     Name = dto.Name,
                     Content = dto.Content,
+                    Instruction = dto.Instruction,
                     QuestionType = dto.QuestionType,
                     SkillType = effectiveSkillType,
                     DifficultyLevel = dto.DifficultyLevel,
@@ -182,6 +183,7 @@ namespace sep490_be.Services.Implementations
 
                 existingEntity.Name = dto.Name;
                 existingEntity.Content = dto.Content;
+                existingEntity.Instruction = dto.Instruction;
                 existingEntity.QuestionType = dto.QuestionType;
                 if (dto.SkillType > 0)
                 {
@@ -316,6 +318,7 @@ namespace sep490_be.Services.Implementations
             Code = entity.Code ?? string.Empty,
             Name = entity.Name ?? string.Empty,
             Content = entity.Content ?? string.Empty,
+            Instruction = entity.Instruction,
             QuestionType = entity.QuestionType,
             QuestionTypeName = ((QuestionType)entity.QuestionType).GetStringValue(),
             SkillType = entity.SkillType,
@@ -411,7 +414,17 @@ namespace sep490_be.Services.Implementations
                     return "ERR_CATEGORY_NOT_FOUND";
             }
 
-            if (dto.QuestionType != (int)QuestionType.Essay)
+            if (dto.QuestionType == (int)QuestionType.FillInBlank)
+            {
+                // Accepted-answer list for auto-graded short text: any number of variants,
+                // all implicitly "correct" (OR-matched at grading time), no upper bound needed.
+                if (dto.QuestionAnswers == null || dto.QuestionAnswers.Count < 1)
+                    return "ERR_MIN_ONE_ACCEPTED_ANSWER_REQUIRED";
+
+                if (dto.QuestionAnswers.Any(a => string.IsNullOrWhiteSpace(a.Content)))
+                    return "ERR_ANSWER_CONTENT_EMPTY";
+            }
+            else if (dto.QuestionType != (int)QuestionType.Essay)
             {
                 if (dto.QuestionAnswers == null || dto.QuestionAnswers.Count < 2)
                     return "ERR_MIN_TWO_ANSWERS_REQUIRED";
@@ -424,7 +437,7 @@ namespace sep490_be.Services.Implementations
 
                 var correctCount = dto.QuestionAnswers.Count(a => a.IsCorrect);
 
-                if (dto.QuestionType == (int)QuestionType.SingleChoice || dto.QuestionType == (int)QuestionType.TrueFalse)
+                if (dto.QuestionType == (int)QuestionType.SingleChoice || dto.QuestionType == (int)QuestionType.TrueFalse || dto.QuestionType == (int)QuestionType.ParagraphMatching)
                 {
                     if (correctCount != 1)
                         return "ERR_MUST_HAVE_EXACTLY_ONE_CORRECT_ANSWER";

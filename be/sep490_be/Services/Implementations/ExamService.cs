@@ -297,10 +297,11 @@ namespace sep490_be.Services.Implementations
                         Code = eq.Question.Code,
                         Name = eq.Question.Name,
                         Content = eq.Question.Content,
+                        Instruction = eq.Question.Instruction,
                         QuestionType = eq.Question.QuestionType,
-                        QuestionTypeName = eq.Question.QuestionType == 1 ? "Chọn một" :
-                                           eq.Question.QuestionType == 2 ? "Chọn nhiều" :
-                                           eq.Question.QuestionType == 3 ? "Nhập text" : "Đúng/Sai",
+                        QuestionTypeName = Enum.IsDefined(typeof(QuestionType), eq.Question.QuestionType)
+                            ? ((QuestionType)eq.Question.QuestionType).GetStringValue()
+                            : string.Empty,
                         SkillType = eq.Question.SkillType,
                         SkillTypeName = eq.Question.SkillType == 1 ? "Listening" :
                                         eq.Question.SkillType == 2 ? "Reading" :
@@ -703,7 +704,7 @@ namespace sep490_be.Services.Implementations
                                 if (!string.IsNullOrEmpty(ans.AnswerContent))
                                 {
                                     var stdAns = ans.AnswerContent.Trim().ToLower();
-                                    if (qDto.QuestionType == 1 || qDto.QuestionType == 4)
+                                    if (qDto.QuestionType == 1 || qDto.QuestionType == 4 || qDto.QuestionType == 6 || qDto.QuestionType == 7)
                                     {
                                         ans.IsCorrect = correctAnswers.Contains(stdAns) || correctIds.Contains(stdAns);
                                     }
@@ -795,7 +796,7 @@ namespace sep490_be.Services.Implementations
                                 if (!string.IsNullOrEmpty(ans.AnswerContent))
                                 {
                                     var stdAns = ans.AnswerContent.Trim().ToLower();
-                                    if (qDto.QuestionType == 1 || qDto.QuestionType == 4)
+                                    if (qDto.QuestionType == 1 || qDto.QuestionType == 4 || qDto.QuestionType == 6 || qDto.QuestionType == 7)
                                     {
                                         ans.IsCorrect = correctAnswers.Contains(stdAns) || correctIds.Contains(stdAns);
                                     }
@@ -1014,7 +1015,7 @@ namespace sep490_be.Services.Implementations
                     if (!string.IsNullOrEmpty(ansDto.AnswerContent))
                     {
                         var stdAns = ansDto.AnswerContent.Trim().ToLower();
-                        if (q.QuestionType == 1 || q.QuestionType == 4) // Single choice / True-False
+                        if (q.QuestionType == 1 || q.QuestionType == 4 || q.QuestionType == 6 || q.QuestionType == 7) // Single choice / True-False / Fill-in-Blank / Paragraph Matching
                         {
                             isCorrect = correctAnswers.Contains(stdAns) || correctIds.Contains(stdAns);
                         }
