@@ -137,6 +137,7 @@ namespace sep490_be.DTO.Common
             public const string Attendance_Edit = "Attendance.Edit";
             public const string Attendance_Delete = "Attendance.Delete";
             public const string Attendance_SaveAttendance = "Attendance.SaveAttendance";
+            public const string Attendance_EditAllTime = "Attendance.EditAllTime";
         }
 
         public static class LearningMaterial

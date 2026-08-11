@@ -149,6 +149,7 @@ namespace sep490_be.Helpers
                 Permissions.Attendance.Attendance_Edit,
                 Permissions.Attendance.Attendance_Delete,
                 Permissions.Attendance.Attendance_SaveAttendance,
+                Permissions.Attendance.Attendance_EditAllTime,
                 Permissions.StudentGrade.StudentGrade_ViewSettings,
                 Permissions.StudentGrade.StudentGrade_Create,
                 Permissions.StudentGrade.StudentGrade_Edit,
