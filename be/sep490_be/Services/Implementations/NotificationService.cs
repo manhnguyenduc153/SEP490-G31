@@ -9,6 +9,7 @@ using sep490_be.Hubs;
 using sep490_be.Models;
 using sep490_be.Enums;
 using sep490_be.Services.Interfaces;
+using sep490_be.Helpers;
 
 namespace sep490_be.Services.Implementations
 {
@@ -111,6 +112,22 @@ namespace sep490_be.Services.Implementations
                 if (uniqueRecipients.Any())
                 {
                     await _hubContext.Clients.Users(uniqueRecipients).SendAsync("ReceiveNotification", payload);
+
+                    var userIds = await _dbContext.Users
+                        .Where(u => uniqueRecipients.Contains(u.UserName!.ToLower()))
+                        .Select(u => u.Id)
+                        .ToListAsync();
+
+                    var fcmTokens = await _dbContext.UserDeviceTokens
+                        .Where(t => userIds.Contains(t.UserId))
+                        .Select(t => t.FcmToken)
+                        .ToListAsync();
+
+                    await SendFcmNotificationAsync(fcmTokens, title, content, new Dictionary<string, string>
+                    {
+                        { "classId", classEntity.Id.ToString() },
+                        { "sentAt", notification.SentAt.ToString("o") }
+                    });
                 }
 
                 // Also notify admin group
@@ -171,6 +188,22 @@ namespace sep490_be.Services.Implementations
                 if (recipientUserNames.Any())
                 {
                     await _hubContext.Clients.Users(recipientUserNames).SendAsync("ReceiveNotification", payload);
+
+                    var userIds = await _dbContext.Users
+                        .Where(u => recipientUserNames.Contains(u.UserName!.ToLower()))
+                        .Select(u => u.Id)
+                        .ToListAsync();
+
+                    var fcmTokens = await _dbContext.UserDeviceTokens
+                        .Where(t => userIds.Contains(t.UserId))
+                        .Select(t => t.FcmToken)
+                        .ToListAsync();
+
+                    await SendFcmNotificationAsync(fcmTokens, title, content, new Dictionary<string, string>
+                    {
+                        { "classId", classEntity.Id.ToString() },
+                        { "sentAt", notification.SentAt.ToString("o") }
+                    });
                 }
 
                 // Also notify admin group
@@ -286,6 +319,22 @@ namespace sep490_be.Services.Implementations
                 if (uniqueRecipients.Any())
                 {
                     await _hubContext.Clients.Users(uniqueRecipients).SendAsync("ReceiveNotification", payload);
+
+                    var userIds = await _dbContext.Users
+                        .Where(u => uniqueRecipients.Contains(u.UserName!.ToLower()))
+                        .Select(u => u.Id)
+                        .ToListAsync();
+
+                    var fcmTokens = await _dbContext.UserDeviceTokens
+                        .Where(t => userIds.Contains(t.UserId))
+                        .Select(t => t.FcmToken)
+                        .ToListAsync();
+
+                    await SendFcmNotificationAsync(fcmTokens, title, content, new Dictionary<string, string>
+                    {
+                        { "classId", classEntity.Id.ToString() },
+                        { "sentAt", notification.SentAt.ToString("o") }
+                    });
                 }
 
                 // Send to Admin/Center manager/Academic staff group
@@ -304,6 +353,84 @@ namespace sep490_be.Services.Implementations
                 return ((ClassStatus)status).GetStringValue();
             }
             return status.ToString();
+        }
+
+        private async Task SendFcmNotificationAsync(List<string> tokens, string title, string content, Dictionary<string, string>? data = null)
+        {
+            if (tokens == null || !tokens.Any()) return;
+
+            try
+            {
+                var messaging = FirebaseAdmin.Messaging.FirebaseMessaging.DefaultInstance;
+                if (messaging == null)
+                {
+                    _logger.LogWarning("FirebaseMessaging instance is null. Firebase SDK might not be initialized.");
+                    await FileLogger.LogErrorAsync(
+                        "FCM WARNING",
+                        "SendFcmNotificationAsync",
+                        "",
+                        "FirebaseMessaging instance is null. Firebase SDK might not be initialized. Please check firebase_service_account.json.");
+                    return;
+                }
+
+                int successCount = 0;
+                int failureCount = 0;
+                var errors = new List<string>();
+
+                foreach (var token in tokens)
+                {
+                    try
+                    {
+                        var message = new FirebaseAdmin.Messaging.Message()
+                        {
+                            Token = token,
+                            Notification = new FirebaseAdmin.Messaging.Notification()
+                            {
+                                Title = title,
+                                Body = content
+                            },
+                            Data = data
+                        };
+
+                        var response = await messaging.SendAsync(message);
+                        successCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        failureCount++;
+                        errors.Add($"Token: {token.Substring(0, Math.Min(10, token.Length))}..., Error: {ex.Message}");
+                    }
+                }
+
+                _logger.LogInformation("Sent FCM push notifications. Success count: {SuccessCount}, Failure count: {FailureCount}", 
+                    successCount, failureCount);
+
+                if (failureCount > 0)
+                {
+                    await FileLogger.LogErrorAsync(
+                        "FCM SEND FAILURE",
+                        "SendFcmNotificationAsync",
+                        "",
+                        $"Success: {successCount}, Failure: {failureCount}\nDetails:\n{string.Join("\n", errors)}");
+                }
+                else
+                {
+                    await FileLogger.LogErrorAsync(
+                        "FCM SEND SUCCESS",
+                        "SendFcmNotificationAsync",
+                        "",
+                        $"Successfully sent to {successCount} devices.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending FCM push notifications.");
+                await FileLogger.LogErrorAsync(
+                    "FCM ERROR",
+                    "SendFcmNotificationAsync",
+                    "",
+                    $"Exception Message: {ex.Message}\nStackTrace: {ex.StackTrace}");
+            }
         }
     }
 }

@@ -56,7 +56,7 @@ namespace sep490_be.Controllers
                 }
 
                 var ext = System.IO.Path.GetExtension(file.FileName).ToLower();
-                var allowed = new[] { ".jpg", ".png", ".jpeg", ".pdf", ".doc", ".docx", ".mp3", ".wav", ".ogg", ".mp4", ".m4a", ".aac", ".flac", ".wma" };
+                var allowed = new[] { ".jpg", ".png", ".jpeg", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".rar", ".7z", ".txt", ".csv", ".mp3", ".wav", ".ogg", ".mp4", ".webm", ".mkv" };
                 if (!Array.Exists(allowed, e => e == ext))
                 {
                     return BadRequest(ApiResponse<string>.Fail("File format is not allowed."));
