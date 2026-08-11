@@ -126,10 +126,53 @@ namespace sep490_be.Services.Implementations
                     .Where(cs => cs.ScheduleDate >= minDate && cs.ScheduleDate <= maxDate)
                     .ToListAsync();
 
+                string teacherName = "";
+                if (dto.TeacherId.HasValue)
+                {
+                    var teacher = await _teacherRepository.FindAll().FirstOrDefaultAsync(t => t.Id == dto.TeacherId.Value);
+                    teacherName = teacher?.Name ?? "";
+                }
+
+                HashSet<(int DayOfWeek, int SlotIndex)> teacherAvails = null;
+                if (dto.TeacherId.HasValue && dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
+                {
+                    var avList = await _availabilityRepository.FindAll()
+                        .Where(ta => ta.SemesterId == dto.SemesterId.Value && ta.TeacherId == dto.TeacherId.Value)
+                        .ToListAsync();
+                    if (avList.Any())
+                    {
+                        teacherAvails = avList.Select(ta => (ta.DayOfWeek, ta.SlotIndex)).ToHashSet();
+                    }
+                }
+
                 var conflicts = new List<ConflictDetailDto>();
 
                 foreach (var prop in proposedSchedules)
                 {
+                    // Check teacher availability
+                    if (teacherAvails != null)
+                    {
+                        var fixedSlot = FixedTimeSlot.FromStartTime(prop.StartTime);
+                        if (fixedSlot != null)
+                        {
+                            int dayOfWeek = (int)prop.Date.DayOfWeek;
+                            if (!teacherAvails.Contains((dayOfWeek, fixedSlot.Index)))
+                            {
+                                conflicts.Add(new ConflictDetailDto
+                                {
+                                    Type = "TeacherAvailability",
+                                    TeacherId = dto.TeacherId,
+                                    TeacherName = teacherName,
+                                    Date = prop.Date,
+                                    StartTime = prop.StartTime.ToString(@"hh\:mm"),
+                                    EndTime = prop.EndTime.ToString(@"hh\:mm"),
+                                    SlotId = fixedSlot.Index,
+                                    SlotName = fixedSlot.Name
+                                });
+                            }
+                        }
+                    }
+
                     foreach (var ext in existingSchedules)
                     {
                         if (ext.ScheduleDate?.Date != prop.Date.Date) continue;

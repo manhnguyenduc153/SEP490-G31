@@ -984,6 +984,10 @@ namespace sep490_be.Services.Implementations
             if (conflictCheck.Success && conflictCheck.Data != null && conflictCheck.Data.HasConflict)
             {
                 var firstConflict = conflictCheck.Data.Conflicts.First();
+                if (firstConflict.Type == "TeacherAvailability")
+                {
+                    return "ERR_TEACHER_UNAVAILABLE";
+                }
                 if (firstConflict.Type == "Teacher")
                 {
                     return $"ERR_TEACHER_CONFLICT_{firstConflict.ConflictClassCode}";
