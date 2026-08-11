@@ -4,6 +4,11 @@ namespace sep490_be.DTO.Common
 {
     public static class Permissions
     {
+        public static class Dashboard
+        {
+            public const string DashboardPage = "Dashboard";
+        }
+
         public static class User
         {
             public const string UserPage = "User";
@@ -393,6 +398,7 @@ namespace sep490_be.DTO.Common
             { "User", "administration" },
             { "Role", "administration" },
             { "Notification", "administration" },
+            { "Dashboard", "dashboard" },
             
             { "ParentStudent", "parentServices" },
             { "ChildProgress", "parentServices" },
@@ -406,7 +412,7 @@ namespace sep490_be.DTO.Common
         {
             var structured = new Dictionary<string, Dictionary<string, List<string>>>();
             
-            var groups = new[] { "academicOperations", "schedule", "assessments", "learning", "administration", "reportsMenu", "parentServices" };
+            var groups = new[] { "dashboard", "academicOperations", "schedule", "assessments", "learning", "administration", "reportsMenu", "parentServices" };
             foreach (var g in groups)
             {
                 structured[g] = new Dictionary<string, List<string>>();
