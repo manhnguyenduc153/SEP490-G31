@@ -143,6 +143,10 @@ namespace sep490_be.Services.Implementations
                     {
                         teacherAvails = avList.Select(ta => (ta.DayOfWeek, ta.SlotIndex)).ToHashSet();
                     }
+                    else
+                    {
+                        teacherAvails = new HashSet<(int DayOfWeek, int SlotIndex)>();
+                    }
                 }
 
                 var conflicts = new List<ConflictDetailDto>();
