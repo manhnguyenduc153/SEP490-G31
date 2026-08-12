@@ -52,7 +52,7 @@ namespace sep490_be.Services.Implementations
             {
                 var entities = await _semesterRepository.FindAll()
                     .Where(s => !s.IsDeleted)
-                    .OrderByDescending(s => s.StartDate)
+                    .OrderByDescending(s => s.Id)
                     .ToListAsync();
 
                 var semesterIds = entities.Select(e => e.Id).ToList();
@@ -250,8 +250,14 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                entity.IsDeleted = true;
-                await _semesterRepository.UpdateAsync(entity);
+                var hasClasses = await _classRepository.FindAll()
+                    .AnyAsync(c => c.SemesterId == id && !c.IsDeleted);
+                if (hasClasses)
+                {
+                    return ApiResponse<bool>.Fail("ERR_SEMESTER_HAS_CLASSES", StatusCodes.Status400BadRequest);
+                }
+
+                await _semesterRepository.DeleteAsync(entity);
                 await _semesterRepository.SaveChangesAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_SEMESTER_SUCCESS");
