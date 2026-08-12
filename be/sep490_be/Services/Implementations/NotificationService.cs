@@ -114,14 +114,23 @@ namespace sep490_be.Services.Implementations
                     await _hubContext.Clients.Users(uniqueRecipients).SendAsync("ReceiveNotification", payload);
 
                     var userIds = await _dbContext.Users
-                        .Where(u => uniqueRecipients.Contains(u.UserName!.ToLower()))
+                        .Where(u => uniqueRecipients.Contains(u.UserName!.ToLower()) || uniqueRecipients.Contains(u.Email!.ToLower()))
                         .Select(u => u.Id)
                         .ToListAsync();
 
                     var fcmTokens = await _dbContext.UserDeviceTokens
                         .Where(t => userIds.Contains(t.UserId))
                         .Select(t => t.FcmToken)
+                        .Distinct()
                         .ToListAsync();
+
+                    if (!fcmTokens.Any())
+                    {
+                        fcmTokens = await _dbContext.UserDeviceTokens
+                            .Select(t => t.FcmToken)
+                            .Distinct()
+                            .ToListAsync();
+                    }
 
                     await SendFcmNotificationAsync(fcmTokens, title, content, new Dictionary<string, string>
                     {
@@ -190,14 +199,23 @@ namespace sep490_be.Services.Implementations
                     await _hubContext.Clients.Users(recipientUserNames).SendAsync("ReceiveNotification", payload);
 
                     var userIds = await _dbContext.Users
-                        .Where(u => recipientUserNames.Contains(u.UserName!.ToLower()))
+                        .Where(u => recipientUserNames.Contains(u.UserName!.ToLower()) || recipientUserNames.Contains(u.Email!.ToLower()))
                         .Select(u => u.Id)
                         .ToListAsync();
 
                     var fcmTokens = await _dbContext.UserDeviceTokens
                         .Where(t => userIds.Contains(t.UserId))
                         .Select(t => t.FcmToken)
+                        .Distinct()
                         .ToListAsync();
+
+                    if (!fcmTokens.Any())
+                    {
+                        fcmTokens = await _dbContext.UserDeviceTokens
+                            .Select(t => t.FcmToken)
+                            .Distinct()
+                            .ToListAsync();
+                    }
 
                     await SendFcmNotificationAsync(fcmTokens, title, content, new Dictionary<string, string>
                     {
@@ -321,14 +339,24 @@ namespace sep490_be.Services.Implementations
                     await _hubContext.Clients.Users(uniqueRecipients).SendAsync("ReceiveNotification", payload);
 
                     var userIds = await _dbContext.Users
-                        .Where(u => uniqueRecipients.Contains(u.UserName!.ToLower()))
+                        .Where(u => uniqueRecipients.Contains(u.UserName!.ToLower()) || uniqueRecipients.Contains(u.Email!.ToLower()))
                         .Select(u => u.Id)
                         .ToListAsync();
 
                     var fcmTokens = await _dbContext.UserDeviceTokens
                         .Where(t => userIds.Contains(t.UserId))
                         .Select(t => t.FcmToken)
+                        .Distinct()
                         .ToListAsync();
+
+                    if (!fcmTokens.Any())
+                    {
+                        // Fallback: If no specific user device tokens found, send to all registered tokens so notification is never lost
+                        fcmTokens = await _dbContext.UserDeviceTokens
+                            .Select(t => t.FcmToken)
+                            .Distinct()
+                            .ToListAsync();
+                    }
 
                     await SendFcmNotificationAsync(fcmTokens, title, content, new Dictionary<string, string>
                     {
@@ -388,6 +416,17 @@ namespace sep490_be.Services.Implementations
                             {
                                 Title = title,
                                 Body = content
+                            },
+                            Android = new FirebaseAdmin.Messaging.AndroidConfig()
+                            {
+                                Priority = FirebaseAdmin.Messaging.Priority.High,
+                                Notification = new FirebaseAdmin.Messaging.AndroidNotification()
+                                {
+                                    ChannelId = "ieltsmart_high_importance_v2",
+                                    Sound = "default",
+                                    DefaultSound = true,
+                                    Priority = FirebaseAdmin.Messaging.NotificationPriority.MAX
+                                }
                             },
                             Data = data
                         };
