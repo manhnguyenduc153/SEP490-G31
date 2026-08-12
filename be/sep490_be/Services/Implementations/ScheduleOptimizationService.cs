@@ -1890,6 +1890,8 @@ namespace sep490_be.Services.Implementations
                         .Where(c => c.SemesterId == semesterId && c.Status == (int)ClassStatus.Planning && !c.IsDeleted)
                         .ToListAsync();
 
+                    var activeClassCodes = classesToDelete.Select(c => c.Code).ToHashSet();
+
                     if (classesToDelete.Any())
                     {
                         foreach (var c in classesToDelete)
@@ -1931,9 +1933,26 @@ namespace sep490_be.Services.Implementations
 
                     // 6. Re-create the classes using the original saved request DTO
                     var createdClasses = new List<Class>();
+                    var processedCodes = new HashSet<string>();
 
                     foreach (var draftClass in originalRequest.Classes)
                     {
+                        if (string.IsNullOrWhiteSpace(draftClass.Code)) continue;
+                        if (processedCodes.Contains(draftClass.Code)) continue;
+                        processedCodes.Add(draftClass.Code);
+
+                        // If the class is not in the active class list (prior to rollback) but is soft-deleted in the database,
+                        // it means the user explicitly deleted this class prior to reverting, so do not recreate it.
+                        if (!activeClassCodes.Contains(draftClass.Code))
+                        {
+                            var isSoftDeletedInDb = await _classRepository.FindAll()
+                                .IgnoreQueryFilters()
+                                .AnyAsync(c => c.SemesterId == semesterId && c.Code == draftClass.Code && c.IsDeleted);
+                            if (isSoftDeletedInDb)
+                            {
+                                continue;
+                            }
+                        }
                         var entity = new Class
                         {
                             Code = draftClass.Code,
