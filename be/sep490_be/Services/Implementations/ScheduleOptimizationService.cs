@@ -59,14 +59,34 @@ namespace sep490_be.Services.Implementations
             {
                 var result = new ConflictCheckResultDto { HasConflict = false };
 
-                if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any() || 
-                    !dto.StartDate.HasValue || !dto.ExpectedLessons.HasValue || dto.ExpectedLessons.Value <= 0)
+                if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any() || !dto.StartDate.HasValue)
                 {
                     return ApiResponse<ConflictCheckResultDto>.Ok(result, "NO_SCHEDULE_DATA_TO_CHECK");
                 }
 
-                // Generate candidate schedules for the class in memory
                 var currentDate = dto.StartDate.Value;
+                DateTime? endDate = null;
+                int? expectedLessons = dto.ExpectedLessons;
+
+                if (dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
+                {
+                    var sem = await _semesterRepository.GetByIdAsync(dto.SemesterId.Value);
+                    if (sem != null && !sem.IsDeleted)
+                    {
+                        currentDate = sem.StartDate;
+                        endDate = sem.EndDate;
+                    }
+                }
+
+                if (!endDate.HasValue)
+                {
+                    if (!expectedLessons.HasValue || expectedLessons.Value <= 0)
+                    {
+                        return ApiResponse<ConflictCheckResultDto>.Ok(result, "NO_SCHEDULE_DATA_TO_CHECK");
+                    }
+                }
+
+                // Generate candidate schedules for the class in memory
                 int lessonNo = 1;
                 var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
                 var proposedSchedules = new List<ProposedScheduleTemp>();
@@ -86,26 +106,53 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ConflictCheckResultDto>.Ok(result, "NO_PROPOSED_SCHEDULES_GENERATED");
                 }
 
-                while (lessonNo <= dto.ExpectedLessons.Value)
+                if (endDate.HasValue)
                 {
-                    var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
-                    if (match != null)
+                    while (currentDate <= endDate.Value)
                     {
-                        if (TimeSpan.TryParse(match.StartTime, out var startSpan) && 
-                            TimeSpan.TryParse(match.EndTime, out var endSpan))
+                        var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                        if (match != null)
                         {
-                            proposedSchedules.Add(new ProposedScheduleTemp
+                            if (TimeSpan.TryParse(match.StartTime, out var startSpan) && 
+                                TimeSpan.TryParse(match.EndTime, out var endSpan))
                             {
-                                LessonNo = lessonNo,
-                                Date = currentDate,
-                                StartTime = startSpan,
-                                EndTime = endSpan,
-                                RoomId = match.RoomId
-                            });
-                            lessonNo++;
+                                proposedSchedules.Add(new ProposedScheduleTemp
+                                {
+                                    LessonNo = lessonNo,
+                                    Date = currentDate,
+                                    StartTime = startSpan,
+                                    EndTime = endSpan,
+                                    RoomId = match.RoomId
+                                });
+                                lessonNo++;
+                            }
                         }
+                        currentDate = currentDate.AddDays(1);
                     }
-                    currentDate = currentDate.AddDays(1);
+                }
+                else
+                {
+                    while (lessonNo <= expectedLessons.Value)
+                    {
+                        var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                        if (match != null)
+                        {
+                            if (TimeSpan.TryParse(match.StartTime, out var startSpan) && 
+                                TimeSpan.TryParse(match.EndTime, out var endSpan))
+                            {
+                                proposedSchedules.Add(new ProposedScheduleTemp
+                                {
+                                    LessonNo = lessonNo,
+                                    Date = currentDate,
+                                    StartTime = startSpan,
+                                    EndTime = endSpan,
+                                    RoomId = match.RoomId
+                                });
+                                lessonNo++;
+                            }
+                        }
+                        currentDate = currentDate.AddDays(1);
+                    }
                 }
 
                 if (!proposedSchedules.Any())
