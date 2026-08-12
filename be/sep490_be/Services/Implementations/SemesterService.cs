@@ -295,6 +295,37 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<List<TeacherAvailabilityDto>>> GetAllTeacherAvailabilitiesAsync(int semesterId)
+        {
+            try
+            {
+                var list = await _availabilityRepository.FindAll()
+                    .Include(t => t.Teacher)
+                    .Include(t => t.Semester)
+                    .Where(t => t.SemesterId == semesterId)
+                    .ToListAsync();
+
+                var fixedSlots = FixedTimeSlot.All;
+                var dtos = list.Select(x => new TeacherAvailabilityDto
+                {
+                    Id = x.Id,
+                    TeacherId = x.TeacherId,
+                    TeacherName = x.Teacher?.Name,
+                    SemesterId = x.SemesterId,
+                    SemesterName = x.Semester?.Name,
+                    DayOfWeek = x.DayOfWeek,
+                    SlotIndex = x.SlotIndex,
+                    SlotName = x.SlotIndex >= 0 && x.SlotIndex < fixedSlots.Length ? fixedSlots[x.SlotIndex].Name : $"Ca {x.SlotIndex + 1}"
+                }).ToList();
+
+                return ApiResponse<List<TeacherAvailabilityDto>>.Ok(dtos, "GET_ALL_TEACHER_AVAILABILITIES_SUCCESS");
+            }
+            catch (Exception)
+            {
+                return ApiResponse<List<TeacherAvailabilityDto>>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
+            }
+        }
+
         public async Task<ApiResponse<bool>> SaveTeacherAvailabilityAsync(TeacherAvailabilitySaveDto dto)
         {
             using var transaction = await _semesterRepository.BeginTransactionAsync();
