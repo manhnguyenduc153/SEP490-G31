@@ -16,6 +16,7 @@ using sep490_be.Enums;
 using sep490_be.Models;
 using sep490_be.Repositories.Common;
 using sep490_be.Repositories.Implementations;
+using sep490_be.Repositories.Interfaces;
 using sep490_be.Services.Implementations;
 using sep490_be.Services.Interfaces;
 
@@ -77,6 +78,40 @@ namespace sep490_be.Tests.Services
             return mock;
         }
 
+        private ClassService CreateClassService(
+            ApplicationDbContext context,
+            IClassRepository classRepo,
+            ICourseRepository courseRepo,
+            ITeacherRepository teacherRepo,
+            IStudentRepository studentRepo,
+            IBaseRepository<TimeSlot, ApplicationDbContext> tsRepo,
+            IBaseRepository<ClassSchedule, ApplicationDbContext> schRepo,
+            UserManager<IdentityUser> userManager,
+            RoleManager<IdentityRole> roleManager,
+            IScheduleOptimizationService optService,
+            INotificationService notificationService)
+        {
+            var uow = new UnitOfWork<ApplicationDbContext>(context);
+            return new ClassService(
+                classRepo,
+                courseRepo,
+                teacherRepo,
+                studentRepo,
+                tsRepo,
+                schRepo,
+                userManager,
+                roleManager,
+                new BaseRepository<StudentRegistration, ApplicationDbContext>(context, uow),
+                new BaseRepository<StudentClass, ApplicationDbContext>(context, uow),
+                new BaseRepository<Room, ApplicationDbContext>(context, uow),
+                new BaseRepository<Semester, ApplicationDbContext>(context, uow),
+                new BaseRepository<Attendance, ApplicationDbContext>(context, uow),
+                new BaseRepository<ParentStudentLink, ApplicationDbContext>(context, uow),
+                optService,
+                notificationService
+            );
+        }
+
         #region Normal Test Cases (Kiểm thử giá trị thông thường)
 
         [Fact]
@@ -113,7 +148,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var searchDto = new ClassSearchDto
                 {
@@ -162,7 +197,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var response = await service.GetByIdAsync(classId);
 
@@ -226,7 +261,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var response = await service.CreateAsync(saveDto);
 
@@ -312,7 +347,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var response = await service.EditAsync(saveDto);
 
@@ -389,7 +424,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var response = await service.DeleteAsync(classId);
 
@@ -434,7 +469,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var response = await service.DeactiveAsync(classId);
 
@@ -491,7 +526,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var response = await service.CreateAsync(saveDto);
 
@@ -542,7 +577,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var response = await service.CreateAsync(saveDto);
 
@@ -592,7 +627,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var response = await service.CreateAsync(saveDto);
 
@@ -632,7 +667,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var response = await service.CreateAsync(saveDto);
 
@@ -663,7 +698,7 @@ namespace sep490_be.Tests.Services
                 var schRepo = new BaseRepository<ClassSchedule, ApplicationDbContext>(context, uow);
                 var (userManager, roleManager) = CreateIdentityManagers(context);
 
-                var service = new ClassService(classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, context, mockOpt.Object, Mock.Of<INotificationService>());
+                var service = CreateClassService(context, classRepo, courseRepo, teacherRepo, studentRepo, tsRepo, schRepo, userManager, roleManager, mockOpt.Object, Mock.Of<INotificationService>());
 
                 var response = await service.DeleteAsync(9999);
 

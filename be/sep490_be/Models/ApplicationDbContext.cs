@@ -103,10 +103,6 @@ namespace sep490_be.Models
                         break;
 
                     case EntityState.Deleted:
-                        if (entry.Entity is Class)
-                        {
-                            break;
-                        }
                         // Intercept hard delete and convert it to soft delete
                         entry.State = EntityState.Modified;
                         entry.Entity.IsDeleted = true;
