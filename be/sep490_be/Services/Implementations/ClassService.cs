@@ -456,11 +456,33 @@ namespace sep490_be.Services.Implementations
                     }
                 }
 
-                 // Remove StudentClasses relations to avoid orphans
-                 if (studentClasses.Any())
-                 {
-                     await _studentClassRepository.DeleteRangeAsync(studentClasses);
-                 }
+                  // Remove ClassSchedules relations to avoid orphans or constraint violations
+                  var schedules = await _scheduleRepository.FindAll()
+                      .Where(cs => cs.ClassId == id)
+                      .ToListAsync();
+                  if (schedules.Any())
+                  {
+                      await _scheduleRepository.DeleteRangeAsync(schedules);
+                  }
+
+                  // Remove Attendance records related to schedules to avoid constraint violations
+                  var scheduleIds = schedules.Select(s => s.Id).ToList();
+                  if (scheduleIds.Any())
+                  {
+                      var attendances = await _attendanceRepository.FindAll()
+                          .Where(a => a.ScheduleId.HasValue && scheduleIds.Contains(a.ScheduleId.Value))
+                          .ToListAsync();
+                      if (attendances.Any())
+                      {
+                          await _attendanceRepository.DeleteRangeAsync(attendances);
+                      }
+                  }
+
+                  // Remove StudentClasses relations to avoid orphans
+                  if (studentClasses.Any())
+                  {
+                      await _studentClassRepository.DeleteRangeAsync(studentClasses);
+                  }
 
                 // Delete the class itself
                 await _repository.DeleteAsync(existingEntity);
