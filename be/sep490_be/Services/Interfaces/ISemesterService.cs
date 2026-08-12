@@ -17,6 +17,7 @@ namespace sep490_be.Services.Interfaces
 
         // Teacher Availability APIs
         Task<ApiResponse<List<TeacherAvailabilityDto>>> GetTeacherAvailabilitiesAsync(int semesterId, int teacherId);
+        Task<ApiResponse<List<TeacherAvailabilityDto>>> GetAllTeacherAvailabilitiesAsync(int semesterId);
         Task<ApiResponse<bool>> SaveTeacherAvailabilityAsync(TeacherAvailabilitySaveDto dto);
         Task<ApiResponse<bool>> CheckTeacherHasSchedulesAsync(int semesterId, int teacherId);
 
