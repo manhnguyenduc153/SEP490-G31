@@ -77,6 +77,7 @@ namespace sep490_be.Services.Implementations
                 
                 // Thực hiện phân trang
                 var entities = await query
+                    .OrderByDescending(x => x.Id)
                     .Skip((searchDto.PageIndex - 1) * searchDto.PageSize)
                     .Take(searchDto.PageSize)
                     .ToListAsync();

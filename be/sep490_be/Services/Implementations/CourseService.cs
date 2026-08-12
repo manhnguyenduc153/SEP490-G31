@@ -38,7 +38,7 @@ namespace sep490_be.Services.Implementations
                 }
 
                 var totalRecords = await query.CountAsync();
-                var entities = await query.ApplyPagingAsync(searchDto);
+                var entities = await query.OrderByDescending(c => c.Id).ApplyPagingAsync(searchDto);
 
                 var dtos = entities.Select(MapToDto);
                 var pagingResponse = dtos.ToPagingResponse(totalRecords, searchDto);
