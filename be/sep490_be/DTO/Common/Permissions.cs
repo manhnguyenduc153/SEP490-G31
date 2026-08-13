@@ -9,6 +9,12 @@ namespace sep490_be.DTO.Common
             public const string DashboardPage = "Dashboard";
         }
 
+        public static class MyAttendance
+        {
+            public const string MyAttendancePage = "MyAttendance";
+        }
+
+
         public static class User
         {
             public const string UserPage = "User";
@@ -36,28 +42,6 @@ namespace sep490_be.DTO.Common
             public const string Product_Delete = "Product.Delete";
         }
 
-        public static class Student
-        {
-            public const string StudentPage = "Student";
-            public const string Student_View = "Student.View";
-            public const string Student_Create = "Student.Create";
-            public const string Student_Edit = "Student.Edit";
-            public const string Student_Delete = "Student.Delete";
-        }
-
-
-
-        public static class Teacher
-        {
-            public const string TeacherPage = "Teacher";
-            public const string Teacher_View = "Teacher.View";
-            public const string Teacher_Create = "Teacher.Create";
-            public const string Teacher_Edit = "Teacher.Edit";
-            public const string Teacher_Delete = "Teacher.Delete";
-        }
-
-
-
         public static class ParentStudent
         {
             public const string ParentStudentPage = "ParentStudent";
@@ -67,6 +51,16 @@ namespace sep490_be.DTO.Common
             public const string ParentStudent_Delete = "ParentStudent.Delete";
         }
 
+        public static class Semester
+        {
+            public const string SemesterPage = "Semester";
+            public const string Semester_View = "Semester.View";
+            public const string Semester_Create = "Semester.Create";
+            public const string Semester_Edit = "Semester.Edit";
+            public const string Semester_Delete = "Semester.Delete";
+            public const string Semester_Scheduling = "Semester.Scheduling";
+        }
+
         public static class Course
         {
             public const string CoursePage = "Course";
@@ -74,6 +68,16 @@ namespace sep490_be.DTO.Common
             public const string Course_Create = "Course.Create";
             public const string Course_Edit = "Course.Edit";
             public const string Course_Delete = "Course.Delete";
+        }
+
+        public static class StudentRegistration
+        {
+            public const string StudentRegistrationPage = "StudentRegistration";
+            public const string StudentRegistration_View = "StudentRegistration.View";
+            public const string StudentRegistration_Create = "StudentRegistration.Create";
+            public const string StudentRegistration_Edit = "StudentRegistration.Edit";
+            public const string StudentRegistration_Delete = "StudentRegistration.Delete";
+            public const string StudentRegistration_Import = "StudentRegistration.Import";
         }
 
         public static class Class
@@ -86,14 +90,32 @@ namespace sep490_be.DTO.Common
             public const string Class_Import = "Class.Import";
         }
 
-        public static class MyClass
-        {
-            public const string MyClassPage = "MyClass";
-        }
-
         public static class TeachingClass
         {
             public const string TeachingClassPage = "TeachingClass";
+        }
+
+        public static class TeachingExam
+        {
+            public const string TeachingExamPage = "TeachingExam";
+        }
+
+        public static class Teacher
+        {
+            public const string TeacherPage = "Teacher";
+            public const string Teacher_View = "Teacher.View";
+            public const string Teacher_Create = "Teacher.Create";
+            public const string Teacher_Edit = "Teacher.Edit";
+            public const string Teacher_Delete = "Teacher.Delete";
+        }
+
+        public static class Student
+        {
+            public const string StudentPage = "Student";
+            public const string Student_View = "Student.View";
+            public const string Student_Create = "Student.Create";
+            public const string Student_Edit = "Student.Edit";
+            public const string Student_Delete = "Student.Delete";
         }
 
         public static class Room
@@ -129,15 +151,9 @@ namespace sep490_be.DTO.Common
             public const string TimetablePage = "Timetable";
         }
 
-        public static class Attendance
+        public static class MyClass
         {
-            public const string AttendancePage = "Attendance";
-            public const string Attendance_View = "Attendance.View";
-            public const string Attendance_Create = "Attendance.Create";
-            public const string Attendance_Edit = "Attendance.Edit";
-            public const string Attendance_Delete = "Attendance.Delete";
-            public const string Attendance_SaveAttendance = "Attendance.SaveAttendance";
-            public const string Attendance_EditAllTime = "Attendance.EditAllTime";
+            public const string MyClassPage = "MyClass";
         }
 
         public static class LearningMaterial
@@ -149,6 +165,39 @@ namespace sep490_be.DTO.Common
             public const string LearningMaterial_Delete = "LearningMaterial.Delete";
         }
 
+        public static class StudentHomework
+        {
+            public const string StudentHomeworkPage = "StudentHomework";
+            public const string StudentHomework_View = "StudentHomework.View";
+            public const string StudentHomework_Submit = "StudentHomework.Submit";
+        }
+
+        public static class Attendance
+        {
+            public const string AttendancePage = "Attendance";
+            public const string Attendance_View = "Attendance.View";
+            public const string Attendance_Create = "Attendance.Create";
+            public const string Attendance_Edit = "Attendance.Edit";
+            public const string Attendance_Delete = "Attendance.Delete";
+            public const string Attendance_SaveAttendance = "Attendance.SaveAttendance";
+            public const string Attendance_EditAllTime = "Attendance.EditAllTime";
+        }
+
+        public static class StudentExam
+        {
+            public const string StudentExamPage = "StudentExam";
+        }
+
+        public static class StudentProgress
+        {
+            public const string StudentProgressPage = "StudentProgress";
+        }
+
+        public static class MyGrade
+        {
+            public const string MyGradePage = "MyGrade";
+        }
+
         public static class Notification
         {
             public const string NotificationPage = "Notification";
@@ -158,42 +207,6 @@ namespace sep490_be.DTO.Common
             public const string Notification_Delete = "Notification.Delete";
         }
 
-        public static class QuestionCategory
-        {
-            public const string QuestionCategoryPage = "QuestionCategory";
-            public const string QuestionCategory_View = "QuestionCategory.View";
-            public const string QuestionCategory_Create = "QuestionCategory.Create";
-            public const string QuestionCategory_Edit = "QuestionCategory.Edit";
-            public const string QuestionCategory_Delete = "QuestionCategory.Delete";
-        }
-
-        public static class Question
-        {
-            public const string QuestionPage = "Question";
-            public const string Question_View = "Question.View";
-            public const string Question_Create = "Question.Create";
-            public const string Question_Edit = "Question.Edit";
-            public const string Question_Delete = "Question.Delete";
-        }
-
-        public static class QuestionPassage
-        {
-            public const string QuestionPassagePage = "QuestionPassage";
-            public const string QuestionPassage_View = "QuestionPassage.View";
-            public const string QuestionPassage_Create = "QuestionPassage.Create";
-            public const string QuestionPassage_Edit = "QuestionPassage.Edit";
-            public const string QuestionPassage_Delete = "QuestionPassage.Delete";
-        }
-
-        public static class QuestionAnswer
-        {
-            public const string QuestionAnswerPage = "QuestionAnswer";
-            public const string QuestionAnswer_View = "QuestionAnswer.View";
-            public const string QuestionAnswer_Create = "QuestionAnswer.Create";
-            public const string QuestionAnswer_Edit = "QuestionAnswer.Edit";
-            public const string QuestionAnswer_Delete = "QuestionAnswer.Delete";
-        }
-
         public static class Exam
         {
             public const string ExamPage = "Exam";
@@ -201,16 +214,6 @@ namespace sep490_be.DTO.Common
             public const string Exam_Create = "Exam.Create";
             public const string Exam_Edit = "Exam.Edit";
             public const string Exam_Delete = "Exam.Delete";
-        }
-
-        public static class StudentExam
-        {
-            public const string StudentExamPage = "StudentExam";
-        }
-
-        public static class TeachingExam
-        {
-            public const string TeachingExamPage = "TeachingExam";
         }
 
         public static class ExamQuestion
@@ -240,15 +243,6 @@ namespace sep490_be.DTO.Common
             public const string ExamAnswer_Delete = "ExamAnswer.Delete";
         }
 
-        public static class ExamSchedule
-        {
-            public const string ExamSchedulePage = "ExamSchedule";
-            public const string ExamSchedule_View = "ExamSchedule.View";
-            public const string ExamSchedule_Create = "ExamSchedule.Create";
-            public const string ExamSchedule_Edit = "ExamSchedule.Edit";
-            public const string ExamSchedule_Delete = "ExamSchedule.Delete";
-        }
-
         public static class ExamStudent
         {
             public const string ExamStudentPage = "ExamStudent";
@@ -256,6 +250,33 @@ namespace sep490_be.DTO.Common
             public const string ExamStudent_Create = "ExamStudent.Create";
             public const string ExamStudent_Edit = "ExamStudent.Edit";
             public const string ExamStudent_Delete = "ExamStudent.Delete";
+        }
+
+        public static class HomeworkManagement
+        {
+            public const string HomeworkManagementPage = "HomeworkManagement";
+            public const string HomeworkManagement_View = "HomeworkManagement.View";
+            public const string HomeworkManagement_Create = "HomeworkManagement.Create";
+            public const string HomeworkManagement_Edit = "HomeworkManagement.Edit";
+            public const string HomeworkManagement_Delete = "HomeworkManagement.Delete";
+        }
+
+        public static class Question
+        {
+            public const string QuestionPage = "Question";
+            public const string Question_View = "Question.View";
+            public const string Question_Create = "Question.Create";
+            public const string Question_Edit = "Question.Edit";
+            public const string Question_Delete = "Question.Delete";
+        }
+
+        public static class QuestionCategory
+        {
+            public const string QuestionCategoryPage = "QuestionCategory";
+            public const string QuestionCategory_View = "QuestionCategory.View";
+            public const string QuestionCategory_Create = "QuestionCategory.Create";
+            public const string QuestionCategory_Edit = "QuestionCategory.Edit";
+            public const string QuestionCategory_Delete = "QuestionCategory.Delete";
         }
 
         public static class StudentGrade
@@ -268,51 +289,36 @@ namespace sep490_be.DTO.Common
             public const string StudentGrade_SaveGrade = "StudentGrade.SaveGrade";
         }
 
-        public static class MyGrade
+        public static class QuestionPassage
         {
-            public const string MyGradePage = "MyGrade";
+            public const string QuestionPassagePage = "QuestionPassage";
+            public const string QuestionPassage_View = "QuestionPassage.View";
+            public const string QuestionPassage_Create = "QuestionPassage.Create";
+            public const string QuestionPassage_Edit = "QuestionPassage.Edit";
+            public const string QuestionPassage_Delete = "QuestionPassage.Delete";
         }
 
-        public static class StudentProgress
+        public static class QuestionAnswer
         {
-            public const string StudentProgressPage = "StudentProgress";
+            public const string QuestionAnswerPage = "QuestionAnswer";
+            public const string QuestionAnswer_View = "QuestionAnswer.View";
+            public const string QuestionAnswer_Create = "QuestionAnswer.Create";
+            public const string QuestionAnswer_Edit = "QuestionAnswer.Edit";
+            public const string QuestionAnswer_Delete = "QuestionAnswer.Delete";
         }
 
-        public static class HomeworkManagement
+        public static class ExamSchedule
         {
-            public const string HomeworkManagementPage = "HomeworkManagement";
-            public const string HomeworkManagement_View = "HomeworkManagement.View";
-            public const string HomeworkManagement_Create = "HomeworkManagement.Create";
-            public const string HomeworkManagement_Edit = "HomeworkManagement.Edit";
-            public const string HomeworkManagement_Delete = "HomeworkManagement.Delete";
+            public const string ExamSchedulePage = "ExamSchedule";
+            public const string ExamSchedule_View = "ExamSchedule.View";
+            public const string ExamSchedule_Create = "ExamSchedule.Create";
+            public const string ExamSchedule_Edit = "ExamSchedule.Edit";
+            public const string ExamSchedule_Delete = "ExamSchedule.Delete";
         }
 
-        public static class StudentHomework
-        {
-            public const string StudentHomeworkPage = "StudentHomework";
-            public const string StudentHomework_View = "StudentHomework.View";
-            public const string StudentHomework_Submit = "StudentHomework.Submit";
-        }
 
-        public static class Semester
-        {
-            public const string SemesterPage = "Semester";
-            public const string Semester_View = "Semester.View";
-            public const string Semester_Create = "Semester.Create";
-            public const string Semester_Edit = "Semester.Edit";
-            public const string Semester_Delete = "Semester.Delete";
-            public const string Semester_Scheduling = "Semester.Scheduling";
-        }
 
-        public static class StudentRegistration
-        {
-            public const string StudentRegistrationPage = "StudentRegistration";
-            public const string StudentRegistration_View = "StudentRegistration.View";
-            public const string StudentRegistration_Create = "StudentRegistration.Create";
-            public const string StudentRegistration_Edit = "StudentRegistration.Edit";
-            public const string StudentRegistration_Delete = "StudentRegistration.Delete";
-            public const string StudentRegistration_Import = "StudentRegistration.Import";
-        }
+
 
         public static class ClassGradeReport
         {
@@ -393,13 +399,14 @@ namespace sep490_be.DTO.Common
             { "MyGrade", "learning" },
             { "StudentProgress", "learning" },
             { "MyClass", "learning" },
-            { "TeachingClass", "learning" },
+            { "TeachingClass", "academicOperations" },
             { "StudentExam", "learning" },
             
             { "User", "administration" },
             { "Role", "administration" },
             { "Notification", "administration" },
             { "Dashboard", "dashboard" },
+            { "MyAttendance", "dashboard" },
             
             { "ParentStudent", "parentServices" },
             { "ChildProgress", "parentServices" },
