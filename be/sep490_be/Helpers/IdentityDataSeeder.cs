@@ -102,7 +102,7 @@ namespace sep490_be.Helpers
                 Permissions.MyClass.MyClassPage,
                 Permissions.StudentHomework.StudentHomework_View,
                 Permissions.StudentHomework.StudentHomework_Submit,
-                Permissions.Attendance.Attendance_View,
+                Permissions.MyAttendance.MyAttendancePage,
                 Permissions.MyGrade.MyGradePage,
                 Permissions.Timetable.TimetablePage,
                 Permissions.Notification.Notification_View,
