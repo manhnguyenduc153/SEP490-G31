@@ -72,12 +72,7 @@ namespace sep490_be.Controllers
         [HttpGet("teachers")]
         public async Task<IActionResult> GetTeachers([FromQuery] TeacherSearchDto searchDto)
         {
-            var username = User.Identity?.Name;
-            var hasViewPermission = User.Claims.Any(c => 
-                c.Type.Equals("Permission", StringComparison.OrdinalIgnoreCase) && 
-                c.Value.Equals(Permissions.Teacher.Teacher_View, StringComparison.OrdinalIgnoreCase));
-
-            var response = await _teacherService.GetAllAsync(searchDto, username, hasViewPermission);
+            var response = await _teacherService.GetAllAsync(searchDto, null, true);
             return StatusCode(response.StatusCode, response);
         }
 
