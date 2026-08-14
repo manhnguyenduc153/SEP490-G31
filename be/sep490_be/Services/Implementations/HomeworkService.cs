@@ -135,7 +135,7 @@ namespace sep490_be.Services.Implementations
                 AttachmentUrls = dto.AttachmentUrls,
                 Skill = dto.Skill,
                 DueDate = dto.DueDate,
-                TotalScore = dto.TotalScore,
+                TotalScore = 10m,
                 Status = dto.Status
             };
 
@@ -202,7 +202,7 @@ namespace sep490_be.Services.Implementations
             homework.AttachmentUrls = dto.AttachmentUrls;
             homework.Skill = dto.Skill;
             homework.DueDate = dto.DueDate;
-            homework.TotalScore = dto.TotalScore;
+            homework.TotalScore = 10m;
             homework.Status = dto.Status;
 
             await _homeworkRepository.UpdateAsync(homework);
@@ -502,7 +502,7 @@ namespace sep490_be.Services.Implementations
                 return ("ERR_HOMEWORK_TITLE_MAX_LENGTH", StatusCodes.Status400BadRequest);
             if (dto.DueDate.HasValue && dto.DueDate.Value <= DateTime.UtcNow)
                 return ("ERR_DUE_DATE_INVALID", StatusCodes.Status400BadRequest);
-            if (dto.TotalScore < 0 || dto.TotalScore > 1000)
+            if (dto.TotalScore != 10m)
                 return ("ERR_HOMEWORK_TOTAL_SCORE_INVALID", StatusCodes.Status400BadRequest);
             if (dto.Status is not 0 and not 1)
                 return ("ERR_HOMEWORK_STATUS_INVALID", StatusCodes.Status400BadRequest);
@@ -510,6 +510,10 @@ namespace sep490_be.Services.Implementations
             var classExists = await _homeworkRepository.ClassExistsAsync(dto.ClassId);
             if (!classExists)
                 return ("ERR_HOMEWORK_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
+
+            var classIsOpen = await _homeworkRepository.IsClassOpenForHomeworkAsync(dto.ClassId);
+            if (!classIsOpen)
+                return ("ERR_HOMEWORK_CLASS_NOT_OPEN", StatusCodes.Status400BadRequest);
 
             var teacherExists = await _homeworkRepository.TeacherExistsAsync(dto.TeacherId);
             if (!teacherExists)
