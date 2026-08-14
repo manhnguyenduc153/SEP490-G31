@@ -16,6 +16,7 @@ using sep490_be.Services.Interfaces;
 using sep490_be.Enums;
 using sep490_be.Repositories.Common;
 using sep490_be.Repositories.Interfaces;
+using sep490_be.Helpers;
 
 namespace sep490_be.Services.Implementations
 {
@@ -33,6 +34,7 @@ namespace sep490_be.Services.Implementations
         private readonly IBaseRepository<StudentClass, ApplicationDbContext> _studentClassRepository;
         private readonly IBaseRepository<TimeSlot, ApplicationDbContext> _timeSlotRepository;
         private readonly IBaseRepository<ScheduleVersion, ApplicationDbContext> _scheduleVersionRepository;
+        private readonly INotificationService _notificationService;
 
         public ScheduleOptimizationService(
             IClassRepository classRepository,
@@ -44,7 +46,8 @@ namespace sep490_be.Services.Implementations
             IStudentRegistrationRepository studentRegistrationRepository,
             IBaseRepository<StudentClass, ApplicationDbContext> studentClassRepository,
             IBaseRepository<TimeSlot, ApplicationDbContext> timeSlotRepository,
-            IBaseRepository<ScheduleVersion, ApplicationDbContext> scheduleVersionRepository)
+            IBaseRepository<ScheduleVersion, ApplicationDbContext> scheduleVersionRepository,
+            INotificationService notificationService)
         {
             _classRepository = classRepository;
             _scheduleRepository = scheduleRepository;
@@ -56,6 +59,7 @@ namespace sep490_be.Services.Implementations
             _studentClassRepository = studentClassRepository;
             _timeSlotRepository = timeSlotRepository;
             _scheduleVersionRepository = scheduleVersionRepository;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<ConflictCheckResultDto>> CheckConflictAsync(ClassSaveDto dto)
@@ -1855,6 +1859,7 @@ namespace sep490_be.Services.Implementations
                         };
 
                         await GenerateClassSchedulesHelperAsync(entity, saveDto);
+                        entity.TextSearch = StringHelper.GenerateTextSearch(entity.Code, entity.Name, entity.Description, entity.ScheduleDisplay);
                         await _classRepository.UpdateAsync(entity);
 
                         // Link students and mark registrations as Scheduled
@@ -1889,7 +1894,7 @@ namespace sep490_be.Services.Implementations
                     await _classRepository.SaveChangesAsync();
 
                     // Upsert the auto-saved checkpoint: re-running auto-schedule for this semester
-                    // overwrites the same "Bản gốc (tự động)" snapshot rather than piling up duplicates.
+                    // overwrites the same "Original" snapshot rather than piling up duplicates.
                     var initialSnapshot = await BuildSnapshotAsync(semester.Id);
                     var autoVersion = await _scheduleVersionRepository.FindAll()
                         .FirstOrDefaultAsync(v => v.SemesterId == semester.Id && v.IsAutoSaved);
@@ -1903,7 +1908,7 @@ namespace sep490_be.Services.Implementations
                         await _scheduleVersionRepository.AddAsync(new ScheduleVersion
                         {
                             SemesterId = semester.Id,
-                            Name = "Bản gốc (tự động)",
+                            Name = "Original",
                             ScheduleJson = JsonSerializer.Serialize(initialSnapshot),
                             IsAutoSaved = true
                         });
@@ -1923,7 +1928,11 @@ namespace sep490_be.Services.Implementations
                             .Include(cl => cl.ClassSchedules).ThenInclude(cs => cs.Room)
                             .Include(cl => cl.StudentClasses).ThenInclude(sc => sc.Student)
                             .FirstOrDefaultAsync(cl => cl.Id == c.Id);
-                        if (reloaded != null) resultList.Add(MapToDto(reloaded));
+                        if (reloaded != null)
+                        {
+                            resultList.Add(MapToDto(reloaded));
+                            await _notificationService.SendClassCreatedNotificationAsync(reloaded);
+                        }
                     }
 
                     return ApiResponse<List<ClassDto>>.Ok(resultList, "SCHEDULE_DRAFT_SAVED");
@@ -2061,6 +2070,7 @@ namespace sep490_be.Services.Implementations
                         };
 
                         await GenerateClassSchedulesHelperAsync(entity, saveDto);
+                        entity.TextSearch = StringHelper.GenerateTextSearch(entity.Code, entity.Name, entity.Description, entity.ScheduleDisplay);
                         await _classRepository.UpdateAsync(entity);
 
                         // Link students and mark registrations as Scheduled

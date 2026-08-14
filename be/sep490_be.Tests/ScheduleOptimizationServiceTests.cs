@@ -14,6 +14,7 @@ using sep490_be.Models;
 using sep490_be.Repositories.Common;
 using sep490_be.Repositories.Implementations;
 using sep490_be.Services.Implementations;
+using sep490_be.Services.Interfaces;
 
 namespace sep490_be.Tests.Services
 {
@@ -36,8 +37,16 @@ namespace sep490_be.Tests.Services
                     new StudentRegistrationRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
                     new BaseRepository<StudentClass, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)),
                     new BaseRepository<TimeSlot, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)),
-                    new BaseRepository<ScheduleVersion, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)))
+                    new BaseRepository<ScheduleVersion, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    CreateNoOpNotificationService())
             {
+            }
+
+            private static INotificationService CreateNoOpNotificationService()
+            {
+                var mock = new Mock<INotificationService>();
+                mock.Setup(n => n.SendClassCreatedNotificationAsync(It.IsAny<Class>())).Returns(Task.CompletedTask);
+                return mock.Object;
             }
         }
 
@@ -1223,8 +1232,24 @@ namespace sep490_be.Tests.Services
             response.Success.Should().BeTrue();
             var versions = await context.ScheduleVersions.Where(v => v.SemesterId == semester.Id).ToListAsync();
             versions.Should().ContainSingle();
-            versions[0].Name.Should().Be("Bản gốc (tự động)");
+            versions[0].Name.Should().Be("Original");
             versions[0].ScheduleJson.Should().Contain(request.Classes[0].Code);
+        }
+
+        [Fact]
+        public async Task SaveSemesterScheduleDraftAsync_ShouldPopulateTextSearchForCreatedClasses()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+
+            var response = await new ScheduleOptimizationService(context).SaveSemesterScheduleDraftAsync(request);
+
+            response.Success.Should().BeTrue();
+            var createdClass = await context.Classes.SingleAsync(c => c.SemesterId == semester.Id);
+            createdClass.TextSearch.Should().NotBeNullOrWhiteSpace();
+            createdClass.TextSearch.Should().Contain(createdClass.Code);
+            createdClass.TextSearch.Should().Contain(createdClass.Name);
         }
 
         [Fact]
@@ -1298,7 +1323,7 @@ namespace sep490_be.Tests.Services
             response.Success.Should().BeTrue();
             response.Data.Should().HaveCount(2);
             response.Data.Should().OnlyContain(v => v.ClassCount == 1);
-            response.Data!.Select(v => v.Name).Should().BeEquivalentTo("Bản gốc (tự động)", "Version 2");
+            response.Data!.Select(v => v.Name).Should().BeEquivalentTo("Original", "Version 2");
             response.Data.Should().BeInDescendingOrder(v => v.CreatedAt);
         }
 
@@ -1472,7 +1497,7 @@ namespace sep490_be.Tests.Services
             using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
             var (semester, request) = await SeedDraftReadyScenarioAsync(context);
             var service = new ScheduleOptimizationService(context);
-            await service.SaveSemesterScheduleDraftAsync(request); // 1 version so far ("Bản gốc (tự động)")
+            await service.SaveSemesterScheduleDraftAsync(request); // 1 version so far ("Original")
 
             for (var i = 0; i < 19; i++)
             {
