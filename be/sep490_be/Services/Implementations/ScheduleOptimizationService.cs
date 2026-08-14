@@ -21,6 +21,8 @@ namespace sep490_be.Services.Implementations
 {
     public class ScheduleOptimizationService : IScheduleOptimizationService
     {
+        private const int MaxScheduleVersionsPerSemester = 20;
+
         private readonly IClassRepository _classRepository;
         private readonly IBaseRepository<ClassSchedule, ApplicationDbContext> _scheduleRepository;
         private readonly IBaseRepository<TeacherAvailability, ApplicationDbContext> _availabilityRepository;
@@ -30,6 +32,7 @@ namespace sep490_be.Services.Implementations
         private readonly IStudentRegistrationRepository _studentRegistrationRepository;
         private readonly IBaseRepository<StudentClass, ApplicationDbContext> _studentClassRepository;
         private readonly IBaseRepository<TimeSlot, ApplicationDbContext> _timeSlotRepository;
+        private readonly IBaseRepository<ScheduleVersion, ApplicationDbContext> _scheduleVersionRepository;
 
         public ScheduleOptimizationService(
             IClassRepository classRepository,
@@ -40,7 +43,8 @@ namespace sep490_be.Services.Implementations
             ISemesterRepository semesterRepository,
             IStudentRegistrationRepository studentRegistrationRepository,
             IBaseRepository<StudentClass, ApplicationDbContext> studentClassRepository,
-            IBaseRepository<TimeSlot, ApplicationDbContext> timeSlotRepository)
+            IBaseRepository<TimeSlot, ApplicationDbContext> timeSlotRepository,
+            IBaseRepository<ScheduleVersion, ApplicationDbContext> scheduleVersionRepository)
         {
             _classRepository = classRepository;
             _scheduleRepository = scheduleRepository;
@@ -51,6 +55,7 @@ namespace sep490_be.Services.Implementations
             _studentRegistrationRepository = studentRegistrationRepository;
             _studentClassRepository = studentClassRepository;
             _timeSlotRepository = timeSlotRepository;
+            _scheduleVersionRepository = scheduleVersionRepository;
         }
 
         public async Task<ApiResponse<ConflictCheckResultDto>> CheckConflictAsync(ClassSaveDto dto)
@@ -1881,11 +1886,30 @@ namespace sep490_be.Services.Implementations
                         createdClasses.Add(entity);
                     }
 
-                    // Save original request JSON payload to Semester for future rollback
-                    semester.OriginalScheduleDraftJson = JsonSerializer.Serialize(request);
-                    await _semesterRepository.UpdateAsync(semester);
-
                     await _classRepository.SaveChangesAsync();
+
+                    // Upsert the auto-saved checkpoint: re-running auto-schedule for this semester
+                    // overwrites the same "Bản gốc (tự động)" snapshot rather than piling up duplicates.
+                    var initialSnapshot = await BuildSnapshotAsync(semester.Id);
+                    var autoVersion = await _scheduleVersionRepository.FindAll()
+                        .FirstOrDefaultAsync(v => v.SemesterId == semester.Id && v.IsAutoSaved);
+                    if (autoVersion != null)
+                    {
+                        autoVersion.ScheduleJson = JsonSerializer.Serialize(initialSnapshot);
+                        await _scheduleVersionRepository.UpdateAsync(autoVersion);
+                    }
+                    else
+                    {
+                        await _scheduleVersionRepository.AddAsync(new ScheduleVersion
+                        {
+                            SemesterId = semester.Id,
+                            Name = "Bản gốc (tự động)",
+                            ScheduleJson = JsonSerializer.Serialize(initialSnapshot),
+                            IsAutoSaved = true
+                        });
+                    }
+                    await _scheduleVersionRepository.SaveChangesAsync();
+
                     await transaction.CommitAsync();
 
                     // Reload and return persisted classes
@@ -1916,7 +1940,7 @@ namespace sep490_be.Services.Implementations
             }
         }
 
-        public async Task<ApiResponse<List<ClassDto>>> RollbackSemesterScheduleAsync(int semesterId)
+        public async Task<ApiResponse<List<ClassDto>>> RollbackSemesterScheduleAsync(int semesterId, int versionId)
         {
             try
             {
@@ -1924,8 +1948,11 @@ namespace sep490_be.Services.Implementations
                 if (semester == null || semester.IsDeleted)
                     return ApiResponse<List<ClassDto>>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
 
-                if (string.IsNullOrEmpty(semester.OriginalScheduleDraftJson))
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ORIGINAL_SCHEDULE_BACKUP", StatusCodes.Status400BadRequest);
+                var version = await _scheduleVersionRepository.GetByIdAsync(versionId);
+                if (version == null || version.IsDeleted)
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_SCHEDULE_VERSION_NOT_FOUND", StatusCodes.Status404NotFound);
+                if (version.SemesterId != semesterId)
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_VERSION_SEMESTER_MISMATCH", StatusCodes.Status400BadRequest);
 
                 using var transaction = await _classRepository.BeginTransactionAsync();
                 try
@@ -1970,32 +1997,34 @@ namespace sep490_be.Services.Implementations
                         await _classRepository.SaveChangesAsync();
                     }
 
-                    // 5. Deserialize the OriginalScheduleDraftJson
+                    // 5. Deserialize the chosen version's snapshot
                     var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                    var originalRequest = JsonSerializer.Deserialize<SaveScheduleDraftRequestDto>(semester.OriginalScheduleDraftJson, jsonOpts);
-                    if (originalRequest == null || originalRequest.Classes == null || !originalRequest.Classes.Any())
+                    var snapshot = JsonSerializer.Deserialize<ScheduleVersionSnapshotDto>(version.ScheduleJson, jsonOpts);
+                    if (snapshot == null || snapshot.Classes == null || !snapshot.Classes.Any())
                     {
                         return ApiResponse<List<ClassDto>>.Fail("ERR_CORRUPTED_BACKUP_DATA", StatusCodes.Status400BadRequest);
                     }
 
-                    // 6. Re-create the classes using the original saved request DTO
+                    // 6. Re-create the classes using the chosen version's snapshot
                     var createdClasses = new List<Class>();
                     var processedCodes = new HashSet<string>();
 
-                    foreach (var draftClass in originalRequest.Classes)
+                    foreach (var draftClass in snapshot.Classes)
                     {
                         if (string.IsNullOrWhiteSpace(draftClass.Code)) continue;
                         if (processedCodes.Contains(draftClass.Code)) continue;
                         processedCodes.Add(draftClass.Code);
 
-                        // If the class is not in the active class list (prior to rollback) but is soft-deleted in the database,
-                        // it means the user explicitly deleted this class prior to reverting, so do not recreate it.
+                        // If the class is not in the active (Planning) class list prior to rollback, it's either
+                        // explicitly deleted or has already progressed past Planning (Active/Completed/Cancelled) —
+                        // rollback only ever touches Planning-status classes, so leave those alone rather than
+                        // resurrecting or duplicating them.
                         if (!activeClassCodes.Contains(draftClass.Code))
                         {
-                            var isSoftDeletedInDb = await _classRepository.FindAll()
+                            var existing = await _classRepository.FindAll()
                                 .IgnoreQueryFilters()
-                                .AnyAsync(c => c.SemesterId == semesterId && c.Code == draftClass.Code && c.IsDeleted);
-                            if (isSoftDeletedInDb)
+                                .FirstOrDefaultAsync(c => c.SemesterId == semesterId && c.Code == draftClass.Code);
+                            if (existing != null && (existing.IsDeleted || existing.Status != (int)ClassStatus.Planning))
                             {
                                 continue;
                             }
@@ -2094,7 +2123,282 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<ScheduleVersionListItemDto>> SaveScheduleVersionAsync(int semesterId, string name)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(name))
+                    return ApiResponse<ScheduleVersionListItemDto>.Fail("ERR_VERSION_NAME_REQUIRED", StatusCodes.Status400BadRequest);
+
+                var semester = await _semesterRepository.GetByIdAsync(semesterId);
+                if (semester == null || semester.IsDeleted)
+                    return ApiResponse<ScheduleVersionListItemDto>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                var existingVersionCount = await _scheduleVersionRepository.FindAll()
+                    .CountAsync(v => v.SemesterId == semesterId);
+                if (existingVersionCount >= MaxScheduleVersionsPerSemester)
+                    return ApiResponse<ScheduleVersionListItemDto>.Fail("ERR_MAX_SCHEDULE_VERSIONS_REACHED", StatusCodes.Status400BadRequest);
+
+                var snapshot = await BuildSnapshotAsync(semesterId);
+                if (!snapshot.Classes.Any())
+                    return ApiResponse<ScheduleVersionListItemDto>.Fail("ERR_NO_SCHEDULE_TO_SAVE", StatusCodes.Status400BadRequest);
+
+                var entity = new ScheduleVersion
+                {
+                    SemesterId = semesterId,
+                    Name = name.Trim(),
+                    ScheduleJson = JsonSerializer.Serialize(snapshot),
+                    IsAutoSaved = false
+                };
+                await _scheduleVersionRepository.AddAsync(entity);
+                await _scheduleVersionRepository.SaveChangesAsync();
+
+                return ApiResponse<ScheduleVersionListItemDto>.Ok(new ScheduleVersionListItemDto
+                {
+                    Id = entity.Id,
+                    Name = entity.Name,
+                    CreatedAt = entity.CreatedAt,
+                    CreatedBy = entity.CreatedBy,
+                    ClassCount = snapshot.Classes.Count,
+                    IsAutoSaved = entity.IsAutoSaved
+                }, "SCHEDULE_VERSION_SAVED");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<ScheduleVersionListItemDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<ScheduleVersionListItemDto>>> GetScheduleVersionsAsync(int semesterId)
+        {
+            try
+            {
+                var versions = await _scheduleVersionRepository.FindAll()
+                    .Where(v => v.SemesterId == semesterId)
+                    .OrderByDescending(v => v.CreatedAt)
+                    .ToListAsync();
+
+                var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = versions.Select(v =>
+                {
+                    var classCount = 0;
+                    try
+                    {
+                        var snapshot = JsonSerializer.Deserialize<ScheduleVersionSnapshotDto>(v.ScheduleJson, jsonOpts);
+                        classCount = snapshot?.Classes?.Count ?? 0;
+                    }
+                    catch (JsonException)
+                    {
+                        // Corrupted snapshot: report 0 rather than failing the whole list
+                    }
+
+                    return new ScheduleVersionListItemDto
+                    {
+                        Id = v.Id,
+                        Name = v.Name,
+                        CreatedAt = v.CreatedAt,
+                        CreatedBy = v.CreatedBy,
+                        ClassCount = classCount,
+                        IsAutoSaved = v.IsAutoSaved
+                    };
+                }).ToList();
+
+                return ApiResponse<List<ScheduleVersionListItemDto>>.Ok(result, "SCHEDULE_VERSIONS_FETCHED");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ScheduleVersionListItemDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<bool>> DeleteScheduleVersionAsync(int versionId)
+        {
+            try
+            {
+                var version = await _scheduleVersionRepository.GetByIdAsync(versionId);
+                if (version == null || version.IsDeleted)
+                    return ApiResponse<bool>.Fail("ERR_SCHEDULE_VERSION_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                if (version.IsAutoSaved)
+                    return ApiResponse<bool>.Fail("ERR_CANNOT_DELETE_AUTO_VERSION", StatusCodes.Status400BadRequest);
+
+                await _scheduleVersionRepository.DeleteAsync(version);
+                await _scheduleVersionRepository.SaveChangesAsync();
+
+                return ApiResponse<bool>.Ok(true, "SCHEDULE_VERSION_DELETED");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<ClassDto>>> GetScheduleVersionPreviewAsync(int versionId)
+        {
+            try
+            {
+                var version = await _scheduleVersionRepository.GetByIdAsync(versionId);
+                if (version == null || version.IsDeleted)
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_SCHEDULE_VERSION_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                var semester = await _semesterRepository.GetByIdAsync(version.SemesterId);
+                if (semester == null || semester.IsDeleted)
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                ScheduleVersionSnapshotDto? snapshot;
+                try
+                {
+                    snapshot = JsonSerializer.Deserialize<ScheduleVersionSnapshotDto>(version.ScheduleJson, jsonOpts);
+                }
+                catch (JsonException)
+                {
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_CORRUPTED_BACKUP_DATA", StatusCodes.Status400BadRequest);
+                }
+                if (snapshot == null || snapshot.Classes == null || !snapshot.Classes.Any())
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_CORRUPTED_BACKUP_DATA", StatusCodes.Status400BadRequest);
+
+                var teacherIds = snapshot.Classes.Select(c => c.TeacherId).Distinct().ToList();
+                var teachers = await _teacherRepository.FindAll()
+                    .Where(t => teacherIds.Contains(t.Id))
+                    .ToDictionaryAsync(t => t.Id, t => t);
+
+                var roomIds = snapshot.Classes
+                    .SelectMany(c => c.WeeklySchedules)
+                    .Where(w => w.RoomId.HasValue)
+                    .Select(w => w.RoomId!.Value)
+                    .Distinct()
+                    .ToList();
+                var rooms = await _roomRepository.FindAll()
+                    .Where(r => roomIds.Contains(r.Id))
+                    .ToDictionaryAsync(r => r.Id, r => r);
+
+                var resultList = new List<ClassDto>();
+                foreach (var cls in snapshot.Classes)
+                {
+                    teachers.TryGetValue(cls.TeacherId, out var teacher);
+                    var orderedWS = cls.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
+                    var inMemorySchedules = new List<ClassScheduleDto>();
+                    int lessonNo = 1;
+                    var cur = semester.StartDate;
+                    while (cur <= semester.EndDate)
+                    {
+                        var match = orderedWS.FirstOrDefault(w => (int)cur.DayOfWeek == w.DayOfWeek);
+                        if (match != null && TimeSpan.TryParse(match.StartTime, out var st) && TimeSpan.TryParse(match.EndTime, out _))
+                        {
+                            var room = match.RoomId.HasValue && rooms.TryGetValue(match.RoomId.Value, out var r) ? r : null;
+                            var fixedSlot = FixedTimeSlot.FromStartTime(st);
+                            inMemorySchedules.Add(new ClassScheduleDto
+                            {
+                                LessonNo = lessonNo,
+                                ScheduleDate = cur,
+                                StartTime = match.StartTime,
+                                EndTime = match.EndTime,
+                                RoomId = match.RoomId,
+                                RoomName = room?.Name,
+                                TeacherId = cls.TeacherId,
+                                TeacherName = teacher?.Name,
+                                SlotName = fixedSlot?.Name,
+                                Status = (int)ClassScheduleStatus.Scheduled,
+                                Code = $"SCH_PREVIEW_{cls.Code}_{lessonNo}",
+                                Name = $"Buổi học {lessonNo}"
+                            });
+                            lessonNo++;
+                        }
+                        cur = cur.AddDays(1);
+                    }
+
+                    resultList.Add(new ClassDto
+                    {
+                        Id = 0, // 0 signals preview (not persisted)
+                        Code = cls.Code,
+                        Name = cls.Name,
+                        Status = (int)ClassStatus.Planning,
+                        StatusName = "Planning",
+                        Type = cls.EnrollType,
+                        TypeName = cls.EnrollType == 1 ? "Online" : "Offline",
+                        StartDate = semester.StartDate,
+                        EndDate = semester.EndDate,
+                        CourseId = cls.CourseId,
+                        TeacherId = cls.TeacherId,
+                        TeacherName = teacher?.Name,
+                        SemesterId = semester.Id,
+                        SemesterName = semester.Name,
+                        ExpectedLessons = lessonNo - 1,
+                        WeeklySchedulesJson = JsonSerializer.Serialize(cls.WeeklySchedules,
+                            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+                        StudentCount = cls.Students.Count,
+                        Schedules = inMemorySchedules
+                    });
+                }
+
+                return ApiResponse<List<ClassDto>>.Ok(resultList, "SCHEDULE_VERSION_PREVIEW_GENERATED");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task PurgeScheduleVersionsIfSemesterEmptyAsync(int semesterId)
+        {
+            var hasRemainingPlanningClasses = await _classRepository.FindAll()
+                .AnyAsync(c => c.SemesterId == semesterId && c.Status == (int)ClassStatus.Planning && !c.IsDeleted);
+            if (hasRemainingPlanningClasses)
+                return;
+
+            var versions = await _scheduleVersionRepository.FindAll()
+                .Where(v => v.SemesterId == semesterId)
+                .ToListAsync();
+            if (!versions.Any())
+                return;
+
+            foreach (var version in versions)
+            {
+                await _scheduleVersionRepository.DeleteAsync(version);
+            }
+            await _scheduleVersionRepository.SaveChangesAsync();
+        }
+
         // ================= PRIVATE HELPERS =================
+
+        private async Task<ScheduleVersionSnapshotDto> BuildSnapshotAsync(int semesterId)
+        {
+            var classes = await _classRepository.FindAll()
+                .Include(c => c.StudentClasses)
+                .Where(c => c.SemesterId == semesterId && c.Status == (int)ClassStatus.Planning && !c.IsDeleted)
+                .ToListAsync();
+
+            var snapshot = new ScheduleVersionSnapshotDto { SemesterId = semesterId };
+            var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+            foreach (var c in classes)
+            {
+                List<WeeklyScheduleDto> weekly = new();
+                if (!string.IsNullOrEmpty(c.WeeklySchedulesJson))
+                {
+                    weekly = JsonSerializer.Deserialize<List<WeeklyScheduleDto>>(c.WeeklySchedulesJson, jsonOpts) ?? new();
+                }
+
+                snapshot.Classes.Add(new ClassDraftSaveDto
+                {
+                    Code = c.Code,
+                    Name = c.Name,
+                    CourseId = c.CourseId ?? 0,
+                    TeacherId = c.TeacherId ?? 0,
+                    EnrollType = c.Type,
+                    ExpectedLessons = c.ExpectedLessons ?? 30,
+                    WeeklySchedules = weekly,
+                    Students = c.StudentClasses.Select(sc => new StudentEnrollDto
+                    {
+                        StudentId = sc.StudentId,
+                        EnrollType = sc.EnrollType ?? 0
+                    }).ToList()
+                });
+            }
+
+            return snapshot;
+        }
 
         private class ProposedScheduleTemp
         {

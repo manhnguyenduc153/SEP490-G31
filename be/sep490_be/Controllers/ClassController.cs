@@ -212,12 +212,48 @@ namespace sep490_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
-        // POST: api/Class/rollback-semester/5
-        [HttpPost("rollback-semester/{semesterId:int}")]
+        // POST: api/Class/save-schedule-version/5
+        [HttpPost("save-schedule-version/{semesterId:int}")]
         [HasPermission(Permissions.Semester.Semester_Scheduling)]
-        public async Task<IActionResult> RollbackSemesterSchedule(int semesterId)
+        public async Task<IActionResult> SaveScheduleVersion(int semesterId, [FromBody] SaveScheduleVersionRequestDto request)
         {
-            var response = await _optService.RollbackSemesterScheduleAsync(semesterId);
+            var response = await _optService.SaveScheduleVersionAsync(semesterId, request.Name);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Class/schedule-versions/5
+        [HttpGet("schedule-versions/{semesterId:int}")]
+        [HasPermission(Permissions.Semester.Semester_Scheduling)]
+        public async Task<IActionResult> GetScheduleVersions(int semesterId)
+        {
+            var response = await _optService.GetScheduleVersionsAsync(semesterId);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // DELETE: api/Class/schedule-version/5
+        [HttpDelete("schedule-version/{versionId:int}")]
+        [HasPermission(Permissions.Semester.Semester_Scheduling)]
+        public async Task<IActionResult> DeleteScheduleVersion(int versionId)
+        {
+            var response = await _optService.DeleteScheduleVersionAsync(versionId);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Class/schedule-version/5/preview
+        [HttpGet("schedule-version/{versionId:int}/preview")]
+        [HasPermission(Permissions.Semester.Semester_Scheduling)]
+        public async Task<IActionResult> GetScheduleVersionPreview(int versionId)
+        {
+            var response = await _optService.GetScheduleVersionPreviewAsync(versionId);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Class/rollback-semester/5/12
+        [HttpPost("rollback-semester/{semesterId:int}/{versionId:int}")]
+        [HasPermission(Permissions.Semester.Semester_Scheduling)]
+        public async Task<IActionResult> RollbackSemesterSchedule(int semesterId, int versionId)
+        {
+            var response = await _optService.RollbackSemesterScheduleAsync(semesterId, versionId);
             return StatusCode(response.StatusCode, response);
         }
     }

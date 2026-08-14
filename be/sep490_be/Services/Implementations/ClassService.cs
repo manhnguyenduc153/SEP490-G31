@@ -487,7 +487,14 @@ namespace sep490_be.Services.Implementations
                 // Delete the class itself
                 await _repository.DeleteAsync(existingEntity);
                 await _repository.SaveChangesAsync();
-                
+
+                // If this was the last remaining class for the semester, its saved schedule
+                // versions no longer reflect anything restorable — clear them out too.
+                if (existingEntity.SemesterId.HasValue)
+                {
+                    await _optService.PurgeScheduleVersionsIfSemesterEmptyAsync(existingEntity.SemesterId.Value);
+                }
+
                 await transaction.CommitAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_CLASS_SUCCESS");
