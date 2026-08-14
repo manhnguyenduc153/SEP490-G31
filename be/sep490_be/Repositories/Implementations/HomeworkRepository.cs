@@ -6,6 +6,7 @@ using sep490_be.Repositories.Common;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using sep490_be.Enums;
 
 namespace sep490_be.Repositories.Implementations
 {
@@ -18,6 +19,15 @@ namespace sep490_be.Repositories.Implementations
         public async Task<bool> ClassExistsAsync(int classId)
         {
             return await _dbContext.Classes.AsNoTracking().AnyAsync(c => c.Id == classId && !c.IsDeleted);
+        }
+
+        public async Task<bool> IsClassOpenForHomeworkAsync(int classId)
+        {
+            var today = DateTime.UtcNow.Date;
+            return await _dbContext.Classes.AsNoTracking().AnyAsync(c =>
+                c.Id == classId && !c.IsDeleted &&
+                c.Status == (int)ClassStatus.Active &&
+                (!c.StartDate.HasValue || c.StartDate.Value.Date <= today));
         }
 
         public async Task<Student?> ResolveStudentByUsernameAsync(string username)
