@@ -108,6 +108,8 @@ namespace sep490_be.Services.Implementations
                 _logger.LogInformation("Broadcasting 'student added' notification for class {ClassId}. New student recipients: {Recipients}",
                     classEntity.Id, string.Join(", ", uniqueRecipients));
 
+                var targetUserIds = new List<string>();
+
                 // Send only to newly added students
                 if (uniqueRecipients.Any())
                 {
@@ -118,8 +120,20 @@ namespace sep490_be.Services.Implementations
                         .Select(u => u.Id)
                         .ToListAsync();
 
+                    targetUserIds.AddRange(userIds);
+                }
+
+                // Also notify admin group via SignalR
+                await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
+
+                var adminUserIds = await GetAdminUserIdsAsync();
+                targetUserIds.AddRange(adminUserIds);
+
+                var distinctUserIds = targetUserIds.Distinct().ToList();
+                if (distinctUserIds.Any())
+                {
                     var fcmTokens = await _dbContext.UserDeviceTokens
-                        .Where(t => userIds.Contains(t.UserId))
+                        .Where(t => distinctUserIds.Contains(t.UserId))
                         .Select(t => t.FcmToken)
                         .ToListAsync();
 
@@ -129,9 +143,6 @@ namespace sep490_be.Services.Implementations
                         { "sentAt", notification.SentAt.ToString("o") }
                     });
                 }
-
-                // Also notify admin group
-                await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
             }
             catch (Exception ex)
             {
@@ -185,6 +196,8 @@ namespace sep490_be.Services.Implementations
                 _logger.LogInformation("Broadcasting 'teacher assigned' notification for class {ClassId}. Teacher recipients: {Recipients}",
                     classEntity.Id, string.Join(", ", recipientUserNames));
 
+                var targetUserIds = new List<string>();
+
                 if (recipientUserNames.Any())
                 {
                     await _hubContext.Clients.Users(recipientUserNames).SendAsync("ReceiveNotification", payload);
@@ -194,8 +207,20 @@ namespace sep490_be.Services.Implementations
                         .Select(u => u.Id)
                         .ToListAsync();
 
+                    targetUserIds.AddRange(userIds);
+                }
+
+                // Also notify admin group via SignalR
+                await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
+
+                var adminUserIds = await GetAdminUserIdsAsync();
+                targetUserIds.AddRange(adminUserIds);
+
+                var distinctUserIds = targetUserIds.Distinct().ToList();
+                if (distinctUserIds.Any())
+                {
                     var fcmTokens = await _dbContext.UserDeviceTokens
-                        .Where(t => userIds.Contains(t.UserId))
+                        .Where(t => distinctUserIds.Contains(t.UserId))
                         .Select(t => t.FcmToken)
                         .ToListAsync();
 
@@ -205,9 +230,6 @@ namespace sep490_be.Services.Implementations
                         { "sentAt", notification.SentAt.ToString("o") }
                     });
                 }
-
-                // Also notify admin group
-                await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
             }
             catch (Exception ex)
             {
@@ -315,6 +337,8 @@ namespace sep490_be.Services.Implementations
                 _logger.LogInformation("Broadcasting notification for class {ClassId}. Title: {Title}. Recipients: {Recipients}", 
                     classEntity.Id, title, string.Join(", ", uniqueRecipients));
 
+                var targetUserIds = new List<string>();
+
                 // Send to direct users (Students & Teacher of this class)
                 if (uniqueRecipients.Any())
                 {
@@ -325,8 +349,21 @@ namespace sep490_be.Services.Implementations
                         .Select(u => u.Id)
                         .ToListAsync();
 
+                    targetUserIds.AddRange(userIds);
+                }
+
+                // Send to Admin/Center manager/Academic staff group via SignalR
+                await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
+
+                // Include Admin/Manager FCM tokens so they receive push notifications on mobile too
+                var adminUserIds = await GetAdminUserIdsAsync();
+                targetUserIds.AddRange(adminUserIds);
+
+                var distinctUserIds = targetUserIds.Distinct().ToList();
+                if (distinctUserIds.Any())
+                {
                     var fcmTokens = await _dbContext.UserDeviceTokens
-                        .Where(t => userIds.Contains(t.UserId))
+                        .Where(t => distinctUserIds.Contains(t.UserId))
                         .Select(t => t.FcmToken)
                         .ToListAsync();
 
@@ -336,14 +373,25 @@ namespace sep490_be.Services.Implementations
                         { "sentAt", notification.SentAt.ToString("o") }
                     });
                 }
-
-                // Send to Admin/Center manager/Academic staff group
-                await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error while saving and broadcasting notification for class {ClassId}", classEntity.Id);
             }
+        }
+
+        private async Task<List<string>> GetAdminUserIdsAsync()
+        {
+            var adminRoleNames = new[] { "Admin", "Quản lý trung tâm", "Ban vận hành", "Ban chuyên môn" };
+            var adminRoleIds = await _dbContext.Roles
+                .Where(r => adminRoleNames.Contains(r.Name))
+                .Select(r => r.Id)
+                .ToListAsync();
+
+            return await _dbContext.UserRoles
+                .Where(ur => adminRoleIds.Contains(ur.RoleId))
+                .Select(ur => ur.UserId)
+                .ToListAsync();
         }
 
         private string GetClassStatusString(int status)
@@ -377,7 +425,7 @@ namespace sep490_be.Services.Implementations
                 int failureCount = 0;
                 var errors = new List<string>();
 
-                foreach (var token in tokens)
+                foreach (var token in tokens.Distinct())
                 {
                     try
                     {
@@ -388,6 +436,29 @@ namespace sep490_be.Services.Implementations
                             {
                                 Title = title,
                                 Body = content
+                            },
+                            Android = new FirebaseAdmin.Messaging.AndroidConfig()
+                            {
+                                Priority = FirebaseAdmin.Messaging.Priority.High,
+                                Notification = new FirebaseAdmin.Messaging.AndroidNotification()
+                                {
+                                    ChannelId = "ieltsmart_channel",
+                                    Sound = "default",
+                                    Icon = "ic_launcher",
+                                    ClickAction = "FLUTTER_NOTIFICATION_CLICK"
+                                }
+                            },
+                            Apns = new FirebaseAdmin.Messaging.ApnsConfig()
+                            {
+                                Headers = new Dictionary<string, string>
+                                {
+                                    { "apns-priority", "10" }
+                                },
+                                Aps = new FirebaseAdmin.Messaging.Aps()
+                                {
+                                    Sound = "default",
+                                    ContentAvailable = true
+                                }
                             },
                             Data = data
                         };
