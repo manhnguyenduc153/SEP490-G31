@@ -52,6 +52,7 @@ namespace sep490_be.Models
         public DbSet<Semester> Semesters { get; set; }
         public DbSet<TeacherAvailability> TeacherAvailabilities { get; set; }
         public DbSet<StudentRegistration> StudentRegistrations { get; set; }
+        public DbSet<ScheduleVersion> ScheduleVersions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
