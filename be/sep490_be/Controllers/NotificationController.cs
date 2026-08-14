@@ -75,6 +75,81 @@ namespace sep490_be.Controllers
             }
         }
 
+        // POST: api/Notification/test-fcm
+        [HttpPost("test-fcm")]
+        public async Task<IActionResult> TestFcm([FromBody] DTO.Notification.RegisterDeviceTokenDto? dto)
+        {
+            try
+            {
+                var username = User.Identity?.Name;
+                var user = !string.IsNullOrEmpty(username) ? await _userManager.FindByNameAsync(username) : null;
+                
+                var tokens = new List<string>();
+                if (!string.IsNullOrEmpty(dto?.FcmToken) && dto.FcmToken != "string")
+                {
+                    tokens.Add(dto.FcmToken);
+                }
+                else if (user != null)
+                {
+                    tokens = await _dbContext.UserDeviceTokens
+                        .Where(t => t.UserId == user.Id)
+                        .Select(t => t.FcmToken)
+                        .ToListAsync();
+                }
+
+                if (!tokens.Any())
+                {
+                    return BadRequest(new { success = false, message = "Không tìm thấy FCM Token nào của user này trong Database. Hãy đăng nhập lại trên Mobile để nạp token!" });
+                }
+
+                var messaging = FirebaseAdmin.Messaging.FirebaseMessaging.DefaultInstance;
+                if (messaging == null)
+                {
+                    return StatusCode(500, new { success = false, message = "Firebase Admin SDK chưa được khởi tạo. Kiểm tra lại file firebase_service_account.json trên server." });
+                }
+
+                var results = new List<object>();
+                foreach (var token in tokens)
+                {
+                    try
+                    {
+                        var msg = new FirebaseAdmin.Messaging.Message()
+                        {
+                            Token = token,
+                            Notification = new FirebaseAdmin.Messaging.Notification()
+                            {
+                                Title = "Test Push Notification",
+                                Body = "Hệ thống IELTSmart gửi thông báo thành công!"
+                            },
+                            Android = new FirebaseAdmin.Messaging.AndroidConfig()
+                            {
+                                Priority = FirebaseAdmin.Messaging.Priority.High,
+                                Notification = new FirebaseAdmin.Messaging.AndroidNotification()
+                                {
+                                    ChannelId = "ieltsmart_channel",
+                                    Sound = "default",
+                                    Icon = "ic_launcher",
+                                    ClickAction = "FLUTTER_NOTIFICATION_CLICK"
+                                }
+                            }
+                        };
+                        var resp = await messaging.SendAsync(msg);
+                        results.Add(new { token = token, status = "Success", messageId = resp });
+                    }
+                    catch (Exception ex)
+                    {
+                        results.Add(new { token = token, status = "Failed", error = ex.Message });
+                    }
+                }
+
+                return Ok(new { success = true, results = results });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
         // GET: api/Notification
         [HttpGet]
         public async Task<IActionResult> GetMyNotifications()
