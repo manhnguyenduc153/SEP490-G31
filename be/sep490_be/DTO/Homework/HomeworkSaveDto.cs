@@ -25,7 +25,7 @@ namespace sep490_be.DTO.Homework
         
         public DateTime? DueDate { get; set; }
         
-        [Range(0, 1000, ErrorMessage = "ERR_HOMEWORK_TOTAL_SCORE_INVALID")]
+        [Range(10, 10, ErrorMessage = "ERR_HOMEWORK_TOTAL_SCORE_INVALID")]
         public decimal TotalScore { get; set; } = 10;
         
         [Range(0, 1, ErrorMessage = "ERR_HOMEWORK_STATUS_INVALID")]
