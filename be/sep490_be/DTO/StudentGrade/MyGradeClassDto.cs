@@ -10,5 +10,7 @@ namespace sep490_be.DTO.StudentGrade
         public string? CourseName { get; set; }
         public decimal AverageScore { get; set; }
         public List<MyGradeComponentScoreDto> Components { get; set; } = new();
+        public List<MyGradeHomeworkDto> Homeworks { get; set; } = new();
+        public List<MyGradeExamDto> Exams { get; set; } = new();
     }
 }
