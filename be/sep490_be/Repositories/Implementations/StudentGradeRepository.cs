@@ -82,6 +82,62 @@ namespace sep490_be.Repositories.Implementations
             return Math.Max(0m, Math.Min(10m, score.Value / total * 10m));
         }
 
+        public async Task<List<sep490_be.DTO.StudentGrade.MyGradeHomeworkDto>> GetHomeworkScoresAsync(int classId, int studentId)
+        {
+            var homeworks = await _dbContext.Homeworks.AsNoTracking()
+                .Where(x => x.ClassId == classId)
+                .Select(x => new { x.Id, x.Title, x.TotalScore })
+                .ToListAsync();
+
+            if (homeworks.Count == 0) return new();
+
+            var homeworkIds = homeworks.Select(x => x.Id).ToList();
+            var submissions = await _dbContext.HomeworkSubmissions.AsNoTracking()
+                .Where(x => x.StudentId == studentId && homeworkIds.Contains(x.HomeworkId))
+                .GroupBy(x => x.HomeworkId)
+                .Select(g => new { HomeworkId = g.Key, Score = g.Max(x => x.Score) })
+                .ToListAsync();
+
+            var scoreByHomework = submissions.ToDictionary(x => x.HomeworkId, x => x.Score);
+
+            return homeworks.Select(h => new sep490_be.DTO.StudentGrade.MyGradeHomeworkDto
+            {
+                Id = h.Id,
+                Title = h.Title,
+                TotalScore = h.TotalScore,
+                Score = scoreByHomework.TryGetValue(h.Id, out var s) ? s : null,
+                NormalizedScore = NormalizeScore(scoreByHomework.TryGetValue(h.Id, out var s2) ? s2 : null, h.TotalScore)
+            }).ToList();
+        }
+
+        public async Task<List<sep490_be.DTO.StudentGrade.MyGradeExamDto>> GetExamScoresAsync(int classId, int studentId)
+        {
+            var exams = await _dbContext.Exams.AsNoTracking()
+                .Where(x => x.ClassId == classId)
+                .Select(x => new { x.Id, x.Title, x.TotalScore })
+                .ToListAsync();
+
+            if (exams.Count == 0) return new();
+
+            var examIds = exams.Select(x => x.Id).ToList();
+            var attempts = await _dbContext.ExamAttempts.AsNoTracking()
+                .Where(x => x.StudentId == studentId && examIds.Contains(x.ExamId))
+                .GroupBy(x => x.ExamId)
+                .Select(g => new { ExamId = g.Key, Score = g.Max(x => x.Score) })
+                .ToListAsync();
+
+            var scoreByExam = attempts.ToDictionary(x => x.ExamId, x => x.Score);
+
+            return exams.Select(e => new sep490_be.DTO.StudentGrade.MyGradeExamDto
+            {
+                Id = e.Id,
+                Title = e.Title,
+                TotalScore = e.TotalScore ?? 10m,
+                Score = scoreByExam.TryGetValue(e.Id, out var s) ? s : null,
+                NormalizedScore = NormalizeScore(scoreByExam.TryGetValue(e.Id, out var s2) ? s2 : null, e.TotalScore ?? 10m)
+            }).ToList();
+        }
+
         public async Task<Student?> ResolveStudentByIdentifiersAsync(IEnumerable<string> identifiers, HashSet<string> lookupSet)
         {
             var lookup = identifiers.ToList();

@@ -117,6 +117,9 @@ namespace sep490_be.Services.Implementations
                     ? scoreComponents.Sum(x => x.Score * Math.Max(0m, x.Weight)) / totalWeight
                     : 0m;
 
+                var homeworkScores = await _repository.GetHomeworkScoresAsync(classInfo.Id, studentId);
+                var examScores = await _repository.GetExamScoresAsync(classInfo.Id, studentId);
+
                 result.Add(new MyGradeClassDto
                 {
                     ClassId = classInfo.Id,
@@ -126,7 +129,9 @@ namespace sep490_be.Services.Implementations
                     CourseCode = classInfo.Course?.Code,
                     CourseName = classInfo.Course?.Name,
                     AverageScore = Round1(average),
-                    Components = scoreComponents
+                    Components = scoreComponents,
+                    Homeworks = homeworkScores,
+                    Exams = examScores
                 });
             }
 
