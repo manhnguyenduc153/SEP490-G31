@@ -1250,10 +1250,8 @@ namespace sep490_be.Services.Implementations
                         }
                         else
                         {
-                            bool hasBeenGraded = latestAttempt.Score.HasValue && (
-                                latestAttempt.Score > 0 ||
-                                _examRepository.FindAllAnswers().Any(ea => ea.ExamAttemptId == latestAttempt.Id && (ea.GradedAt.HasValue || !string.IsNullOrWhiteSpace(ea.TeacherComment)))
-                            );
+                            bool hasBeenGraded = latestAttempt.Score.HasValue ||
+                                _examRepository.FindAllAnswers().Any(ea => ea.ExamAttemptId == latestAttempt.Id && (ea.GradedAt.HasValue || !string.IsNullOrWhiteSpace(ea.TeacherComment)));
 
                             if (hasBeenGraded)
                             {
