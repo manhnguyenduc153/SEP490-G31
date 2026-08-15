@@ -96,6 +96,12 @@ namespace sep490_be.Services.Implementations
                     ["homework"] = await _repository.CalculateHomeworkScoreAsync(classInfo.Id, studentId)
                 };
 
+                var examSkillScores = await _repository.CalculateExamSkillScoresAsync(classInfo.Id, studentId);
+                foreach (var kvp in examSkillScores)
+                {
+                    rawScores[kvp.Key] = kvp.Value;
+                }
+
                 var scoreComponents = components.Select(component =>
                 {
                     var rawScore = rawScores.TryGetValue(component.Code, out var value) ? value : 0m;
