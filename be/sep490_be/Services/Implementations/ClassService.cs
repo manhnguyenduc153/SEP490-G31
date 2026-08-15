@@ -428,7 +428,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                if (existingEntity.Status != (int)ClassStatus.Planning)
+                if (existingEntity.Status != (int)ClassStatus.Planning && existingEntity.Status != (int)ClassStatus.Cancelled)
                 {
                     return ApiResponse<bool>.Fail("ERR_CLASS_ALREADY_STARTED", StatusCodes.Status400BadRequest);
                 }
