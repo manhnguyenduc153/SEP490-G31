@@ -560,6 +560,55 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        // Draft -> Published is always allowed. Published -> Draft is only allowed
+        // while the exam has no submissions yet; once a student has attempted it,
+        // the status is locked as Published so grading history stays consistent.
+        public async Task<ApiResponse<ExamDto>> ToggleStatusAsync(int id)
+        {
+            try
+            {
+                var exam = await _examRepository.FindAll(trackChanges: true)
+                    .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+
+                if (exam == null)
+                {
+                    return ApiResponse<ExamDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                string successMessage;
+                if (exam.Status == 2)
+                {
+                    exam.Status = 1;
+                    successMessage = "PUBLISH_EXAM_SUCCESS";
+                }
+                else
+                {
+                    if (await _examRepository.HasAttemptsAsync(id))
+                    {
+                        return ApiResponse<ExamDto>.Fail("ERR_EXAM_HAS_SUBMISSIONS", StatusCodes.Status400BadRequest);
+                    }
+
+                    exam.Status = 2;
+                    successMessage = "UNPUBLISH_EXAM_SUCCESS";
+                }
+                exam.UpdatedAt = DateTime.UtcNow;
+
+                await _examRepository.UpdateAsync(exam);
+                await _examRepository.SaveChangesAsync();
+
+                var result = await GetByIdAsync(id);
+                if (result.Success && result.Data != null)
+                {
+                    return ApiResponse<ExamDto>.Ok(result.Data, successMessage);
+                }
+                return ApiResponse<ExamDto>.Fail("Error retrieving exam details");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<ExamDto>.Fail("Error changing exam status: " + ex.Message);
+            }
+        }
+
         public async Task<ApiResponse<ExamDto>> CopyAsync(int id)
         {
             await _examRepository.BeginTransactionAsync();
