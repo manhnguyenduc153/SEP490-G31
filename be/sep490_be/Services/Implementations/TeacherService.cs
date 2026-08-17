@@ -305,27 +305,65 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<TeacherDto>>.Fail("ERR_TEACHER_IMPORT_EMPTY", StatusCodes.Status400BadRequest);
                 }
 
+                // Pre-load all existing active/inactive codes, emails, phones to memory for fast checking
+                var existingTeachers = await _repository.FindAll()
+                    .Select(t => new { t.Code, t.Email, t.Phone })
+                    .ToListAsync();
+
+                var existingCodes = new HashSet<string>(
+                    existingTeachers.Where(t => !string.IsNullOrEmpty(t.Code)).Select(t => t.Code.Trim()), 
+                    StringComparer.OrdinalIgnoreCase);
+
+                var existingEmails = new HashSet<string>(
+                    existingTeachers.Where(t => !string.IsNullOrEmpty(t.Email)).Select(t => t.Email!.Trim()), 
+                    StringComparer.OrdinalIgnoreCase);
+
+                var existingPhones = new HashSet<string>(
+                    existingTeachers.Where(t => !string.IsNullOrEmpty(t.Phone)).Select(t => t.Phone!.Trim()), 
+                    StringComparer.OrdinalIgnoreCase);
+
                 var createdTeachers = new List<Teacher>();
-                var importCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var importEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var batchCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var batchEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var batchPhones = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var dto in dtos)
                 {
+                    var cleanCode = dto.Code?.Trim() ?? string.Empty;
+                    var cleanEmail = dto.Email?.Trim();
+                    var cleanPhone = dto.Phone?.Trim();
+
+                    // Check if record exists in DB or in current batch (by Code, Email, or Phone) -> Skip
+                    if (!string.IsNullOrEmpty(cleanCode) && (existingCodes.Contains(cleanCode) || batchCodes.Contains(cleanCode)))
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrEmpty(cleanEmail) && (existingEmails.Contains(cleanEmail) || batchEmails.Contains(cleanEmail)))
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrEmpty(cleanPhone) && (existingPhones.Contains(cleanPhone) || batchPhones.Contains(cleanPhone)))
+                    {
+                        continue;
+                    }
+
+                    // Validate other field constraints (format, length, etc.)
                     var validationError = await ValidateAsync(dto, isEdit: false);
                     if (validationError != null)
                     {
+                        // If validation error is duplicate code/email, skip
+                        if (validationError == "ERR_CODE_DUPLICATE" || validationError == "ERR_EMAIL_DUPLICATE")
+                        {
+                            continue;
+                        }
                         return ApiResponse<List<TeacherDto>>.Fail(validationError, StatusCodes.Status400BadRequest);
                     }
 
-                    if (!importCodes.Add(dto.Code.Trim()))
-                    {
-                        return ApiResponse<List<TeacherDto>>.Fail("ERR_CODE_DUPLICATE", StatusCodes.Status400BadRequest);
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(dto.Email) && !importEmails.Add(dto.Email.Trim()))
-                    {
-                        return ApiResponse<List<TeacherDto>>.Fail("ERR_EMAIL_DUPLICATE", StatusCodes.Status400BadRequest);
-                    }
+                    if (!string.IsNullOrEmpty(cleanCode)) batchCodes.Add(cleanCode);
+                    if (!string.IsNullOrEmpty(cleanEmail)) batchEmails.Add(cleanEmail);
+                    if (!string.IsNullOrEmpty(cleanPhone)) batchPhones.Add(cleanPhone);
 
                     var entity = dto.Adapt<Teacher>();
                     entity.Id = 0;
@@ -337,7 +375,10 @@ namespace sep490_be.Services.Implementations
                     createdTeachers.Add(entity);
                 }
 
-                await _repository.SaveChangesAsync();
+                if (createdTeachers.Any())
+                {
+                    await _repository.SaveChangesAsync();
+                }
 
                 var resultDtos = createdTeachers.Select(MapToDto).ToList();
                 // Populate HasAccount
@@ -352,7 +393,7 @@ namespace sep490_be.Services.Implementations
                     dto.HasAccount = dto.Email != null && existingAccountEmails.Contains(dto.Email);
                 }
 
-                return ApiResponse<List<TeacherDto>>.Created(resultDtos, "IMPORT_TEACHERS_SUCCESS");
+                return ApiResponse<List<TeacherDto>>.Ok(resultDtos, "IMPORT_TEACHERS_SUCCESS");
             }
             catch (Exception)
             {
@@ -435,6 +476,8 @@ namespace sep490_be.Services.Implementations
             Address = entity.Address,
             Status = entity.Status,
             Description = entity.Description,
+            GradeLevel = entity.GradeLevel.HasValue ? (int)entity.GradeLevel.Value : null,
+            GradeLevelName = entity.GradeLevel.HasValue ? entity.GradeLevel.Value.GetStringValue() : null,
             Avatar = entity.Avatar,
             Certificates = DeserializeCertificates(entity.Certificate)
         };
@@ -653,6 +696,9 @@ namespace sep490_be.Services.Implementations
                 if (duplicateEmail != null)
                     return "ERR_EMAIL_DUPLICATE";
             }
+
+            if (dto.GradeLevel.HasValue && !Enum.IsDefined(typeof(GradeLevel), dto.GradeLevel.Value))
+                return "ERR_TEACHER_GRADE_LEVEL_INVALID";
 
             return null;
         }

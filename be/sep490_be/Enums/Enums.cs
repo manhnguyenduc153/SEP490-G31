@@ -222,18 +222,18 @@ namespace sep490_be.Enums
 
     public enum GradeLevel
     {
-        [StringValue("Foundation")]
-        Foundation = 1,
-        [StringValue("Pre-IELTS")]
-        PreIelts = 2,
-        [StringValue("IELTS 4.0 - 5.0")]
-        Ielts4_5 = 3,
-        [StringValue("IELTS 5.0 - 6.0")]
-        Ielts5_6 = 4,
-        [StringValue("IELTS 6.0 - 6.5")]
-        Ielts6_65 = 5,
-        [StringValue("IELTS 6.5+")]
-        Ielts65Plus = 6
+        [StringValue("IELTS 6.5")]
+        Ielts65 = 65,
+        [StringValue("IELTS 7.0")]
+        Ielts70 = 70,
+        [StringValue("IELTS 7.5")]
+        Ielts75 = 75,
+        [StringValue("IELTS 8.0")]
+        Ielts80 = 80,
+        [StringValue("IELTS 8.5")]
+        Ielts85 = 85,
+        [StringValue("IELTS 9.0")]
+        Ielts90 = 90
     }
 
     public enum SemesterStatus

@@ -943,6 +943,7 @@ namespace sep490_be.Services.Implementations
             public int PreferredDaysOfWeek { get; set; } // Bitmask
             public int ExpectedLessons { get; set; } = 30;
             public int EnrollType { get; set; } = 0; // 0 = Offline, 1 = Online
+            public GradeLevel? RequiredGradeLevel { get; set; }
         }
 
         private List<DraftClass> GroupStudentsIntoDraftClasses(
@@ -1165,7 +1166,8 @@ namespace sep490_be.Services.Implementations
                                 PreferredSlotIndex = chosenSlot,
                                 PreferredDaysOfWeek = chosenDaysMask,
                                 ExpectedLessons = expectedLessons,
-                                EnrollType = groupEnrollType
+                                EnrollType = groupEnrollType,
+                                RequiredGradeLevel = course.RequiredGradeLevel
                             });
                         }
                     }
@@ -1282,6 +1284,7 @@ namespace sep490_be.Services.Implementations
                 var teacherVar = new IntVar[numClasses];
                 var roomVar = new IntVar[numClasses];
                 var roomPenaltyVar = new IntVar[numClasses];
+                var gradeWasteVar = new IntVar[numClasses];
                 var dayVar = new IntVar[numClasses, freq];
                 var slotIndexVar = new IntVar[numClasses, freq];
                 var slotVar = new IntVar[numClasses, freq]; // flat = day * numFixed + slotIndex
@@ -1311,6 +1314,34 @@ namespace sep490_be.Services.Implementations
                         return cap >= draft.Size ? (cap - draft.Size) : 9999;
                     }).ToArray();
                     model.AddElement(roomVar[i], roomPenaltiesForClass, roomPenaltyVar[i]);
+
+                    // ── Teacher Grade Level Qualification & Waste Penalty ────────────
+                    // Hard Constraint: Teacher's band must be >= Course's required band
+                    if (draft.RequiredGradeLevel.HasValue)
+                    {
+                        int reqLevel = (int)draft.RequiredGradeLevel.Value;
+                        for (int tIdx = 0; tIdx < numTeachers; tIdx++)
+                        {
+                            var t = teachers[tIdx];
+                            // If teacher has no grade level specified, or their level < course requirement -> CANNOT teach this class
+                            int tLevel = t.GradeLevel.HasValue ? (int)t.GradeLevel.Value : 0;
+                            if (tLevel < reqLevel)
+                            {
+                                model.Add(teacherVar[i] != tIdx);
+                            }
+                        }
+                    }
+
+                    // Soft Penalty: Minimize grade level waste (teacher level - required level)
+                    // This ensures high-band teachers are prioritized for high-band courses first,
+                    // and lower-band teachers (who qualify) take the remaining classes.
+                    gradeWasteVar[i] = model.NewIntVar(0, 9999, $"gradeWaste_{i}");
+                    long[] gradeWasteForClass = teachers.Select(t => {
+                        int tLevel = t.GradeLevel.HasValue ? (int)t.GradeLevel.Value : 65;
+                        int reqLevel = draft.RequiredGradeLevel.HasValue ? (int)draft.RequiredGradeLevel.Value : 65;
+                        return tLevel >= reqLevel ? (long)(tLevel - reqLevel) : 9999L;
+                    }).ToArray();
+                    model.AddElement(teacherVar[i], gradeWasteForClass, gradeWasteVar[i]);
 
                     // Allowed Days for this draft class based on bitmask
                     var classAllowedDaysList = new List<int>();
@@ -1556,6 +1587,13 @@ namespace sep490_be.Services.Implementations
                 var weightedRoomPenalty = model.NewIntVar(0, 999999 * 5, "weightedRoomPenalty");
                 model.Add(weightedRoomPenalty == totalRoomPenalty * 5);
                 objectiveExpressions.Add(weightedRoomPenalty);
+
+                // Add grade waste penalty (minimize assigning high-band teachers to lower-band courses)
+                var totalGradeWaste = model.NewIntVar(0, 999999, "totalGradeWaste");
+                model.Add(totalGradeWaste == LinearExpr.Sum(gradeWasteVar));
+                var weightedGradeWaste = model.NewIntVar(0, 999999 * 20, "weightedGradeWaste");
+                model.Add(weightedGradeWaste == totalGradeWaste * 20);
+                objectiveExpressions.Add(weightedGradeWaste);
 
                 // ── Optimization: Minimize active teaching days & gaps for teachers ───────────
                 if (numClasses > 1)
