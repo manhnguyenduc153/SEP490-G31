@@ -174,7 +174,9 @@ namespace sep490_be.Services.Implementations
             StatusName = ((GeneralStatus)entity.Status).GetStringValue(),
             Duration = entity.Duration,
             Price = entity.Price,
-            Description = entity.Description
+            Description = entity.Description,
+            RequiredGradeLevel = entity.RequiredGradeLevel.HasValue ? (int)entity.RequiredGradeLevel.Value : null,
+            RequiredGradeLevelName = entity.RequiredGradeLevel.HasValue ? entity.RequiredGradeLevel.Value.GetStringValue() : null
         };
 
         private async Task<string?> ValidateAsync(CourseSaveDto dto, bool isEdit)
@@ -198,6 +200,9 @@ namespace sep490_be.Services.Implementations
 
             if (dto.Price.HasValue && dto.Price.Value < 0)
                 return "ERR_PRICE_INVALID";
+
+            if (dto.RequiredGradeLevel.HasValue && !Enum.IsDefined(typeof(GradeLevel), dto.RequiredGradeLevel.Value))
+                return "ERR_COURSE_GRADE_LEVEL_INVALID";
 
             var (codeExists, nameExists) = await ValidationHelper.CheckDuplicateCodeAndNameAsync(_repository, isEdit ? dto.Id : (int?)null, dto.Code, dto.Name);
             if (codeExists)

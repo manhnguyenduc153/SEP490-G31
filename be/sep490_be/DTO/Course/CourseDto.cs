@@ -1,4 +1,4 @@
-﻿namespace sep490_be.DTO.Course
+namespace sep490_be.DTO.Course
 {
     public class CourseDto
     {
@@ -10,6 +10,8 @@
         public int? Duration { get; set; }
         public double? Price { get; set; }
         public string? Description { get; set; }
+        public int? RequiredGradeLevel { get; set; }
+        public string? RequiredGradeLevelName { get; set; }
     }
 }
 
