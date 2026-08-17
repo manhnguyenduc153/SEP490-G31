@@ -91,16 +91,7 @@ namespace sep490_be.Services.Implementations
                 var componentIds = components.Select(x => x.Id).ToList();
                 var overrides = await _repository.GetStudentOverridesAsync(enrollment.Id, componentIds);
 
-                var rawScores = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["homework"] = await _repository.CalculateHomeworkScoreAsync(classInfo.Id, studentId)
-                };
-
-                var examSkillScores = await _repository.CalculateExamSkillScoresAsync(classInfo.Id, studentId);
-                foreach (var kvp in examSkillScores)
-                {
-                    rawScores[kvp.Key] = kvp.Value;
-                }
+                var rawScores = await _repository.CalculateExamSkillScoresAsync(classInfo.Id, studentId);
 
                 var scoreComponents = components.Select(component =>
                 {
@@ -479,12 +470,6 @@ namespace sep490_be.Services.Implementations
         private async Task EnsureDefaultComponentsAsync(int courseId)
         {
             await _repository.EnsureDefaultComponentsAsync(courseId);
-        }
-
-        private static decimal NormalizeScore(decimal? score, decimal total)
-        {
-            if (!score.HasValue || total <= 0) return 0m;
-            return Math.Max(0m, Math.Min(10m, score.Value / total * 10m));
         }
 
         private static decimal Round1(decimal value) => Math.Round(value, 1, MidpointRounding.AwayFromZero);
