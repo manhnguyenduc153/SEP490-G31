@@ -12,7 +12,7 @@ namespace sep490_be.Repositories.Interfaces
         Task<List<sep490_be.Models.StudentClass>> GetStudentEnrollmentsAsync(int studentId);
         Task<Dictionary<int, decimal?>> GetStudentOverridesAsync(int studentClassId, List<int> componentIds);
         Task<decimal> CalculateAttendanceScoreAsync(int classId, int studentId);
-        Task<decimal> CalculateHomeworkScoreAsync(int classId, int studentId);
+        Task<Dictionary<string, decimal>> CalculateExamSkillScoresAsync(int classId, int studentId);
         Task<Student?> ResolveStudentByIdentifiersAsync(IEnumerable<string> identifiers, HashSet<string> lookupSet);
         Task<bool> IsParentOfStudentAsync(string email, int studentId);
         Task<bool> StudentExistsAsync(int studentId);
