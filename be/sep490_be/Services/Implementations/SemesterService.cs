@@ -52,7 +52,7 @@ namespace sep490_be.Services.Implementations
             {
                 var entities = await _semesterRepository.FindAll()
                     .Where(s => !s.IsDeleted)
-                    .OrderByDescending(s => s.StartDate)
+                    .OrderByDescending(s => s.Id)
                     .ToListAsync();
 
                 var semesterIds = entities.Select(e => e.Id).ToList();
@@ -116,14 +116,32 @@ namespace sep490_be.Services.Implementations
                 {
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_CODE_NAME_REQUIRED", StatusCodes.Status400BadRequest);
                 }
-
-                // Check existing active semester with same code
-                var existing = await _semesterRepository.FindAll().FirstOrDefaultAsync(s => s.Code == dto.Code && !s.IsDeleted);
-                if (existing != null)
+                
+                var (codeExists, nameExists) = await ValidationHelper.CheckDuplicateCodeAndNameAsync(_semesterRepository, null, dto.Code, dto.Name);
+                if (codeExists)
                 {
                     return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_CODE_EXISTS", StatusCodes.Status400BadRequest);
                 }
-
+                if (nameExists)
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_NAME_EXISTS", StatusCodes.Status400BadRequest);
+                }
+                
+                if (dto.EndDate < dto.StartDate)
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_END_DATE_BEFORE_START_DATE", StatusCodes.Status400BadRequest);
+                }
+                
+                if (dto.StartDate.AddMonths(1) > dto.EndDate)
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_DURATION_MIN_ONE_MONTH", StatusCodes.Status400BadRequest);
+                }
+                
+                if (dto.EndDate > dto.StartDate.AddMonths(3))
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_DURATION_MAX_THREE_MONTHS", StatusCodes.Status400BadRequest);
+                }
+                
                 var entity = new Semester
                 {
                     Code = dto.Code,
@@ -133,14 +151,14 @@ namespace sep490_be.Services.Implementations
                     Status = dto.Status != 0 ? dto.Status : (int)SemesterStatus.Active,
                     TextSearch = dto.TextSearch
                 };
-
+                
                 await _semesterRepository.AddAsync(entity);
                 await _semesterRepository.SaveChangesAsync();
-
+                
                 var result = MapToDto(entity);
                 result.ClassCount = 0;
                 result.HasSchedules = false;
-
+                
                 return ApiResponse<SemesterDto>.Created(result, "CREATE_SEMESTER_SUCCESS");
             }
             catch (Exception)
@@ -162,11 +180,38 @@ namespace sep490_be.Services.Implementations
                 var classCount = await _classRepository.FindAll().CountAsync(c => c.SemesterId == dto.Id && !c.IsDeleted);
                 var hasSchedules = await _scheduleRepository.FindAll().AnyAsync(cs => cs.Class.SemesterId == dto.Id && !cs.Class.IsDeleted && !cs.IsDeleted);
 
+                var (codeExists, nameExists) = await ValidationHelper.CheckDuplicateCodeAndNameAsync(_semesterRepository, dto.Id, dto.Code, dto.Name);
+                if (codeExists)
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_CODE_EXISTS", StatusCodes.Status400BadRequest);
+                }
+                if (nameExists)
+                {
+                    return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_NAME_EXISTS", StatusCodes.Status400BadRequest);
+                }
+
                 if (hasSchedules)
                 {
                     if (entity.StartDate != dto.StartDate || entity.EndDate != dto.EndDate)
                     {
                         return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_HAS_SCHEDULES_CANNOT_CHANGE_DATES", StatusCodes.Status400BadRequest);
+                    }
+                }
+                else
+                {
+                    if (dto.EndDate < dto.StartDate)
+                    {
+                        return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_END_DATE_BEFORE_START_DATE", StatusCodes.Status400BadRequest);
+                    }
+
+                    if (dto.StartDate.AddMonths(1) > dto.EndDate)
+                    {
+                        return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_DURATION_MIN_ONE_MONTH", StatusCodes.Status400BadRequest);
+                    }
+
+                    if (dto.EndDate > dto.StartDate.AddMonths(3))
+                    {
+                        return ApiResponse<SemesterDto>.Fail("ERR_SEMESTER_DURATION_MAX_THREE_MONTHS", StatusCodes.Status400BadRequest);
                     }
                 }
 
@@ -205,8 +250,14 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                entity.IsDeleted = true;
-                await _semesterRepository.UpdateAsync(entity);
+                var hasClasses = await _classRepository.FindAll()
+                    .AnyAsync(c => c.SemesterId == id && !c.IsDeleted);
+                if (hasClasses)
+                {
+                    return ApiResponse<bool>.Fail("ERR_SEMESTER_HAS_CLASSES", StatusCodes.Status400BadRequest);
+                }
+
+                await _semesterRepository.DeleteAsync(entity);
                 await _semesterRepository.SaveChangesAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_SEMESTER_SUCCESS");
@@ -235,6 +286,7 @@ namespace sep490_be.Services.Implementations
                     Id = x.Id,
                     TeacherId = x.TeacherId,
                     TeacherName = x.Teacher?.Name,
+                    TeacherCode = x.Teacher?.Code,
                     SemesterId = x.SemesterId,
                     SemesterName = x.Semester?.Name,
                     DayOfWeek = x.DayOfWeek,
@@ -243,6 +295,38 @@ namespace sep490_be.Services.Implementations
                 }).ToList();
 
                 return ApiResponse<List<TeacherAvailabilityDto>>.Ok(dtos, "GET_TEACHER_AVAILABILITY_SUCCESS");
+            }
+            catch (Exception)
+            {
+                return ApiResponse<List<TeacherAvailabilityDto>>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<TeacherAvailabilityDto>>> GetAllTeacherAvailabilitiesAsync(int semesterId)
+        {
+            try
+            {
+                var list = await _availabilityRepository.FindAll()
+                    .Include(t => t.Teacher)
+                    .Include(t => t.Semester)
+                    .Where(t => t.SemesterId == semesterId)
+                    .ToListAsync();
+
+                var fixedSlots = FixedTimeSlot.All;
+                var dtos = list.Select(x => new TeacherAvailabilityDto
+                {
+                    Id = x.Id,
+                    TeacherId = x.TeacherId,
+                    TeacherName = x.Teacher?.Name,
+                    TeacherCode = x.Teacher?.Code,
+                    SemesterId = x.SemesterId,
+                    SemesterName = x.Semester?.Name,
+                    DayOfWeek = x.DayOfWeek,
+                    SlotIndex = x.SlotIndex,
+                    SlotName = x.SlotIndex >= 0 && x.SlotIndex < fixedSlots.Length ? fixedSlots[x.SlotIndex].Name : $"Ca {x.SlotIndex + 1}"
+                }).ToList();
+
+                return ApiResponse<List<TeacherAvailabilityDto>>.Ok(dtos, "GET_ALL_TEACHER_AVAILABILITIES_SUCCESS");
             }
             catch (Exception)
             {
@@ -291,6 +375,79 @@ namespace sep490_be.Services.Implementations
                             DayOfWeek = slot.DayOfWeek,
                             SlotIndex = slot.SlotIndex
                         });
+                    }
+                }
+
+                await _semesterRepository.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return ApiResponse<bool>.Ok(true, "SAVE_TEACHER_AVAILABILITY_SUCCESS");
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
+                return ApiResponse<bool>.Fail("ERR_SYSTEM_ERROR", StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<bool>> SaveTeacherAvailabilitiesBulkAsync(List<TeacherAvailabilitySaveDto> dtos)
+        {
+            if (dtos == null || !dtos.Any())
+            {
+                return ApiResponse<bool>.Fail("ERR_NO_DATA_TO_SAVE", StatusCodes.Status400BadRequest);
+            }
+
+            using var transaction = await _semesterRepository.BeginTransactionAsync();
+            try
+            {
+                var semesterId = dtos.First().SemesterId;
+                var semester = await _semesterRepository.GetByIdAsync(semesterId);
+                if (semester == null || semester.IsDeleted)
+                {
+                    return ApiResponse<bool>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                // Check teachers with schedules in this semester to lock them
+                var teachersWithSchedules = await _scheduleRepository.FindAll()
+                    .Where(cs => cs.Class.SemesterId == semesterId && !cs.IsDeleted && !cs.Class.IsDeleted)
+                    .Select(cs => cs.TeacherId)
+                    .Distinct()
+                    .ToListAsync();
+
+                var fixedSlots = FixedTimeSlot.All;
+
+                foreach (var dto in dtos)
+                {
+                    // Skip if teacher has schedule (availability is locked)
+                    if (teachersWithSchedules.Contains(dto.TeacherId))
+                    {
+                        continue;
+                    }
+
+                    // Clear existing availabilities for this teacher and semester
+                    var existing = await _availabilityRepository.FindAll()
+                        .Where(t => t.SemesterId == semesterId && t.TeacherId == dto.TeacherId)
+                        .ToListAsync();
+                    await _availabilityRepository.DeleteRangeAsync(existing);
+
+                    // Add new slots
+                    if (dto.Slots != null && dto.Slots.Any())
+                    {
+                        foreach (var slot in dto.Slots)
+                        {
+                            if (slot.DayOfWeek < 0 || slot.DayOfWeek > 6 || slot.SlotIndex < 0 || slot.SlotIndex >= fixedSlots.Length)
+                            {
+                                continue;
+                            }
+
+                            await _availabilityRepository.AddAsync(new TeacherAvailability
+                            {
+                                TeacherId = dto.TeacherId,
+                                SemesterId = semesterId,
+                                DayOfWeek = slot.DayOfWeek,
+                                SlotIndex = slot.SlotIndex
+                            });
+                        }
                     }
                 }
 
@@ -471,11 +628,13 @@ namespace sep490_be.Services.Implementations
 
                         // 2. Clear existing registration for this student/semester/course to avoid duplication
                         var existing = await _studentRegistrationRepository.GetRegistrationByStudentCourseSemesterAsync(student.Id, dto.CourseId, dto.SemesterId);
-                        
+
                         if (existing != null)
                         {
                             // Overwrite or update
                             existing.PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>());
+                            existing.PreferredSlotIndex = dto.PreferredSlotIndex;
+                            existing.PreferredDaysOfWeek = dto.PreferredDaysOfWeek;
                             existing.Status = (int)StudentRegistrationStatus.Pending;
                             existing.EnrollType = dto.EnrollType;
                             await _studentRegistrationRepository.UpdateAsync(existing);
@@ -493,6 +652,8 @@ namespace sep490_be.Services.Implementations
                                 CourseId = dto.CourseId,
                                 SemesterId = dto.SemesterId,
                                 PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>()),
+                                PreferredSlotIndex = dto.PreferredSlotIndex,
+                                PreferredDaysOfWeek = dto.PreferredDaysOfWeek,
                                 Status = (int)StudentRegistrationStatus.Pending,
                                 EnrollType = dto.EnrollType
                             };
@@ -582,6 +743,8 @@ namespace sep490_be.Services.Implementations
                     CourseId = dto.CourseId,
                     SemesterId = dto.SemesterId,
                     PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>()),
+                    PreferredSlotIndex = dto.PreferredSlotIndex,
+                    PreferredDaysOfWeek = dto.PreferredDaysOfWeek,
                     Status = dto.Status,
                     EnrollType = dto.EnrollType
                 };
@@ -619,6 +782,8 @@ namespace sep490_be.Services.Implementations
                 existing.CourseId = dto.CourseId;
                 existing.SemesterId = dto.SemesterId;
                 existing.PreferredSlotsJson = JsonSerializer.Serialize(dto.PreferredSlots ?? new List<string>());
+                existing.PreferredSlotIndex = dto.PreferredSlotIndex;
+                existing.PreferredDaysOfWeek = dto.PreferredDaysOfWeek;
                 existing.Status = dto.Status;
                 existing.EnrollType = dto.EnrollType;
 
@@ -655,6 +820,48 @@ namespace sep490_be.Services.Implementations
                 await _studentRegistrationRepository.SaveChangesAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_REGISTRATION_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<bool>> DeleteStudentRegistrationsAsync(List<int> ids)
+        {
+            try
+            {
+                var failedIds = new List<int>();
+                var successfulItems = new List<StudentRegistration>();
+
+                foreach (var id in ids)
+                {
+                    var existing = await _studentRegistrationRepository.GetByIdAsync(id);
+                    if (existing == null || existing.Status == 1) // Scheduled cannot be deleted
+                    {
+                        failedIds.Add(id);
+                        continue;
+                    }
+                    successfulItems.Add(existing);
+                }
+
+                if (successfulItems.Count == 0)
+                {
+                    return ApiResponse<bool>.Fail("ERR_NO_REGISTRATIONS_COULD_BE_DELETED", StatusCodes.Status400BadRequest);
+                }
+
+                foreach (var item in successfulItems)
+                {
+                    await _studentRegistrationRepository.DeleteAsync(item);
+                }
+                await _studentRegistrationRepository.SaveChangesAsync();
+
+                if (failedIds.Count > 0)
+                {
+                    return ApiResponse<bool>.Ok(true, "DELETE_REGISTRATIONS_PARTIAL_SUCCESS");
+                }
+
+                return ApiResponse<bool>.Ok(true, "DELETE_REGISTRATIONS_SUCCESS");
             }
             catch (Exception ex)
             {
@@ -700,6 +907,8 @@ namespace sep490_be.Services.Implementations
                 SemesterId = entity.SemesterId,
                 SemesterName = entity.Semester?.Name,
                 PreferredSlots = preferredSlots,
+                PreferredSlotIndex = entity.PreferredSlotIndex,
+                PreferredDaysOfWeek = entity.PreferredDaysOfWeek,
                 Status = entity.Status,
                 StatusName = ((StudentRegistrationStatus)entity.Status).GetStringValue(),
                 EnrollType = entity.EnrollType,

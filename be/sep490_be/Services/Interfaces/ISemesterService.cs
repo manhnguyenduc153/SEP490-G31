@@ -17,7 +17,9 @@ namespace sep490_be.Services.Interfaces
 
         // Teacher Availability APIs
         Task<ApiResponse<List<TeacherAvailabilityDto>>> GetTeacherAvailabilitiesAsync(int semesterId, int teacherId);
+        Task<ApiResponse<List<TeacherAvailabilityDto>>> GetAllTeacherAvailabilitiesAsync(int semesterId);
         Task<ApiResponse<bool>> SaveTeacherAvailabilityAsync(TeacherAvailabilitySaveDto dto);
+        Task<ApiResponse<bool>> SaveTeacherAvailabilitiesBulkAsync(List<TeacherAvailabilitySaveDto> dtos);
         Task<ApiResponse<bool>> CheckTeacherHasSchedulesAsync(int semesterId, int teacherId);
 
         // Student Registration APIs
@@ -28,6 +30,7 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<StudentRegistrationDto>> CreateStudentRegistrationAsync(StudentRegistrationSaveDto dto);
         Task<ApiResponse<StudentRegistrationDto>> EditStudentRegistrationAsync(int id, StudentRegistrationSaveDto dto);
         Task<ApiResponse<bool>> DeleteStudentRegistrationAsync(int id);
+        Task<ApiResponse<bool>> DeleteStudentRegistrationsAsync(List<int> ids);
     }
 }
 

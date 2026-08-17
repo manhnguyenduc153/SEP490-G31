@@ -9,6 +9,10 @@ namespace sep490_be.DTO.Dashboard
         public List<ClassStatusDistributionDto> ClassStatusDistribution { get; set; } = new();
         public List<RecentRegistrationDto> RecentRegistrations { get; set; } = new();
         public List<LowAttendanceAlertDto> LowAttendanceAlerts { get; set; } = new();
+        public List<RoomUtilizationDto> RoomUtilization { get; set; } = new();
+        public List<TeacherWorkloadDto> TeacherWorkload { get; set; } = new();
+        public GradingProgressDto GradingProgress { get; set; } = new();
+        public List<ExamGradeDistributionDto> ExamGradeDistribution { get; set; } = new();
     }
 
     // ── Key Metrics ──────────────────────────────────────────────────────────
@@ -63,5 +67,38 @@ namespace sep490_be.DTO.Dashboard
         public double AttendanceRate { get; set; }
         public int ConsecutiveAbsences { get; set; }
         public string Status { get; set; } = string.Empty; // "Warning" or "Critical"
+    }
+
+    // ── Room Utilization ─────────────────────────────────────────────────────
+    public class RoomUtilizationDto
+    {
+        public int RoomId { get; set; }
+        public string RoomName { get; set; } = string.Empty;
+        public int TotalSlots { get; set; }
+        public int OccupiedSlots { get; set; }
+        public double UtilizationRate { get; set; }
+    }
+
+    // ── Teacher Workload ─────────────────────────────────────────────────────
+    public class TeacherWorkloadDto
+    {
+        public int TeacherId { get; set; }
+        public string TeacherName { get; set; } = string.Empty;
+        public string TeacherCode { get; set; } = string.Empty;
+        public int TotalSessions { get; set; }
+    }
+
+    // ── Grading Progress ─────────────────────────────────────────────────────
+    public class GradingProgressDto
+    {
+        public int PendingHomeworksCount { get; set; }
+        public int PendingExamsCount { get; set; }
+    }
+
+    // ── Exam Grade Distribution ──────────────────────────────────────────────
+    public class ExamGradeDistributionDto
+    {
+        public string ScoreBand { get; set; } = string.Empty;
+        public int StudentCount { get; set; }
     }
 }

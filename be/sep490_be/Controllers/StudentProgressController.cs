@@ -45,7 +45,7 @@ namespace sep490_be.Controllers
                 .AsNoTracking()
                 .AnyAsync(sc => sc.StudentId == student.Id &&
                                 sc.ClassId == classId &&
-                                sc.Class.Status == 1 &&
+                                sc.Class.Status != (int)ClassStatus.Cancelled &&
                                 !sc.Class.IsDeleted);
 
             if (!isEnrolled)

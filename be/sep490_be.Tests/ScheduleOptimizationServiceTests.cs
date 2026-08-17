@@ -14,6 +14,7 @@ using sep490_be.Models;
 using sep490_be.Repositories.Common;
 using sep490_be.Repositories.Implementations;
 using sep490_be.Services.Implementations;
+using sep490_be.Services.Interfaces;
 
 namespace sep490_be.Tests.Services
 {
@@ -35,8 +36,17 @@ namespace sep490_be.Tests.Services
                     new SemesterRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
                     new StudentRegistrationRepository(context, new UnitOfWork<ApplicationDbContext>(context)),
                     new BaseRepository<StudentClass, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)),
-                    new BaseRepository<TimeSlot, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)))
+                    new BaseRepository<TimeSlot, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    new BaseRepository<ScheduleVersion, ApplicationDbContext>(context, new UnitOfWork<ApplicationDbContext>(context)),
+                    CreateNoOpNotificationService())
             {
+            }
+
+            private static INotificationService CreateNoOpNotificationService()
+            {
+                var mock = new Mock<INotificationService>();
+                mock.Setup(n => n.SendClassCreatedNotificationAsync(It.IsAny<Class>())).Returns(Task.CompletedTask);
+                return mock.Object;
             }
         }
 
@@ -167,6 +177,42 @@ namespace sep490_be.Tests.Services
             });
             await context.SaveChangesAsync();
             return targetClass;
+        }
+
+        /// <summary>
+        /// Seeds a semester with one pending registration and returns a ready-to-submit
+        /// SaveScheduleDraftRequestDto for it (one class, one weekly session on the semester's
+        /// start-date weekday, starting at 08:00 — used as a distinguishing marker in version tests).
+        /// </summary>
+        private async Task<(Semester semester, SaveScheduleDraftRequestDto request)> SeedDraftReadyScenarioAsync(ApplicationDbContext context)
+        {
+            var semester = await SeedSemesterSchedulingScenarioAsync(context, studentCount: 1);
+            var course = await context.Courses.SingleAsync();
+            var teacher = await context.Teachers.SingleAsync();
+            var student = await context.Students.SingleAsync();
+
+            var request = new SaveScheduleDraftRequestDto
+            {
+                SemesterId = semester.Id,
+                Classes = new List<ClassDraftSaveDto>
+                {
+                    new ClassDraftSaveDto
+                    {
+                        Code = $"CLS-{Guid.NewGuid():N}",
+                        Name = "Draft Class",
+                        CourseId = course.Id,
+                        TeacherId = teacher.Id,
+                        ExpectedLessons = 1,
+                        WeeklySchedules = new List<WeeklyScheduleDto>
+                        {
+                            new() { DayOfWeek = (int)semester.StartDate.DayOfWeek, StartTime = "08:00", EndTime = "10:00" }
+                        },
+                        Students = new List<StudentEnrollDto> { new() { StudentId = student.Id, EnrollType = 0 } }
+                    }
+                }
+            };
+
+            return (semester, request);
         }
 
         #region Normal Test Cases (Kiểm thử giá trị thông thường)
@@ -1172,6 +1218,427 @@ namespace sep490_be.Tests.Services
             response.Message.Should().Contain("Error writing auto scheduling semester results");
             response.Message.Should().Contain("Database Exception");
             mockContext.Object.Dispose();
+        }
+
+        [Fact]
+        public async Task SaveSemesterScheduleDraftAsync_ShouldAutoCreateInitialScheduleVersion()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+
+            var response = await new ScheduleOptimizationService(context).SaveSemesterScheduleDraftAsync(request);
+
+            response.Success.Should().BeTrue();
+            var versions = await context.ScheduleVersions.Where(v => v.SemesterId == semester.Id).ToListAsync();
+            versions.Should().ContainSingle();
+            versions[0].Name.Should().Be("Original");
+            versions[0].ScheduleJson.Should().Contain(request.Classes[0].Code);
+        }
+
+        [Fact]
+        public async Task SaveSemesterScheduleDraftAsync_ShouldPopulateTextSearchForCreatedClasses()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+
+            var response = await new ScheduleOptimizationService(context).SaveSemesterScheduleDraftAsync(request);
+
+            response.Success.Should().BeTrue();
+            var createdClass = await context.Classes.SingleAsync(c => c.SemesterId == semester.Id);
+            createdClass.TextSearch.Should().NotBeNullOrWhiteSpace();
+            createdClass.TextSearch.Should().Contain(createdClass.Code);
+            createdClass.TextSearch.Should().Contain(createdClass.Name);
+        }
+
+        [Fact]
+        public async Task SaveScheduleVersionAsync_WhenSemesterNotStarted_ShouldPersistSnapshotOfLiveState()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+
+            var persistedClass = await context.Classes.SingleAsync(c => c.SemesterId == semester.Id);
+            persistedClass.WeeklySchedulesJson = "[{\"dayOfWeek\":2,\"startTime\":\"09:00\",\"endTime\":\"11:00\"}]";
+            await context.SaveChangesAsync();
+
+            var response = await service.SaveScheduleVersionAsync(semester.Id, "Bản tôi thích");
+
+            response.Success.Should().BeTrue();
+            response.Data!.Name.Should().Be("Bản tôi thích");
+            response.Data.ClassCount.Should().Be(1);
+            var savedVersion = await context.ScheduleVersions
+                .SingleAsync(v => v.SemesterId == semester.Id && v.Name == "Bản tôi thích");
+            savedVersion.ScheduleJson.Should().Contain("\"StartTime\":\"09:00\"");
+        }
+
+        [Fact]
+        public async Task SaveScheduleVersionAsync_WhenSemesterAlreadyStarted_ShouldStillSaveIfPlanningClassesExist()
+        {
+            // Scheduling is scoped by Class.Status, not by semester dates (a manually-created class
+            // can start later than the semester itself), so an elapsed Semester.StartDate must not block this.
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+
+            semester.StartDate = DateTime.UtcNow.Date.AddDays(-1);
+            await context.SaveChangesAsync();
+
+            var response = await service.SaveScheduleVersionAsync(semester.Id, "V1");
+
+            response.Success.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task SaveScheduleVersionAsync_WhenNameEmpty_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var semester = await SeedSemesterSchedulingScenarioAsync(context);
+
+            var response = await new ScheduleOptimizationService(context).SaveScheduleVersionAsync(semester.Id, "   ");
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_VERSION_NAME_REQUIRED");
+        }
+
+        [Fact]
+        public async Task GetScheduleVersionsAsync_ShouldReturnVersionsNewestFirstWithClassCount()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+            await service.SaveScheduleVersionAsync(semester.Id, "Version 2");
+
+            var response = await service.GetScheduleVersionsAsync(semester.Id);
+
+            response.Success.Should().BeTrue();
+            response.Data.Should().HaveCount(2);
+            response.Data.Should().OnlyContain(v => v.ClassCount == 1);
+            response.Data!.Select(v => v.Name).Should().BeEquivalentTo("Original", "Version 2");
+            response.Data.Should().BeInDescendingOrder(v => v.CreatedAt);
+        }
+
+        [Fact]
+        public async Task DeleteScheduleVersionAsync_ShouldSoftDeleteVersion()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+            var version = await context.ScheduleVersions.SingleAsync(v => v.SemesterId == semester.Id);
+
+            var response = await service.DeleteScheduleVersionAsync(version.Id);
+
+            response.Success.Should().BeTrue();
+            var reloaded = await context.ScheduleVersions.IgnoreQueryFilters().SingleAsync(v => v.Id == version.Id);
+            reloaded.IsDeleted.Should().BeTrue();
+
+            var listResponse = await service.GetScheduleVersionsAsync(semester.Id);
+            listResponse.Data.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task DeleteScheduleVersionAsync_WhenVersionNotFound_ShouldReturn404()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+
+            var response = await new ScheduleOptimizationService(context).DeleteScheduleVersionAsync(9999);
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("ERR_SCHEDULE_VERSION_NOT_FOUND");
+        }
+
+        [Fact]
+        public async Task RollbackSemesterScheduleAsync_ShouldRestoreClassesFromChosenVersion()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var originalCode = request.Classes[0].Code;
+            var service = new ScheduleOptimizationService(context);
+
+            await service.SaveSemesterScheduleDraftAsync(request);
+            var v1 = await context.ScheduleVersions.SingleAsync(v => v.SemesterId == semester.Id);
+
+            var persistedClass = await context.Classes.SingleAsync(c => c.SemesterId == semester.Id);
+            persistedClass.WeeklySchedulesJson = "[{\"dayOfWeek\":3,\"startTime\":\"13:00\",\"endTime\":\"15:00\"}]";
+            await context.SaveChangesAsync();
+            await service.SaveScheduleVersionAsync(semester.Id, "Version 2");
+
+            persistedClass.WeeklySchedulesJson = "[{\"dayOfWeek\":4,\"startTime\":\"16:00\",\"endTime\":\"18:00\"}]";
+            await context.SaveChangesAsync();
+
+            var response = await service.RollbackSemesterScheduleAsync(semester.Id, v1.Id);
+
+            response.Success.Should().BeTrue();
+            var restoredClass = await context.Classes.SingleAsync(c => c.SemesterId == semester.Id && c.Code == originalCode);
+            restoredClass.WeeklySchedulesJson.Should().Contain("08:00");
+            restoredClass.WeeklySchedulesJson.Should().NotContain("13:00");
+            restoredClass.WeeklySchedulesJson.Should().NotContain("16:00");
+        }
+
+        [Fact]
+        public async Task RollbackSemesterScheduleAsync_WhenSemesterAlreadyStarted_ShouldStillRollbackPlanningClasses()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+            var version = await context.ScheduleVersions.SingleAsync(v => v.SemesterId == semester.Id);
+
+            semester.StartDate = DateTime.UtcNow.Date.AddDays(-1);
+            await context.SaveChangesAsync();
+
+            var response = await service.RollbackSemesterScheduleAsync(semester.Id, version.Id);
+
+            response.Success.Should().BeTrue();
+            (await context.Classes.CountAsync(c => c.SemesterId == semester.Id && !c.IsDeleted)).Should().Be(1);
+        }
+
+        [Fact]
+        public async Task RollbackSemesterScheduleAsync_WhenAClassHasProgressedPastPlanning_ShouldNotTouchOrDuplicateIt()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+            var version = await context.ScheduleVersions.SingleAsync(v => v.SemesterId == semester.Id);
+
+            // Simulate the class having actually started (e.g. its own StartDate arrived and the
+            // lazy status job flipped it to Active) since the version was captured.
+            var liveClass = await context.Classes.SingleAsync(c => c.SemesterId == semester.Id);
+            liveClass.Status = (int)ClassStatus.Active;
+            await context.SaveChangesAsync();
+
+            var response = await service.RollbackSemesterScheduleAsync(semester.Id, version.Id);
+
+            response.Success.Should().BeTrue();
+            var classesForSemester = await context.Classes
+                .Where(c => c.SemesterId == semester.Id && !c.IsDeleted)
+                .ToListAsync();
+            classesForSemester.Should().ContainSingle(); // no duplicate created alongside the Active class
+            classesForSemester[0].Id.Should().Be(liveClass.Id);
+            classesForSemester[0].Status.Should().Be((int)ClassStatus.Active);
+        }
+
+        [Fact]
+        public async Task RollbackSemesterScheduleAsync_WhenVersionDoesNotExist_ShouldReturn404()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var semester = await SeedSemesterSchedulingScenarioAsync(context);
+
+            var response = await new ScheduleOptimizationService(context).RollbackSemesterScheduleAsync(semester.Id, 9999);
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("ERR_SCHEDULE_VERSION_NOT_FOUND");
+        }
+
+        [Fact]
+        public async Task RollbackSemesterScheduleAsync_WhenVersionBelongsToDifferentSemester_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semesterA, requestA) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(requestA);
+            var versionFromA = await context.ScheduleVersions.SingleAsync(v => v.SemesterId == semesterA.Id);
+
+            var semesterB = await SeedSemesterSchedulingScenarioAsync(context);
+
+            var response = await service.RollbackSemesterScheduleAsync(semesterB.Id, versionFromA.Id);
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_VERSION_SEMESTER_MISMATCH");
+        }
+
+        [Fact]
+        public async Task RollbackSemesterScheduleAsync_WhenSnapshotHasNoClasses_ShouldReturnCorruptedBackupError()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var semester = await SeedSemesterSchedulingScenarioAsync(context);
+            var emptyVersion = new ScheduleVersion
+            {
+                SemesterId = semester.Id,
+                Name = "Empty",
+                ScheduleJson = System.Text.Json.JsonSerializer.Serialize(new ScheduleVersionSnapshotDto { SemesterId = semester.Id })
+            };
+            context.ScheduleVersions.Add(emptyVersion);
+            await context.SaveChangesAsync();
+
+            var response = await new ScheduleOptimizationService(context).RollbackSemesterScheduleAsync(semester.Id, emptyVersion.Id);
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_CORRUPTED_BACKUP_DATA");
+        }
+
+        [Fact]
+        public async Task SaveScheduleVersionAsync_WhenMaxVersionsReached_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request); // 1 version so far ("Original")
+
+            for (var i = 0; i < 19; i++)
+            {
+                context.ScheduleVersions.Add(new ScheduleVersion
+                {
+                    SemesterId = semester.Id,
+                    Name = $"Filler {i}",
+                    ScheduleJson = "{\"semesterId\":0,\"classes\":[]}"
+                });
+            }
+            await context.SaveChangesAsync(); // now 20 total
+
+            var response = await service.SaveScheduleVersionAsync(semester.Id, "One too many");
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_MAX_SCHEDULE_VERSIONS_REACHED");
+        }
+
+        [Fact]
+        public async Task DeleteScheduleVersionAsync_WhenVersionIsAutoSaved_ShouldReturnBadRequest()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+            var autoVersion = await context.ScheduleVersions.SingleAsync(v => v.SemesterId == semester.Id);
+            autoVersion.IsAutoSaved.Should().BeTrue();
+
+            var response = await service.DeleteScheduleVersionAsync(autoVersion.Id);
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+            response.Message.Should().Be("ERR_CANNOT_DELETE_AUTO_VERSION");
+            var reloaded = await context.ScheduleVersions.SingleAsync(v => v.Id == autoVersion.Id);
+            reloaded.IsDeleted.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task GetScheduleVersionPreviewAsync_ShouldReturnMaterializedSchedulesForVersion()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+            var version = await context.ScheduleVersions.SingleAsync(v => v.SemesterId == semester.Id);
+
+            var response = await service.GetScheduleVersionPreviewAsync(version.Id);
+
+            response.Success.Should().BeTrue();
+            response.Data.Should().ContainSingle();
+            var previewClass = response.Data![0];
+            previewClass.Id.Should().Be(0);
+            previewClass.Code.Should().Be(request.Classes[0].Code);
+            previewClass.TeacherName.Should().NotBeNullOrWhiteSpace();
+            previewClass.Schedules.Should().NotBeEmpty();
+            previewClass.Schedules.Should().OnlyContain(s => s.StartTime == "08:00");
+        }
+
+        [Fact]
+        public async Task GetScheduleVersionPreviewAsync_WhenVersionNotFound_ShouldReturn404()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+
+            var response = await new ScheduleOptimizationService(context).GetScheduleVersionPreviewAsync(9999);
+
+            response.Success.Should().BeFalse();
+            response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+            response.Message.Should().Be("ERR_SCHEDULE_VERSION_NOT_FOUND");
+        }
+
+        [Fact]
+        public async Task SaveSemesterScheduleDraftAsync_WhenCalledTwice_ShouldOverwriteAutoVersionNotDuplicate()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+
+            var secondRequest = new SaveScheduleDraftRequestDto
+            {
+                SemesterId = semester.Id,
+                Classes = new List<ClassDraftSaveDto>
+                {
+                    new ClassDraftSaveDto
+                    {
+                        Code = $"CLS2-{Guid.NewGuid():N}",
+                        Name = "Second Draft Class",
+                        CourseId = request.Classes[0].CourseId,
+                        TeacherId = request.Classes[0].TeacherId,
+                        ExpectedLessons = 1,
+                        WeeklySchedules = request.Classes[0].WeeklySchedules,
+                        Students = new List<StudentEnrollDto>()
+                    }
+                }
+            };
+            await service.SaveSemesterScheduleDraftAsync(secondRequest);
+
+            var versions = await context.ScheduleVersions
+                .Where(v => v.SemesterId == semester.Id && v.IsAutoSaved)
+                .ToListAsync();
+            versions.Should().ContainSingle();
+            versions[0].ScheduleJson.Should().Contain(secondRequest.Classes[0].Code);
+        }
+
+        [Fact]
+        public async Task PurgeScheduleVersionsIfSemesterEmptyAsync_WhenNoPlanningClassesRemain_ShouldDeleteAllVersions()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+            await service.SaveScheduleVersionAsync(semester.Id, "Extra version");
+            (await context.ScheduleVersions.CountAsync(v => v.SemesterId == semester.Id)).Should().Be(2);
+
+            var cls = await context.Classes.SingleAsync(c => c.SemesterId == semester.Id);
+            cls.IsDeleted = true; // simulate ClassService.DeleteAsync's soft delete
+            await context.SaveChangesAsync();
+
+            await service.PurgeScheduleVersionsIfSemesterEmptyAsync(semester.Id);
+
+            (await context.ScheduleVersions.CountAsync(v => v.SemesterId == semester.Id)).Should().Be(0);
+        }
+
+        [Fact]
+        public async Task PurgeScheduleVersionsIfSemesterEmptyAsync_WhenPlanningClassesStillExist_ShouldKeepVersions()
+        {
+            var options = CreateNewContextOptions();
+            using var context = new ApplicationDbContext(options, GetMockHttpContextAccessor().Object);
+            var (semester, request) = await SeedDraftReadyScenarioAsync(context);
+            var service = new ScheduleOptimizationService(context);
+            await service.SaveSemesterScheduleDraftAsync(request);
+
+            await service.PurgeScheduleVersionsIfSemesterEmptyAsync(semester.Id);
+
+            (await context.ScheduleVersions.CountAsync(v => v.SemesterId == semester.Id)).Should().Be(1);
         }
 
         [Fact(Skip = "Intentional failure retained only as a demonstration test.")]

@@ -238,6 +238,9 @@ namespace sep490_be.Services.Implementations
                     .Include(e => e.ExamQuestions)
                         .ThenInclude(eq => eq.Question)
                             .ThenInclude(q => q.QuestionAnswers)
+                    .Include(e => e.ExamQuestions)
+                        .ThenInclude(eq => eq.Question)
+                            .ThenInclude(q => q.QuestionPassage)
                     .Include(e => e.ExamAttempts)
                     .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
 
@@ -294,10 +297,11 @@ namespace sep490_be.Services.Implementations
                         Code = eq.Question.Code,
                         Name = eq.Question.Name,
                         Content = eq.Question.Content,
+                        Instruction = eq.Question.Instruction,
                         QuestionType = eq.Question.QuestionType,
-                        QuestionTypeName = eq.Question.QuestionType == 1 ? "Chọn một" :
-                                           eq.Question.QuestionType == 2 ? "Chọn nhiều" :
-                                           eq.Question.QuestionType == 3 ? "Nhập text" : "Đúng/Sai",
+                        QuestionTypeName = Enum.IsDefined(typeof(QuestionType), eq.Question.QuestionType)
+                            ? ((QuestionType)eq.Question.QuestionType).GetStringValue()
+                            : string.Empty,
                         SkillType = eq.Question.SkillType,
                         SkillTypeName = eq.Question.SkillType == 1 ? "Listening" :
                                         eq.Question.SkillType == 2 ? "Reading" :
@@ -308,6 +312,16 @@ namespace sep490_be.Services.Implementations
                         Explanation = eq.Question.Explanation,
                         MediaUrl = eq.Question.MediaUrl,
                         PassageId = eq.Question.PassageId,
+                        Passage = eq.Question.QuestionPassage == null ? null : new DTO.QuestionPassage.QuestionPassageSummaryDto
+                        {
+                            Id = eq.Question.QuestionPassage.Id,
+                            Code = eq.Question.QuestionPassage.Code,
+                            Title = eq.Question.QuestionPassage.Title,
+                            Content = eq.Question.QuestionPassage.Content,
+                            AudioUrl = eq.Question.QuestionPassage.AudioUrl,
+                            AttachmentUrl = eq.Question.QuestionPassage.AttachmentUrl,
+                            SkillType = eq.Question.QuestionPassage.SkillType
+                        },
                         Status = eq.Question.Status,
                         CategoryId = eq.Question.CategoryId,
                         Point = eq.Point,
@@ -546,6 +560,55 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        // Draft -> Published is always allowed. Published -> Draft is only allowed
+        // while the exam has no submissions yet; once a student has attempted it,
+        // the status is locked as Published so grading history stays consistent.
+        public async Task<ApiResponse<ExamDto>> ToggleStatusAsync(int id)
+        {
+            try
+            {
+                var exam = await _examRepository.FindAll(trackChanges: true)
+                    .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+
+                if (exam == null)
+                {
+                    return ApiResponse<ExamDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
+                }
+
+                string successMessage;
+                if (exam.Status == 2)
+                {
+                    exam.Status = 1;
+                    successMessage = "PUBLISH_EXAM_SUCCESS";
+                }
+                else
+                {
+                    if (await _examRepository.HasAttemptsAsync(id))
+                    {
+                        return ApiResponse<ExamDto>.Fail("ERR_EXAM_HAS_SUBMISSIONS", StatusCodes.Status400BadRequest);
+                    }
+
+                    exam.Status = 2;
+                    successMessage = "UNPUBLISH_EXAM_SUCCESS";
+                }
+                exam.UpdatedAt = DateTime.UtcNow;
+
+                await _examRepository.UpdateAsync(exam);
+                await _examRepository.SaveChangesAsync();
+
+                var result = await GetByIdAsync(id);
+                if (result.Success && result.Data != null)
+                {
+                    return ApiResponse<ExamDto>.Ok(result.Data, successMessage);
+                }
+                return ApiResponse<ExamDto>.Fail("Error retrieving exam details");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<ExamDto>.Fail("Error changing exam status: " + ex.Message);
+            }
+        }
+
         public async Task<ApiResponse<ExamDto>> CopyAsync(int id)
         {
             await _examRepository.BeginTransactionAsync();
@@ -690,7 +753,7 @@ namespace sep490_be.Services.Implementations
                                 if (!string.IsNullOrEmpty(ans.AnswerContent))
                                 {
                                     var stdAns = ans.AnswerContent.Trim().ToLower();
-                                    if (qDto.QuestionType == 1 || qDto.QuestionType == 4)
+                                    if (qDto.QuestionType == 1 || qDto.QuestionType == 4 || qDto.QuestionType == 6 || qDto.QuestionType == 7)
                                     {
                                         ans.IsCorrect = correctAnswers.Contains(stdAns) || correctIds.Contains(stdAns);
                                     }
@@ -782,7 +845,7 @@ namespace sep490_be.Services.Implementations
                                 if (!string.IsNullOrEmpty(ans.AnswerContent))
                                 {
                                     var stdAns = ans.AnswerContent.Trim().ToLower();
-                                    if (qDto.QuestionType == 1 || qDto.QuestionType == 4)
+                                    if (qDto.QuestionType == 1 || qDto.QuestionType == 4 || qDto.QuestionType == 6 || qDto.QuestionType == 7)
                                     {
                                         ans.IsCorrect = correctAnswers.Contains(stdAns) || correctIds.Contains(stdAns);
                                     }
@@ -1001,7 +1064,7 @@ namespace sep490_be.Services.Implementations
                     if (!string.IsNullOrEmpty(ansDto.AnswerContent))
                     {
                         var stdAns = ansDto.AnswerContent.Trim().ToLower();
-                        if (q.QuestionType == 1 || q.QuestionType == 4) // Single choice / True-False
+                        if (q.QuestionType == 1 || q.QuestionType == 4 || q.QuestionType == 6 || q.QuestionType == 7) // Single choice / True-False / Fill-in-Blank / Paragraph Matching
                         {
                             isCorrect = correctAnswers.Contains(stdAns) || correctIds.Contains(stdAns);
                         }
@@ -1154,6 +1217,9 @@ namespace sep490_be.Services.Implementations
                     .Include(e => e.ExamQuestions)
                         .ThenInclude(eq => eq.Question)
                             .ThenInclude(q => q.QuestionAnswers)
+                    .Include(e => e.ExamQuestions)
+                        .ThenInclude(eq => eq.Question)
+                            .ThenInclude(q => q.QuestionPassage)
                     .Include(e => e.ExamAttempts)
                     .FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
                 if (exam == null)

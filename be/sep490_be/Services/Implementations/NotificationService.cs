@@ -9,6 +9,7 @@ using sep490_be.Hubs;
 using sep490_be.Models;
 using sep490_be.Enums;
 using sep490_be.Services.Interfaces;
+using sep490_be.Helpers;
 
 namespace sep490_be.Services.Implementations
 {
@@ -47,7 +48,7 @@ namespace sep490_be.Services.Implementations
 
             // 1. Prepare title and content
             string title = "Cập nhật trạng thái lớp học";
-            string content = $"Lớp học {classEntity.Name} ({classEntity.Code}) đã đổi trạng thái từ '{oldStatusStr}' sang '{newStatusStr}'.";
+            string content = $"Lớp học {classEntity.Name} {classEntity.Code} đã đổi trạng thái từ {oldStatusStr} sang {newStatusStr}.";
 
             await SaveAndBroadcastNotificationAsync(classEntity, title, content);
         }
@@ -107,14 +108,41 @@ namespace sep490_be.Services.Implementations
                 _logger.LogInformation("Broadcasting 'student added' notification for class {ClassId}. New student recipients: {Recipients}",
                     classEntity.Id, string.Join(", ", uniqueRecipients));
 
+                var targetUserIds = new List<string>();
+
                 // Send only to newly added students
                 if (uniqueRecipients.Any())
                 {
                     await _hubContext.Clients.Users(uniqueRecipients).SendAsync("ReceiveNotification", payload);
+
+                    var userIds = await _dbContext.Users
+                        .Where(u => uniqueRecipients.Contains(u.UserName!.ToLower()))
+                        .Select(u => u.Id)
+                        .ToListAsync();
+
+                    targetUserIds.AddRange(userIds);
                 }
 
-                // Also notify admin group
+                // Also notify admin group via SignalR
                 await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
+
+                var adminUserIds = await GetAdminUserIdsAsync();
+                targetUserIds.AddRange(adminUserIds);
+
+                var distinctUserIds = targetUserIds.Distinct().ToList();
+                if (distinctUserIds.Any())
+                {
+                    var fcmTokens = await _dbContext.UserDeviceTokens
+                        .Where(t => distinctUserIds.Contains(t.UserId))
+                        .Select(t => t.FcmToken)
+                        .ToListAsync();
+
+                    await SendFcmNotificationAsync(fcmTokens, title, content, new Dictionary<string, string>
+                    {
+                        { "classId", classEntity.Id.ToString() },
+                        { "sentAt", notification.SentAt.ToString("o") }
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -168,13 +196,40 @@ namespace sep490_be.Services.Implementations
                 _logger.LogInformation("Broadcasting 'teacher assigned' notification for class {ClassId}. Teacher recipients: {Recipients}",
                     classEntity.Id, string.Join(", ", recipientUserNames));
 
+                var targetUserIds = new List<string>();
+
                 if (recipientUserNames.Any())
                 {
                     await _hubContext.Clients.Users(recipientUserNames).SendAsync("ReceiveNotification", payload);
+
+                    var userIds = await _dbContext.Users
+                        .Where(u => recipientUserNames.Contains(u.UserName!.ToLower()))
+                        .Select(u => u.Id)
+                        .ToListAsync();
+
+                    targetUserIds.AddRange(userIds);
                 }
 
-                // Also notify admin group
+                // Also notify admin group via SignalR
                 await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
+
+                var adminUserIds = await GetAdminUserIdsAsync();
+                targetUserIds.AddRange(adminUserIds);
+
+                var distinctUserIds = targetUserIds.Distinct().ToList();
+                if (distinctUserIds.Any())
+                {
+                    var fcmTokens = await _dbContext.UserDeviceTokens
+                        .Where(t => distinctUserIds.Contains(t.UserId))
+                        .Select(t => t.FcmToken)
+                        .ToListAsync();
+
+                    await SendFcmNotificationAsync(fcmTokens, title, content, new Dictionary<string, string>
+                    {
+                        { "classId", classEntity.Id.ToString() },
+                        { "sentAt", notification.SentAt.ToString("o") }
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -282,19 +337,61 @@ namespace sep490_be.Services.Implementations
                 _logger.LogInformation("Broadcasting notification for class {ClassId}. Title: {Title}. Recipients: {Recipients}", 
                     classEntity.Id, title, string.Join(", ", uniqueRecipients));
 
+                var targetUserIds = new List<string>();
+
                 // Send to direct users (Students & Teacher of this class)
                 if (uniqueRecipients.Any())
                 {
                     await _hubContext.Clients.Users(uniqueRecipients).SendAsync("ReceiveNotification", payload);
+
+                    var userIds = await _dbContext.Users
+                        .Where(u => uniqueRecipients.Contains(u.UserName!.ToLower()))
+                        .Select(u => u.Id)
+                        .ToListAsync();
+
+                    targetUserIds.AddRange(userIds);
                 }
 
-                // Send to Admin/Center manager/Academic staff group
+                // Send to Admin/Center manager/Academic staff group via SignalR
                 await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
+
+                // Include Admin/Manager FCM tokens so they receive push notifications on mobile too
+                var adminUserIds = await GetAdminUserIdsAsync();
+                targetUserIds.AddRange(adminUserIds);
+
+                var distinctUserIds = targetUserIds.Distinct().ToList();
+                if (distinctUserIds.Any())
+                {
+                    var fcmTokens = await _dbContext.UserDeviceTokens
+                        .Where(t => distinctUserIds.Contains(t.UserId))
+                        .Select(t => t.FcmToken)
+                        .ToListAsync();
+
+                    await SendFcmNotificationAsync(fcmTokens, title, content, new Dictionary<string, string>
+                    {
+                        { "classId", classEntity.Id.ToString() },
+                        { "sentAt", notification.SentAt.ToString("o") }
+                    });
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error while saving and broadcasting notification for class {ClassId}", classEntity.Id);
             }
+        }
+
+        private async Task<List<string>> GetAdminUserIdsAsync()
+        {
+            var adminRoleNames = new[] { "Admin", "Quản lý trung tâm", "Ban vận hành", "Ban chuyên môn" };
+            var adminRoleIds = await _dbContext.Roles
+                .Where(r => adminRoleNames.Contains(r.Name))
+                .Select(r => r.Id)
+                .ToListAsync();
+
+            return await _dbContext.UserRoles
+                .Where(ur => adminRoleIds.Contains(ur.RoleId))
+                .Select(ur => ur.UserId)
+                .ToListAsync();
         }
 
         private string GetClassStatusString(int status)
@@ -304,6 +401,107 @@ namespace sep490_be.Services.Implementations
                 return ((ClassStatus)status).GetStringValue();
             }
             return status.ToString();
+        }
+
+        private async Task SendFcmNotificationAsync(List<string> tokens, string title, string content, Dictionary<string, string>? data = null)
+        {
+            if (tokens == null || !tokens.Any()) return;
+
+            try
+            {
+                var messaging = FirebaseAdmin.Messaging.FirebaseMessaging.DefaultInstance;
+                if (messaging == null)
+                {
+                    _logger.LogWarning("FirebaseMessaging instance is null. Firebase SDK might not be initialized.");
+                    await FileLogger.LogErrorAsync(
+                        "FCM WARNING",
+                        "SendFcmNotificationAsync",
+                        "",
+                        "FirebaseMessaging instance is null. Firebase SDK might not be initialized. Please check firebase_service_account.json.");
+                    return;
+                }
+
+                int successCount = 0;
+                int failureCount = 0;
+                var errors = new List<string>();
+
+                foreach (var token in tokens.Distinct())
+                {
+                    try
+                    {
+                        var message = new FirebaseAdmin.Messaging.Message()
+                        {
+                            Token = token,
+                            Notification = new FirebaseAdmin.Messaging.Notification()
+                            {
+                                Title = title,
+                                Body = content
+                            },
+                            Android = new FirebaseAdmin.Messaging.AndroidConfig()
+                            {
+                                Priority = FirebaseAdmin.Messaging.Priority.High,
+                                Notification = new FirebaseAdmin.Messaging.AndroidNotification()
+                                {
+                                    ChannelId = "ieltsmart_channel",
+                                    Sound = "default",
+                                    Icon = "ic_launcher",
+                                    ClickAction = "FLUTTER_NOTIFICATION_CLICK"
+                                }
+                            },
+                            Apns = new FirebaseAdmin.Messaging.ApnsConfig()
+                            {
+                                Headers = new Dictionary<string, string>
+                                {
+                                    { "apns-priority", "10" }
+                                },
+                                Aps = new FirebaseAdmin.Messaging.Aps()
+                                {
+                                    Sound = "default",
+                                    ContentAvailable = true
+                                }
+                            },
+                            Data = data
+                        };
+
+                        var response = await messaging.SendAsync(message);
+                        successCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        failureCount++;
+                        errors.Add($"Token: {token.Substring(0, Math.Min(10, token.Length))}..., Error: {ex.Message}");
+                    }
+                }
+
+                _logger.LogInformation("Sent FCM push notifications. Success count: {SuccessCount}, Failure count: {FailureCount}", 
+                    successCount, failureCount);
+
+                if (failureCount > 0)
+                {
+                    await FileLogger.LogErrorAsync(
+                        "FCM SEND FAILURE",
+                        "SendFcmNotificationAsync",
+                        "",
+                        $"Success: {successCount}, Failure: {failureCount}\nDetails:\n{string.Join("\n", errors)}");
+                }
+                else
+                {
+                    await FileLogger.LogErrorAsync(
+                        "FCM SEND SUCCESS",
+                        "SendFcmNotificationAsync",
+                        "",
+                        $"Successfully sent to {successCount} devices.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending FCM push notifications.");
+                await FileLogger.LogErrorAsync(
+                    "FCM ERROR",
+                    "SendFcmNotificationAsync",
+                    "",
+                    $"Exception Message: {ex.Message}\nStackTrace: {ex.StackTrace}");
+            }
         }
     }
 }

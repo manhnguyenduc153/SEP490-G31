@@ -68,6 +68,16 @@ namespace sep490_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        // POST: api/Exam/5/toggle-status - Draft <-> Published; reverting to Draft is
+        // blocked once the exam has submissions.
+        [HttpPost("{id}/toggle-status")]
+        [HasPermission("Exam.Edit,TeachingExam")]
+        public async Task<IActionResult> ToggleStatus(int id)
+        {
+            var response = await _service.ToggleStatusAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
+
         // POST: api/Exam/5/copy
         [HttpPost("{id}/copy")]
         [HasPermission(Permissions.Exam.Exam_Create)]

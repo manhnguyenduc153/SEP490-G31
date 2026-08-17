@@ -124,6 +124,7 @@ namespace sep490_be.Services.Implementations
                             Code = string.IsNullOrWhiteSpace(qDto.Code) ? $"Q_{Guid.NewGuid().ToString().Substring(0, 8)}" : qDto.Code,
                             Name = string.IsNullOrWhiteSpace(qDto.Name) ? qDto.Content : qDto.Name,
                             Content = qDto.Content,
+                            Instruction = qDto.Instruction,
                             QuestionType = qDto.QuestionType > 0 ? qDto.QuestionType : 1,
                             SkillType = entity.SkillType,
                             DifficultyLevel = qDto.DifficultyLevel > 0 ? qDto.DifficultyLevel : 1,
@@ -228,6 +229,7 @@ namespace sep490_be.Services.Implementations
                             if (existingQ != null)
                             {
                                 existingQ.Content = qDto.Content;
+                                existingQ.Instruction = qDto.Instruction;
                                 existingQ.QuestionType = qDto.QuestionType;
                                 existingQ.DifficultyLevel = qDto.DifficultyLevel;
                                 existingQ.Explanation = qDto.Explanation;
@@ -280,6 +282,7 @@ namespace sep490_be.Services.Implementations
                                 Code = string.IsNullOrWhiteSpace(qDto.Code) ? $"Q_{Guid.NewGuid().ToString().Substring(0, 8)}" : qDto.Code,
                                 Name = string.IsNullOrWhiteSpace(qDto.Name) ? qDto.Content : qDto.Name,
                                 Content = qDto.Content,
+                                Instruction = qDto.Instruction,
                                 QuestionType = qDto.QuestionType > 0 ? qDto.QuestionType : 1,
                                 SkillType = existingEntity.SkillType,
                                 DifficultyLevel = qDto.DifficultyLevel > 0 ? qDto.DifficultyLevel : 1,
@@ -366,6 +369,7 @@ namespace sep490_be.Services.Implementations
                 Code = q.Code ?? string.Empty,
                 Name = q.Name ?? string.Empty,
                 Content = q.Content ?? string.Empty,
+                Instruction = q.Instruction,
                 QuestionType = q.QuestionType,
                 SkillType = q.SkillType,
                 DifficultyLevel = q.DifficultyLevel,

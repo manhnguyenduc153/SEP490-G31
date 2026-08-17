@@ -1469,6 +1469,9 @@ namespace sep490_be.Migrations
                     b.Property<string>("Explanation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Instruction")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -1799,6 +1802,57 @@ namespace sep490_be.Migrations
                     b.ToTable("rooms", (string)null);
                 });
 
+            modelBuilder.Entity("sep490_be.Models.ScheduleVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsAutoSaved")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ScheduleJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SemesterId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemesterId");
+
+                    b.ToTable("schedule_versions", (string)null);
+                });
+
             modelBuilder.Entity("sep490_be.Models.Semester", b =>
                 {
                     b.Property<int>("Id")
@@ -1834,9 +1888,6 @@ namespace sep490_be.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("OriginalScheduleDraftJson")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("date");
@@ -2081,6 +2132,12 @@ namespace sep490_be.Migrations
                     b.Property<int>("EnrollType")
                         .HasColumnType("int");
 
+                    b.Property<int?>("PreferredDaysOfWeek")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PreferredSlotIndex")
+                        .HasColumnType("int");
+
                     b.Property<string>("PreferredSlotsJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -2266,6 +2323,67 @@ namespace sep490_be.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("time_slots", (string)null);
+                });
+
+            modelBuilder.Entity("sep490_be.Models.UserDeviceToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DeviceType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FcmToken")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastActiveAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TextSearch")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserDeviceTokens");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -2695,6 +2813,17 @@ namespace sep490_be.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("sep490_be.Models.ScheduleVersion", b =>
+                {
+                    b.HasOne("sep490_be.Models.Semester", "Semester")
+                        .WithMany()
+                        .HasForeignKey("SemesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Semester");
+                });
+
             modelBuilder.Entity("sep490_be.Models.StudentClass", b =>
                 {
                     b.HasOne("sep490_be.Models.Class", "Class")
@@ -2796,6 +2925,17 @@ namespace sep490_be.Migrations
                     b.Navigation("Semester");
 
                     b.Navigation("Teacher");
+                });
+
+            modelBuilder.Entity("sep490_be.Models.UserDeviceToken", b =>
+                {
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("sep490_be.Models.Class", b =>

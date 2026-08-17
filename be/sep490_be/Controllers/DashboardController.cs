@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using sep490_be.Services.Interfaces;
+using sep490_be.DTO.Common;
+using sep490_be.Helpers.Authorization;
 
 namespace sep490_be.Controllers
 {
@@ -17,6 +19,7 @@ namespace sep490_be.Controllers
         }
 
         [HttpGet]
+        [HasPermission(Permissions.Dashboard.DashboardPage)]
         public async Task<IActionResult> GetDashboardData()
         {
             var result = await _dashboardService.GetDashboardDataAsync();

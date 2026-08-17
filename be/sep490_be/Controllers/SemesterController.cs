@@ -78,6 +78,15 @@ namespace sep490_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        // GET: api/Semester/5/teachers/availabilities
+        [HttpGet("{semesterId}/teachers/availabilities")]
+        [HasPermission(Permissions.Semester.Semester_View)]
+        public async Task<IActionResult> GetSemesterTeacherAvailabilities(int semesterId)
+        {
+            var response = await _service.GetAllTeacherAvailabilitiesAsync(semesterId);
+            return StatusCode(response.StatusCode, response);
+        }
+
         // GET: api/Semester/5/teacher/3/has-schedules
         [HttpGet("{semesterId}/teacher/{teacherId}/has-schedules")]
         [HasPermission(Permissions.Semester.Semester_View)]
@@ -93,6 +102,15 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> SaveTeacherAvailability([FromBody] TeacherAvailabilitySaveDto dto)
         {
             var response = await _service.SaveTeacherAvailabilityAsync(dto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Semester/availability/bulk
+        [HttpPost("availability/bulk")]
+        [HasPermission(Permissions.Semester.Semester_Edit)]
+        public async Task<IActionResult> SaveTeacherAvailabilitiesBulk([FromBody] List<TeacherAvailabilitySaveDto> dtos)
+        {
+            var response = await _service.SaveTeacherAvailabilitiesBulkAsync(dtos);
             return StatusCode(response.StatusCode, response);
         }
 
@@ -144,6 +162,15 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> DeleteStudentRegistration(int id)
         {
             var response = await _service.DeleteStudentRegistrationAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Semester/registrations/bulk-delete
+        [HttpPost("registrations/bulk-delete")]
+        [HasPermission(Permissions.StudentRegistration.StudentRegistration_Delete)]
+        public async Task<IActionResult> BulkDeleteStudentRegistrations([FromBody] List<int> ids)
+        {
+            var response = await _service.DeleteStudentRegistrationsAsync(ids);
             return StatusCode(response.StatusCode, response);
         }
     }

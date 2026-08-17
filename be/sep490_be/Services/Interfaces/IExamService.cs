@@ -13,6 +13,7 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<ExamDto>> CreateAsync(ExamSaveDto dto);
         Task<ApiResponse<ExamDto>> EditAsync(ExamSaveDto dto);
         Task<ApiResponse<bool>> DeleteAsync(int id);
+        Task<ApiResponse<ExamDto>> ToggleStatusAsync(int id);
         Task<ApiResponse<ExamDto>> CopyAsync(int id);
         Task<ApiResponse<List<ExamAttemptDto>>> GetAttemptsByExamAsync(int examId);
         Task<ApiResponse<List<ExamAttemptDto>>> GetStudentAttemptsAsync(int examId, string userEmailOrCode);

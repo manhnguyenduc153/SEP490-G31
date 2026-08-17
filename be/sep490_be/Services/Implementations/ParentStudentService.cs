@@ -67,7 +67,7 @@ namespace sep490_be.Services.Implementations
                 }
 
                 var totalRecords = await query.CountAsync();
-                var entities = await query.ApplyPagingAsync(searchDto);
+                var entities = await query.OrderByDescending(x => x.Id).ApplyPagingAsync(searchDto);
                 var dtos = entities.Select(MapToDto).ToList();
                 var pagingResponse = dtos.ToPagingResponse(totalRecords, searchDto);
 
@@ -387,13 +387,13 @@ namespace sep490_be.Services.Implementations
             }).ToList() ?? new List<ChildDto>()
         };
 
-        /// <summary>
-        /// Validate khi tạo mới: Code chưa trùng, Email chưa tồn tại
-        /// </summary>
         private async Task<string?> ValidateCreateAsync(ParentStudentSaveDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Name))
                 return "ERR_PARENT_NAME_EMPTY";
+
+            if (dto.Name.Trim().Length < 5)
+                return "ERR_NAME_MIN_LENGTH";
 
             if (string.IsNullOrWhiteSpace(dto.Email))
                 return "ERR_EMAIL_EMPTY";
@@ -427,6 +427,9 @@ namespace sep490_be.Services.Implementations
         {
             if (string.IsNullOrWhiteSpace(dto.Name))
                 return "ERR_PARENT_NAME_EMPTY";
+
+            if (dto.Name.Trim().Length < 5)
+                return "ERR_NAME_MIN_LENGTH";
 
             if (!string.IsNullOrWhiteSpace(dto.ParentPhone))
             {

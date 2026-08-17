@@ -16,11 +16,14 @@ using sep490_be.Services.Interfaces;
 using sep490_be.Enums;
 using sep490_be.Repositories.Common;
 using sep490_be.Repositories.Interfaces;
+using sep490_be.Helpers;
 
 namespace sep490_be.Services.Implementations
 {
     public class ScheduleOptimizationService : IScheduleOptimizationService
     {
+        private const int MaxScheduleVersionsPerSemester = 20;
+
         private readonly IClassRepository _classRepository;
         private readonly IBaseRepository<ClassSchedule, ApplicationDbContext> _scheduleRepository;
         private readonly IBaseRepository<TeacherAvailability, ApplicationDbContext> _availabilityRepository;
@@ -30,6 +33,8 @@ namespace sep490_be.Services.Implementations
         private readonly IStudentRegistrationRepository _studentRegistrationRepository;
         private readonly IBaseRepository<StudentClass, ApplicationDbContext> _studentClassRepository;
         private readonly IBaseRepository<TimeSlot, ApplicationDbContext> _timeSlotRepository;
+        private readonly IBaseRepository<ScheduleVersion, ApplicationDbContext> _scheduleVersionRepository;
+        private readonly INotificationService _notificationService;
 
         public ScheduleOptimizationService(
             IClassRepository classRepository,
@@ -40,7 +45,9 @@ namespace sep490_be.Services.Implementations
             ISemesterRepository semesterRepository,
             IStudentRegistrationRepository studentRegistrationRepository,
             IBaseRepository<StudentClass, ApplicationDbContext> studentClassRepository,
-            IBaseRepository<TimeSlot, ApplicationDbContext> timeSlotRepository)
+            IBaseRepository<TimeSlot, ApplicationDbContext> timeSlotRepository,
+            IBaseRepository<ScheduleVersion, ApplicationDbContext> scheduleVersionRepository,
+            INotificationService notificationService)
         {
             _classRepository = classRepository;
             _scheduleRepository = scheduleRepository;
@@ -51,6 +58,8 @@ namespace sep490_be.Services.Implementations
             _studentRegistrationRepository = studentRegistrationRepository;
             _studentClassRepository = studentClassRepository;
             _timeSlotRepository = timeSlotRepository;
+            _scheduleVersionRepository = scheduleVersionRepository;
+            _notificationService = notificationService;
         }
 
         public async Task<ApiResponse<ConflictCheckResultDto>> CheckConflictAsync(ClassSaveDto dto)
@@ -59,14 +68,34 @@ namespace sep490_be.Services.Implementations
             {
                 var result = new ConflictCheckResultDto { HasConflict = false };
 
-                if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any() || 
-                    !dto.StartDate.HasValue || !dto.ExpectedLessons.HasValue || dto.ExpectedLessons.Value <= 0)
+                if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any() || !dto.StartDate.HasValue)
                 {
                     return ApiResponse<ConflictCheckResultDto>.Ok(result, "NO_SCHEDULE_DATA_TO_CHECK");
                 }
 
-                // Generate candidate schedules for the class in memory
                 var currentDate = dto.StartDate.Value;
+                DateTime? endDate = null;
+                int? expectedLessons = dto.ExpectedLessons;
+
+                if (dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
+                {
+                    var sem = await _semesterRepository.GetByIdAsync(dto.SemesterId.Value);
+                    if (sem != null && !sem.IsDeleted)
+                    {
+                        currentDate = sem.StartDate;
+                        endDate = sem.EndDate;
+                    }
+                }
+
+                if (!endDate.HasValue)
+                {
+                    if (!expectedLessons.HasValue || expectedLessons.Value <= 0)
+                    {
+                        return ApiResponse<ConflictCheckResultDto>.Ok(result, "NO_SCHEDULE_DATA_TO_CHECK");
+                    }
+                }
+
+                // Generate candidate schedules for the class in memory
                 int lessonNo = 1;
                 var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
                 var proposedSchedules = new List<ProposedScheduleTemp>();
@@ -86,26 +115,53 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ConflictCheckResultDto>.Ok(result, "NO_PROPOSED_SCHEDULES_GENERATED");
                 }
 
-                while (lessonNo <= dto.ExpectedLessons.Value)
+                if (endDate.HasValue)
                 {
-                    var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
-                    if (match != null)
+                    while (currentDate <= endDate.Value)
                     {
-                        if (TimeSpan.TryParse(match.StartTime, out var startSpan) && 
-                            TimeSpan.TryParse(match.EndTime, out var endSpan))
+                        var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                        if (match != null)
                         {
-                            proposedSchedules.Add(new ProposedScheduleTemp
+                            if (TimeSpan.TryParse(match.StartTime, out var startSpan) && 
+                                TimeSpan.TryParse(match.EndTime, out var endSpan))
                             {
-                                LessonNo = lessonNo,
-                                Date = currentDate,
-                                StartTime = startSpan,
-                                EndTime = endSpan,
-                                RoomId = match.RoomId
-                            });
-                            lessonNo++;
+                                proposedSchedules.Add(new ProposedScheduleTemp
+                                {
+                                    LessonNo = lessonNo,
+                                    Date = currentDate,
+                                    StartTime = startSpan,
+                                    EndTime = endSpan,
+                                    RoomId = match.RoomId
+                                });
+                                lessonNo++;
+                            }
                         }
+                        currentDate = currentDate.AddDays(1);
                     }
-                    currentDate = currentDate.AddDays(1);
+                }
+                else
+                {
+                    while (lessonNo <= expectedLessons.Value)
+                    {
+                        var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                        if (match != null)
+                        {
+                            if (TimeSpan.TryParse(match.StartTime, out var startSpan) && 
+                                TimeSpan.TryParse(match.EndTime, out var endSpan))
+                            {
+                                proposedSchedules.Add(new ProposedScheduleTemp
+                                {
+                                    LessonNo = lessonNo,
+                                    Date = currentDate,
+                                    StartTime = startSpan,
+                                    EndTime = endSpan,
+                                    RoomId = match.RoomId
+                                });
+                                lessonNo++;
+                            }
+                        }
+                        currentDate = currentDate.AddDays(1);
+                    }
                 }
 
                 if (!proposedSchedules.Any())
@@ -126,10 +182,57 @@ namespace sep490_be.Services.Implementations
                     .Where(cs => cs.ScheduleDate >= minDate && cs.ScheduleDate <= maxDate)
                     .ToListAsync();
 
+                string teacherName = "";
+                if (dto.TeacherId.HasValue)
+                {
+                    var teacher = await _teacherRepository.FindAll().FirstOrDefaultAsync(t => t.Id == dto.TeacherId.Value);
+                    teacherName = teacher?.Name ?? "";
+                }
+
+                HashSet<(int DayOfWeek, int SlotIndex)> teacherAvails = null;
+                if (dto.TeacherId.HasValue && dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
+                {
+                    var avList = await _availabilityRepository.FindAll()
+                        .Where(ta => ta.SemesterId == dto.SemesterId.Value && ta.TeacherId == dto.TeacherId.Value)
+                        .ToListAsync();
+                    if (avList.Any())
+                    {
+                        teacherAvails = avList.Select(ta => (ta.DayOfWeek, ta.SlotIndex)).ToHashSet();
+                    }
+                    else
+                    {
+                        teacherAvails = new HashSet<(int DayOfWeek, int SlotIndex)>();
+                    }
+                }
+
                 var conflicts = new List<ConflictDetailDto>();
 
                 foreach (var prop in proposedSchedules)
                 {
+                    // Check teacher availability
+                    if (teacherAvails != null)
+                    {
+                        var fixedSlot = FixedTimeSlot.FromStartTime(prop.StartTime);
+                        if (fixedSlot != null)
+                        {
+                            int dayOfWeek = (int)prop.Date.DayOfWeek;
+                            if (!teacherAvails.Contains((dayOfWeek, fixedSlot.Index)))
+                            {
+                                conflicts.Add(new ConflictDetailDto
+                                {
+                                    Type = "TeacherAvailability",
+                                    TeacherId = dto.TeacherId,
+                                    TeacherName = teacherName,
+                                    Date = prop.Date,
+                                    StartTime = prop.StartTime.ToString(@"hh\:mm"),
+                                    EndTime = prop.EndTime.ToString(@"hh\:mm"),
+                                    SlotId = fixedSlot.Index,
+                                    SlotName = fixedSlot.Name
+                                });
+                            }
+                        }
+                    }
+
                     foreach (var ext in existingSchedules)
                     {
                         if (ext.ScheduleDate?.Date != prop.Date.Date) continue;
@@ -836,7 +939,8 @@ namespace sep490_be.Services.Implementations
             public string CourseName { get; set; } = string.Empty;
             public int Size => StudentIds.Count;
             public List<int> StudentIds { get; set; } = new List<int>();
-            public string PreferredSlotBucket { get; set; } = "evening"; // morning, afternoon, evening
+            public int PreferredSlotIndex { get; set; } // 0-4
+            public int PreferredDaysOfWeek { get; set; } // Bitmask
             public int ExpectedLessons { get; set; } = 30;
             public int EnrollType { get; set; } = 0; // 0 = Offline, 1 = Online
         }
@@ -852,10 +956,6 @@ namespace sep490_be.Services.Implementations
             // Ensure valid bounds
             if (minClassSize <= 0) minClassSize = 1;
             if (maxClassSize < minClassSize) maxClassSize = minClassSize;
-            if (allowedBuckets == null || allowedBuckets.Length < 3)
-            {
-                allowedBuckets = new[] { true, true, true };
-            }
 
             // Group by Course and EnrollType to separate Online/Offline students into distinct classes
             var byCourse = registrations.GroupBy(r => new { r.CourseId, r.EnrollType });
@@ -876,55 +976,109 @@ namespace sep490_be.Services.Implementations
 
                 var model = new CpModel();
 
-                // Variables
+                // Variables:
+                // x[i, k] = 1 if student i is assigned to class k
                 var x = new BoolVar[N, M];
                 var active = new BoolVar[M];
-                var isSlot = new BoolVar[M, 3]; // 0: morning, 1: afternoon, 2: evening
-
-                var slotNames = new[] { "morning", "afternoon", "evening" };
+                
+                // For each class k, we need to decide its preferred slot index (0-4) and its days of week bitmask (0-127)
+                // To keep it simple and optimized for CP-SAT:
+                // We define isSlot[k, s] = 1 if class k is at slot s (s from 0 to 4)
+                var isSlot = new BoolVar[M, 5];
+                
+                // We define hasDay[k, d] = 1 if class k uses dayOfWeek d (d from 0 to 6)
+                var hasDay = new BoolVar[M, 7];
 
                 for (int k = 0; k < M; k++)
                 {
                     active[k] = model.NewBoolVar($"active_{k}");
-                    for (int s = 0; s < 3; s++)
+                    
+                    // Sum of isSlot over s must equal active[k]
+                    var slotVars = new List<IntVar>();
+                    for (int s = 0; s < 5; s++)
                     {
                         isSlot[k, s] = model.NewBoolVar($"isSlot_{k}_{s}");
-                        if (!allowedBuckets[s])
-                        {
-                            model.Add(isSlot[k, s] == 0);
-                        }
+                        slotVars.Add(isSlot[k, s]);
                     }
-                    // Sum of isSlot over s must equal active[k]
-                    model.Add(LinearExpr.Sum(new IntVar[] { isSlot[k, 0], isSlot[k, 1], isSlot[k, 2] }) == active[k]);
+                    model.Add(LinearExpr.Sum(slotVars.ToArray()) == active[k]);
+
+                    for (int d = 0; d < 7; d++)
+                    {
+                        hasDay[k, d] = model.NewBoolVar($"hasDay_{k}_{d}");
+                        // If class is inactive, it cannot use any day
+                        model.Add(hasDay[k, d] <= active[k]);
+                    }
                 }
 
+                // Resolve student preferences and add compatibility constraints
                 for (int i = 0; i < N; i++)
                 {
                     var r = students[i];
-                    List<string> preferred;
-                    try
+                    int prefSlot = 4; // Default Evening (slot 4)
+                    int prefDaysMask = 127; // Default all days
+
+                    if (r.PreferredSlotIndex.HasValue && r.PreferredDaysOfWeek.HasValue)
                     {
-                        preferred = JsonSerializer.Deserialize<List<string>>(r.PreferredSlotsJson ?? "[]") ?? new List<string>();
+                        prefSlot = r.PreferredSlotIndex.Value;
+                        prefDaysMask = r.PreferredDaysOfWeek.Value;
                     }
-                    catch
+                    else
                     {
-                        preferred = new List<string>();
+                        // Backward compatibility logic: Parse PreferredSlotsJson
+                        List<string> preferred;
+                        try
+                        {
+                            preferred = JsonSerializer.Deserialize<List<string>>(r.PreferredSlotsJson ?? "[]") ?? new List<string>();
+                        }
+                        catch
+                        {
+                            preferred = new List<string>();
+                        }
+                        var normalized = preferred.Select(s => s.Trim().ToLower()).ToHashSet();
+                        if (normalized.Contains("morning"))
+                        {
+                            prefSlot = 0; // map to ca 1
+                            prefDaysMask = 62; // Mon-Fri
+                        }
+                        else if (normalized.Contains("afternoon"))
+                        {
+                            prefSlot = 2; // map to ca 3
+                            prefDaysMask = 62; // Mon-Fri
+                        }
+                        else
+                        {
+                            prefSlot = 4; // evening
+                            prefDaysMask = 62; // Mon-Fri
+                        }
                     }
-                    var normalized = preferred.Select(s => s.Trim().ToLower()).ToHashSet();
-                    if (!normalized.Any())
+
+                    // Get list of allowed days
+                    var allowedDays = new List<int>();
+                    for (int d = 0; d < 7; d++)
                     {
-                        normalized = new HashSet<string> { "morning", "afternoon", "evening" };
+                        if ((prefDaysMask & (1 << d)) != 0)
+                        {
+                            allowedDays.Add(d);
+                        }
                     }
+                    if (!allowedDays.Any()) allowedDays = new List<int> { 1, 2, 3, 4, 5 }; // Fallback Mon-Fri
 
                     for (int k = 0; k < M; k++)
                     {
                         x[i, k] = model.NewBoolVar($"x_{i}_{k}");
 
-                        for (int s = 0; s < 3; s++)
+                        // If student i is assigned to class k, the class must choose the student's preferred slot
+                        // i.e., x[i, k] <= isSlot[k, prefSlot]
+                        model.Add(x[i, k] <= isSlot[k, prefSlot]);
+
+                        // If student i is assigned to class k, the class days must be a subset of the student's preferred days.
+                        // For any day d that the class uses, if it's NOT in student's preferred days, student cannot be in class k.
+                        for (int d = 0; d < 7; d++)
                         {
-                            if (!normalized.Contains(slotNames[s]))
+                            if (!allowedDays.Contains(d))
                             {
-                                model.Add(x[i, k] + isSlot[k, s] <= 1);
+                                // x[i, k] + hasDay[k, d] <= 1
+                                model.Add(x[i, k] + hasDay[k, d] <= 1);
                             }
                         }
                     }
@@ -981,15 +1135,26 @@ namespace sep490_be.Services.Implementations
                                 }
                             }
 
-                            string chosenSlot = "evening";
-                            for (int s = 0; s < 3; s++)
+                            int chosenSlot = 4;
+                            for (int s = 0; s < 5; s++)
                             {
                                 if (solver.Value(isSlot[k, s]) == 1)
                                 {
-                                    chosenSlot = slotNames[s];
+                                    chosenSlot = s;
                                     break;
                                 }
                             }
+
+                            int chosenDaysMask = 0;
+                            for (int d = 0; d < 7; d++)
+                            {
+                                if (solver.Value(hasDay[k, d]) == 1)
+                                {
+                                    chosenDaysMask |= (1 << d);
+                                }
+                            }
+                            // If no days were active for some reason, fallback to Monday (2) and Wednesday (8) = 10
+                            if (chosenDaysMask == 0) chosenDaysMask = 10;
 
                             draftClasses.Add(new DraftClass
                             {
@@ -997,7 +1162,8 @@ namespace sep490_be.Services.Implementations
                                 CourseCode = course.Code ?? $"C_{course.Id}",
                                 CourseName = course.Name ?? "Khóa học",
                                 StudentIds = studentIds,
-                                PreferredSlotBucket = chosenSlot,
+                                PreferredSlotIndex = chosenSlot,
+                                PreferredDaysOfWeek = chosenDaysMask,
                                 ExpectedLessons = expectedLessons,
                                 EnrollType = groupEnrollType
                             });
@@ -1057,14 +1223,8 @@ namespace sep490_be.Services.Implementations
                 }
                 var globalAllowedSlots = globalAllowedSlotsList.Distinct().ToArray();
 
-                // Compute allowedBuckets for GroupStudentsIntoDraftClasses
-                bool[] allowedBuckets = new bool[3]; // 0: morning, 1: afternoon, 2: evening
-                allowedBuckets[0] = globalAllowedSlots.Contains(0) || globalAllowedSlots.Contains(1);
-                allowedBuckets[1] = globalAllowedSlots.Contains(2) || globalAllowedSlots.Contains(3);
-                allowedBuckets[2] = globalAllowedSlots.Contains(4);
-
                 // 2. Group registrations into Draft Classes using CP-SAT solver to handle multiple slot preferences optimally
-                var draftClasses = GroupStudentsIntoDraftClasses(registrations, request.MaxClassSize, request.MinClassSize, allowedBuckets);
+                var draftClasses = GroupStudentsIntoDraftClasses(registrations, request.MaxClassSize, request.MinClassSize, null);
                 if (!draftClasses.Any())
                     return ApiResponse<List<ClassDto>>.Fail("ERR_NO_DRAFT_CLASSES_GENERATED", StatusCodes.Status400BadRequest);
 
@@ -1110,28 +1270,7 @@ namespace sep490_be.Services.Implementations
 
                 // Global allowed slots and slotMap are resolved at the top of AutoScheduleSemesterAsync
 
-                // Filter out draft classes that do not intersect with the global allowed slots of this schedule run
-                // (e.g. if run is morning-only, skip evening classes so they remain Pending)
-                var filteredDraftClasses = new List<DraftClass>();
-                foreach (var draft in draftClasses)
-                {
-                    var preferredSlots = !string.IsNullOrWhiteSpace(draft.PreferredSlotBucket) && slotMap.ContainsKey(draft.PreferredSlotBucket.ToLower())
-                        ? slotMap[draft.PreferredSlotBucket.ToLower()]
-                        : Array.Empty<int>();
-
-                    var classAllowedSlots = preferredSlots.Intersect(globalAllowedSlots).ToArray();
-                    if (classAllowedSlots.Any())
-                    {
-                        filteredDraftClasses.Add(draft);
-                    }
-                }
-
-                if (!filteredDraftClasses.Any())
-                {
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_DRAFT_CLASSES_MATCH_TIME_PREFERENCES", StatusCodes.Status400BadRequest);
-                }
-                draftClasses = filteredDraftClasses;
-
+                // We keep all generated draft classes since they now target specific slot indices directly
                 int numClasses = draftClasses.Count;
                 int numTeachers = teachers.Count;
                 int numRooms = rooms.Count;
@@ -1173,31 +1312,35 @@ namespace sep490_be.Services.Implementations
                     }).ToArray();
                     model.AddElement(roomVar[i], roomPenaltiesForClass, roomPenaltyVar[i]);
 
-                    // Intersect preferred slot of draft class with globally allowed slots
-                    var preferredSlots = !string.IsNullOrWhiteSpace(draft.PreferredSlotBucket) && slotMap.ContainsKey(draft.PreferredSlotBucket.ToLower())
-                        ? slotMap[draft.PreferredSlotBucket.ToLower()]
-                        : Array.Empty<int>();
-
-                    var classAllowedSlots = preferredSlots.Intersect(globalAllowedSlots).ToArray();
-                    if (!classAllowedSlots.Any())
+                    // Allowed Days for this draft class based on bitmask
+                    var classAllowedDaysList = new List<int>();
+                    for (int d = 0; d < 7; d++)
                     {
-                        // Fallback: use all globally allowed slots if no intersection (e.g., admin restricted morning, student wanted evening)
-                        classAllowedSlots = globalAllowedSlots;
+                        if ((draft.PreferredDaysOfWeek & (1 << d)) != 0)
+                        {
+                            classAllowedDaysList.Add(d);
+                        }
+                    }
+                    // Filter allowed days to Mon-Fri if weekend is not allowed
+                    var classAllowedDays = classAllowedDaysList.Intersect(allowedDays).ToArray();
+                    if (!classAllowedDays.Any())
+                    {
+                        classAllowedDays = allowedDays; // fallback to all general allowed days
                     }
 
                     for (int j = 0; j < freq; j++)
                     {
-                        // Day variable
-                        dayVar[i, j] = model.NewIntVar(allowedDays.Min(), allowedDays.Max(), $"day_{i}_{j}");
-                        // Slot variable: full range, constrained below via AddBoolOr
-                        slotIndexVar[i, j] = model.NewIntVar(0, numFixed - 1, $"fs_{i}_{j}");
+                        // Day variable: restricted to classAllowedDays
+                        dayVar[i, j] = model.NewIntVar(classAllowedDays.Min(), classAllowedDays.Max(), $"day_{i}_{j}");
+                        // Slot variable: pin to exact PreferredSlotIndex
+                        slotIndexVar[i, j] = model.NewIntVar(draft.PreferredSlotIndex, draft.PreferredSlotIndex, $"fs_{i}_{j}");
                         slotVar[i, j] = model.NewIntVar(0, 7 * numFixed - 1, $"flat_{i}_{j}");
                         model.Add(slotVar[i, j] == dayVar[i, j] * numFixed + slotIndexVar[i, j]);
 
-                        // Restrict dayVar to allowedDays (handles non-contiguous weekday sets)
-                        if (allowedDays.Length < allowedDays.Max() - allowedDays.Min() + 1)
+                        // Restrict dayVar to classAllowedDays
+                        if (classAllowedDays.Length < classAllowedDays.Max() - classAllowedDays.Min() + 1)
                         {
-                            var dayLiterals = allowedDays.Select(d =>
+                            var dayLiterals = classAllowedDays.Select(d =>
                             {
                                 var b = model.NewBoolVar($"dayOk_{i}_{j}_{d}");
                                 model.Add(dayVar[i, j] == d).OnlyEnforceIf(b);
@@ -1205,19 +1348,6 @@ namespace sep490_be.Services.Implementations
                                 return (ILiteral)b;
                             }).ToArray();
                             model.AddBoolOr(dayLiterals);
-                        }
-
-                        // ALWAYS restrict slotIndexVar to exactly classAllowedSlots
-                        // Using AddBoolOr ensures correctness for both contiguous and non-contiguous slot sets
-                        {
-                            var slotLiterals = classAllowedSlots.Select(s =>
-                            {
-                                var b = model.NewBoolVar($"slotOk_{i}_{j}_{s}");
-                                model.Add(slotIndexVar[i, j] == s).OnlyEnforceIf(b);
-                                model.Add(slotIndexVar[i, j] != s).OnlyEnforceIf(b.Not());
-                                return (ILiteral)b;
-                            }).ToArray();
-                            model.AddBoolOr(slotLiterals);
                         }
                     }
 
@@ -1227,13 +1357,13 @@ namespace sep490_be.Services.Implementations
                         model.Add(slotIndexVar[i, j] == slotIndexVar[i, 0]);
                     }
 
-                    // Sessions of the same class: ordered days + gap constraint
-                    for (int j = 0; j < freq - 1; j++)
+                    // Sessions of the same class: must be in different days (no gap constraint, just different)
+                    for (int j1 = 0; j1 < freq; j1++)
                     {
-                        if (request.Constraints.AllowConsecutiveDays)
-                            model.Add(dayVar[i, j + 1] > dayVar[i, j]);
-                        else
-                            model.Add(dayVar[i, j + 1] >= dayVar[i, j] + 2);
+                        for (int j2 = j1 + 1; j2 < freq; j2++)
+                        {
+                            model.Add(dayVar[i, j1] != dayVar[i, j2]);
+                        }
                     }
                 }
 
@@ -1593,8 +1723,13 @@ namespace sep490_be.Services.Implementations
                     var teacher = teachers[tIdx];
                     var room = rooms[rIdx];
 
-                    var classCode = $"{draft.CourseCode}_{semester.Code}_{draft.PreferredSlotBucket.Substring(0, 3).ToUpper()}_{i + 1}";
-                    var className = $"Lớp {draft.CourseName} - {semester.Name} ({draft.PreferredSlotBucket}) - Lớp {i + 1}";
+                    var coursePrefix = new string(draft.CourseCode.TakeWhile(c => !char.IsDigit(c)).ToArray());
+                    if (string.IsNullOrEmpty(coursePrefix))
+                    {
+                        coursePrefix = "KH";
+                    }
+                    var classCode = $"{coursePrefix}{DateTime.Now:ddMMHH}_{semester.Code}_CA{draft.PreferredSlotIndex + 1}_{i + 1}";
+                    var className = $"Lớp {draft.CourseName} - {semester.Name} (Ca {draft.PreferredSlotIndex + 1}) - Lớp {i + 1}";
 
                     // Build weekly schedules for this draft class
                     var newWS = new List<WeeklyScheduleDto>();
@@ -1751,6 +1886,7 @@ namespace sep490_be.Services.Implementations
                         };
 
                         await GenerateClassSchedulesHelperAsync(entity, saveDto);
+                        entity.TextSearch = StringHelper.GenerateTextSearch(entity.Code, entity.Name, entity.Description, entity.ScheduleDisplay);
                         await _classRepository.UpdateAsync(entity);
 
                         // Link students and mark registrations as Scheduled
@@ -1782,11 +1918,30 @@ namespace sep490_be.Services.Implementations
                         createdClasses.Add(entity);
                     }
 
-                    // Save original request JSON payload to Semester for future rollback
-                    semester.OriginalScheduleDraftJson = JsonSerializer.Serialize(request);
-                    await _semesterRepository.UpdateAsync(semester);
-
                     await _classRepository.SaveChangesAsync();
+
+                    // Upsert the auto-saved checkpoint: re-running auto-schedule for this semester
+                    // overwrites the same "Original" snapshot rather than piling up duplicates.
+                    var initialSnapshot = await BuildSnapshotAsync(semester.Id);
+                    var autoVersion = await _scheduleVersionRepository.FindAll()
+                        .FirstOrDefaultAsync(v => v.SemesterId == semester.Id && v.IsAutoSaved);
+                    if (autoVersion != null)
+                    {
+                        autoVersion.ScheduleJson = JsonSerializer.Serialize(initialSnapshot);
+                        await _scheduleVersionRepository.UpdateAsync(autoVersion);
+                    }
+                    else
+                    {
+                        await _scheduleVersionRepository.AddAsync(new ScheduleVersion
+                        {
+                            SemesterId = semester.Id,
+                            Name = "Original",
+                            ScheduleJson = JsonSerializer.Serialize(initialSnapshot),
+                            IsAutoSaved = true
+                        });
+                    }
+                    await _scheduleVersionRepository.SaveChangesAsync();
+
                     await transaction.CommitAsync();
 
                     // Reload and return persisted classes
@@ -1800,7 +1955,11 @@ namespace sep490_be.Services.Implementations
                             .Include(cl => cl.ClassSchedules).ThenInclude(cs => cs.Room)
                             .Include(cl => cl.StudentClasses).ThenInclude(sc => sc.Student)
                             .FirstOrDefaultAsync(cl => cl.Id == c.Id);
-                        if (reloaded != null) resultList.Add(MapToDto(reloaded));
+                        if (reloaded != null)
+                        {
+                            resultList.Add(MapToDto(reloaded));
+                            await _notificationService.SendClassCreatedNotificationAsync(reloaded);
+                        }
                     }
 
                     return ApiResponse<List<ClassDto>>.Ok(resultList, "SCHEDULE_DRAFT_SAVED");
@@ -1817,7 +1976,7 @@ namespace sep490_be.Services.Implementations
             }
         }
 
-        public async Task<ApiResponse<List<ClassDto>>> RollbackSemesterScheduleAsync(int semesterId)
+        public async Task<ApiResponse<List<ClassDto>>> RollbackSemesterScheduleAsync(int semesterId, int versionId)
         {
             try
             {
@@ -1825,8 +1984,11 @@ namespace sep490_be.Services.Implementations
                 if (semester == null || semester.IsDeleted)
                     return ApiResponse<List<ClassDto>>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
 
-                if (string.IsNullOrEmpty(semester.OriginalScheduleDraftJson))
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ORIGINAL_SCHEDULE_BACKUP", StatusCodes.Status400BadRequest);
+                var version = await _scheduleVersionRepository.GetByIdAsync(versionId);
+                if (version == null || version.IsDeleted)
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_SCHEDULE_VERSION_NOT_FOUND", StatusCodes.Status404NotFound);
+                if (version.SemesterId != semesterId)
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_VERSION_SEMESTER_MISMATCH", StatusCodes.Status400BadRequest);
 
                 using var transaction = await _classRepository.BeginTransactionAsync();
                 try
@@ -1837,6 +1999,8 @@ namespace sep490_be.Services.Implementations
                         .Include(c => c.ClassSchedules)
                         .Where(c => c.SemesterId == semesterId && c.Status == (int)ClassStatus.Planning && !c.IsDeleted)
                         .ToListAsync();
+
+                    var activeClassCodes = classesToDelete.Select(c => c.Code).ToHashSet();
 
                     if (classesToDelete.Any())
                     {
@@ -1869,19 +2033,38 @@ namespace sep490_be.Services.Implementations
                         await _classRepository.SaveChangesAsync();
                     }
 
-                    // 5. Deserialize the OriginalScheduleDraftJson
+                    // 5. Deserialize the chosen version's snapshot
                     var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                    var originalRequest = JsonSerializer.Deserialize<SaveScheduleDraftRequestDto>(semester.OriginalScheduleDraftJson, jsonOpts);
-                    if (originalRequest == null || originalRequest.Classes == null || !originalRequest.Classes.Any())
+                    var snapshot = JsonSerializer.Deserialize<ScheduleVersionSnapshotDto>(version.ScheduleJson, jsonOpts);
+                    if (snapshot == null || snapshot.Classes == null || !snapshot.Classes.Any())
                     {
                         return ApiResponse<List<ClassDto>>.Fail("ERR_CORRUPTED_BACKUP_DATA", StatusCodes.Status400BadRequest);
                     }
 
-                    // 6. Re-create the classes using the original saved request DTO
+                    // 6. Re-create the classes using the chosen version's snapshot
                     var createdClasses = new List<Class>();
+                    var processedCodes = new HashSet<string>();
 
-                    foreach (var draftClass in originalRequest.Classes)
+                    foreach (var draftClass in snapshot.Classes)
                     {
+                        if (string.IsNullOrWhiteSpace(draftClass.Code)) continue;
+                        if (processedCodes.Contains(draftClass.Code)) continue;
+                        processedCodes.Add(draftClass.Code);
+
+                        // If the class is not in the active (Planning) class list prior to rollback, it's either
+                        // explicitly deleted or has already progressed past Planning (Active/Completed/Cancelled) —
+                        // rollback only ever touches Planning-status classes, so leave those alone rather than
+                        // resurrecting or duplicating them.
+                        if (!activeClassCodes.Contains(draftClass.Code))
+                        {
+                            var existing = await _classRepository.FindAll()
+                                .IgnoreQueryFilters()
+                                .FirstOrDefaultAsync(c => c.SemesterId == semesterId && c.Code == draftClass.Code);
+                            if (existing != null && (existing.IsDeleted || existing.Status != (int)ClassStatus.Planning))
+                            {
+                                continue;
+                            }
+                        }
                         var entity = new Class
                         {
                             Code = draftClass.Code,
@@ -1914,6 +2097,7 @@ namespace sep490_be.Services.Implementations
                         };
 
                         await GenerateClassSchedulesHelperAsync(entity, saveDto);
+                        entity.TextSearch = StringHelper.GenerateTextSearch(entity.Code, entity.Name, entity.Description, entity.ScheduleDisplay);
                         await _classRepository.UpdateAsync(entity);
 
                         // Link students and mark registrations as Scheduled
@@ -1976,7 +2160,282 @@ namespace sep490_be.Services.Implementations
             }
         }
 
+        public async Task<ApiResponse<ScheduleVersionListItemDto>> SaveScheduleVersionAsync(int semesterId, string name)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(name))
+                    return ApiResponse<ScheduleVersionListItemDto>.Fail("ERR_VERSION_NAME_REQUIRED", StatusCodes.Status400BadRequest);
+
+                var semester = await _semesterRepository.GetByIdAsync(semesterId);
+                if (semester == null || semester.IsDeleted)
+                    return ApiResponse<ScheduleVersionListItemDto>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                var existingVersionCount = await _scheduleVersionRepository.FindAll()
+                    .CountAsync(v => v.SemesterId == semesterId);
+                if (existingVersionCount >= MaxScheduleVersionsPerSemester)
+                    return ApiResponse<ScheduleVersionListItemDto>.Fail("ERR_MAX_SCHEDULE_VERSIONS_REACHED", StatusCodes.Status400BadRequest);
+
+                var snapshot = await BuildSnapshotAsync(semesterId);
+                if (!snapshot.Classes.Any())
+                    return ApiResponse<ScheduleVersionListItemDto>.Fail("ERR_NO_SCHEDULE_TO_SAVE", StatusCodes.Status400BadRequest);
+
+                var entity = new ScheduleVersion
+                {
+                    SemesterId = semesterId,
+                    Name = name.Trim(),
+                    ScheduleJson = JsonSerializer.Serialize(snapshot),
+                    IsAutoSaved = false
+                };
+                await _scheduleVersionRepository.AddAsync(entity);
+                await _scheduleVersionRepository.SaveChangesAsync();
+
+                return ApiResponse<ScheduleVersionListItemDto>.Ok(new ScheduleVersionListItemDto
+                {
+                    Id = entity.Id,
+                    Name = entity.Name,
+                    CreatedAt = entity.CreatedAt,
+                    CreatedBy = entity.CreatedBy,
+                    ClassCount = snapshot.Classes.Count,
+                    IsAutoSaved = entity.IsAutoSaved
+                }, "SCHEDULE_VERSION_SAVED");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<ScheduleVersionListItemDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<ScheduleVersionListItemDto>>> GetScheduleVersionsAsync(int semesterId)
+        {
+            try
+            {
+                var versions = await _scheduleVersionRepository.FindAll()
+                    .Where(v => v.SemesterId == semesterId)
+                    .OrderByDescending(v => v.CreatedAt)
+                    .ToListAsync();
+
+                var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = versions.Select(v =>
+                {
+                    var classCount = 0;
+                    try
+                    {
+                        var snapshot = JsonSerializer.Deserialize<ScheduleVersionSnapshotDto>(v.ScheduleJson, jsonOpts);
+                        classCount = snapshot?.Classes?.Count ?? 0;
+                    }
+                    catch (JsonException)
+                    {
+                        // Corrupted snapshot: report 0 rather than failing the whole list
+                    }
+
+                    return new ScheduleVersionListItemDto
+                    {
+                        Id = v.Id,
+                        Name = v.Name,
+                        CreatedAt = v.CreatedAt,
+                        CreatedBy = v.CreatedBy,
+                        ClassCount = classCount,
+                        IsAutoSaved = v.IsAutoSaved
+                    };
+                }).ToList();
+
+                return ApiResponse<List<ScheduleVersionListItemDto>>.Ok(result, "SCHEDULE_VERSIONS_FETCHED");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ScheduleVersionListItemDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<bool>> DeleteScheduleVersionAsync(int versionId)
+        {
+            try
+            {
+                var version = await _scheduleVersionRepository.GetByIdAsync(versionId);
+                if (version == null || version.IsDeleted)
+                    return ApiResponse<bool>.Fail("ERR_SCHEDULE_VERSION_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                if (version.IsAutoSaved)
+                    return ApiResponse<bool>.Fail("ERR_CANNOT_DELETE_AUTO_VERSION", StatusCodes.Status400BadRequest);
+
+                await _scheduleVersionRepository.DeleteAsync(version);
+                await _scheduleVersionRepository.SaveChangesAsync();
+
+                return ApiResponse<bool>.Ok(true, "SCHEDULE_VERSION_DELETED");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<bool>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<List<ClassDto>>> GetScheduleVersionPreviewAsync(int versionId)
+        {
+            try
+            {
+                var version = await _scheduleVersionRepository.GetByIdAsync(versionId);
+                if (version == null || version.IsDeleted)
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_SCHEDULE_VERSION_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                var semester = await _semesterRepository.GetByIdAsync(version.SemesterId);
+                if (semester == null || semester.IsDeleted)
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                ScheduleVersionSnapshotDto? snapshot;
+                try
+                {
+                    snapshot = JsonSerializer.Deserialize<ScheduleVersionSnapshotDto>(version.ScheduleJson, jsonOpts);
+                }
+                catch (JsonException)
+                {
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_CORRUPTED_BACKUP_DATA", StatusCodes.Status400BadRequest);
+                }
+                if (snapshot == null || snapshot.Classes == null || !snapshot.Classes.Any())
+                    return ApiResponse<List<ClassDto>>.Fail("ERR_CORRUPTED_BACKUP_DATA", StatusCodes.Status400BadRequest);
+
+                var teacherIds = snapshot.Classes.Select(c => c.TeacherId).Distinct().ToList();
+                var teachers = await _teacherRepository.FindAll()
+                    .Where(t => teacherIds.Contains(t.Id))
+                    .ToDictionaryAsync(t => t.Id, t => t);
+
+                var roomIds = snapshot.Classes
+                    .SelectMany(c => c.WeeklySchedules)
+                    .Where(w => w.RoomId.HasValue)
+                    .Select(w => w.RoomId!.Value)
+                    .Distinct()
+                    .ToList();
+                var rooms = await _roomRepository.FindAll()
+                    .Where(r => roomIds.Contains(r.Id))
+                    .ToDictionaryAsync(r => r.Id, r => r);
+
+                var resultList = new List<ClassDto>();
+                foreach (var cls in snapshot.Classes)
+                {
+                    teachers.TryGetValue(cls.TeacherId, out var teacher);
+                    var orderedWS = cls.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
+                    var inMemorySchedules = new List<ClassScheduleDto>();
+                    int lessonNo = 1;
+                    var cur = semester.StartDate;
+                    while (cur <= semester.EndDate)
+                    {
+                        var match = orderedWS.FirstOrDefault(w => (int)cur.DayOfWeek == w.DayOfWeek);
+                        if (match != null && TimeSpan.TryParse(match.StartTime, out var st) && TimeSpan.TryParse(match.EndTime, out _))
+                        {
+                            var room = match.RoomId.HasValue && rooms.TryGetValue(match.RoomId.Value, out var r) ? r : null;
+                            var fixedSlot = FixedTimeSlot.FromStartTime(st);
+                            inMemorySchedules.Add(new ClassScheduleDto
+                            {
+                                LessonNo = lessonNo,
+                                ScheduleDate = cur,
+                                StartTime = match.StartTime,
+                                EndTime = match.EndTime,
+                                RoomId = match.RoomId,
+                                RoomName = room?.Name,
+                                TeacherId = cls.TeacherId,
+                                TeacherName = teacher?.Name,
+                                SlotName = fixedSlot?.Name,
+                                Status = (int)ClassScheduleStatus.Scheduled,
+                                Code = $"SCH_PREVIEW_{cls.Code}_{lessonNo}",
+                                Name = $"Buổi học {lessonNo}"
+                            });
+                            lessonNo++;
+                        }
+                        cur = cur.AddDays(1);
+                    }
+
+                    resultList.Add(new ClassDto
+                    {
+                        Id = 0, // 0 signals preview (not persisted)
+                        Code = cls.Code,
+                        Name = cls.Name,
+                        Status = (int)ClassStatus.Planning,
+                        StatusName = "Planning",
+                        Type = cls.EnrollType,
+                        TypeName = cls.EnrollType == 1 ? "Online" : "Offline",
+                        StartDate = semester.StartDate,
+                        EndDate = semester.EndDate,
+                        CourseId = cls.CourseId,
+                        TeacherId = cls.TeacherId,
+                        TeacherName = teacher?.Name,
+                        SemesterId = semester.Id,
+                        SemesterName = semester.Name,
+                        ExpectedLessons = lessonNo - 1,
+                        WeeklySchedulesJson = JsonSerializer.Serialize(cls.WeeklySchedules,
+                            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+                        StudentCount = cls.Students.Count,
+                        Schedules = inMemorySchedules
+                    });
+                }
+
+                return ApiResponse<List<ClassDto>>.Ok(resultList, "SCHEDULE_VERSION_PREVIEW_GENERATED");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<ClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task PurgeScheduleVersionsIfSemesterEmptyAsync(int semesterId)
+        {
+            var hasRemainingPlanningClasses = await _classRepository.FindAll()
+                .AnyAsync(c => c.SemesterId == semesterId && c.Status == (int)ClassStatus.Planning && !c.IsDeleted);
+            if (hasRemainingPlanningClasses)
+                return;
+
+            var versions = await _scheduleVersionRepository.FindAll()
+                .Where(v => v.SemesterId == semesterId)
+                .ToListAsync();
+            if (!versions.Any())
+                return;
+
+            foreach (var version in versions)
+            {
+                await _scheduleVersionRepository.DeleteAsync(version);
+            }
+            await _scheduleVersionRepository.SaveChangesAsync();
+        }
+
         // ================= PRIVATE HELPERS =================
+
+        private async Task<ScheduleVersionSnapshotDto> BuildSnapshotAsync(int semesterId)
+        {
+            var classes = await _classRepository.FindAll()
+                .Include(c => c.StudentClasses)
+                .Where(c => c.SemesterId == semesterId && c.Status == (int)ClassStatus.Planning && !c.IsDeleted)
+                .ToListAsync();
+
+            var snapshot = new ScheduleVersionSnapshotDto { SemesterId = semesterId };
+            var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+            foreach (var c in classes)
+            {
+                List<WeeklyScheduleDto> weekly = new();
+                if (!string.IsNullOrEmpty(c.WeeklySchedulesJson))
+                {
+                    weekly = JsonSerializer.Deserialize<List<WeeklyScheduleDto>>(c.WeeklySchedulesJson, jsonOpts) ?? new();
+                }
+
+                snapshot.Classes.Add(new ClassDraftSaveDto
+                {
+                    Code = c.Code,
+                    Name = c.Name,
+                    CourseId = c.CourseId ?? 0,
+                    TeacherId = c.TeacherId ?? 0,
+                    EnrollType = c.Type,
+                    ExpectedLessons = c.ExpectedLessons ?? 30,
+                    WeeklySchedules = weekly,
+                    Students = c.StudentClasses.Select(sc => new StudentEnrollDto
+                    {
+                        StudentId = sc.StudentId,
+                        EnrollType = sc.EnrollType ?? 0
+                    }).ToList()
+                });
+            }
+
+            return snapshot;
+        }
 
         private class ProposedScheduleTemp
         {
@@ -2173,12 +2632,17 @@ namespace sep490_be.Services.Implementations
 
             foreach (var draft in draftClasses)
             {
-                var preferredSlots = !string.IsNullOrWhiteSpace(draft.PreferredSlotBucket) && slotMap.ContainsKey(draft.PreferredSlotBucket.ToLower())
-                    ? slotMap[draft.PreferredSlotBucket.ToLower()]
-                    : Array.Empty<int>();
-
-                var classAllowedSlots = preferredSlots.Intersect(globalAllowedSlots).ToArray();
-                if (!classAllowedSlots.Any()) classAllowedSlots = globalAllowedSlots;
+                var preferredSlot = draft.PreferredSlotIndex;
+                var classAllowedDaysList = new List<int>();
+                for (int d = 0; d < 7; d++)
+                {
+                    if ((draft.PreferredDaysOfWeek & (1 << d)) != 0)
+                    {
+                        classAllowedDaysList.Add(d);
+                    }
+                }
+                var classAllowedDays = classAllowedDaysList.Intersect(allowedDays).ToArray();
+                if (!classAllowedDays.Any()) classAllowedDays = allowedDays;
 
                 bool hasTeacher = false;
                 foreach (var t in teachers)
@@ -2189,7 +2653,7 @@ namespace sep490_be.Services.Implementations
                         break;
                     }
                     var active = teacherAvailMap[t.Id];
-                    var matchingSlots = active.Where(slot => allowedDays.Contains(slot.Item1) && classAllowedSlots.Contains(slot.Item2));
+                    var matchingSlots = active.Where(slot => classAllowedDays.Contains(slot.Item1) && slot.Item2 == preferredSlot);
                     if (matchingSlots.Any())
                     {
                         hasTeacher = true;
@@ -2199,8 +2663,7 @@ namespace sep490_be.Services.Implementations
 
                 if (!hasTeacher)
                 {
-                    var slotNames = string.Join(", ", classAllowedSlots.Select(s => $"Ca {s + 1}"));
-                    errors.Add($"Khóa học '{draft.CourseName}': Không có giáo viên nào có lịch rảnh vào các ca học được phép ({slotNames}) trong các ngày đã chọn.");
+                    errors.Add($"Khóa học '{draft.CourseName}': Không có giáo viên nào có lịch rảnh vào Ca {preferredSlot + 1} trong các ngày mong muốn của lớp ({string.Join(", ", classAllowedDays.Select(GetDayOfWeekName))}).");
                 }
             }
 

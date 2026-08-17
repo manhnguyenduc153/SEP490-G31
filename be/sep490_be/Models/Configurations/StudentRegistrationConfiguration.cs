@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace sep490_be.Models.Configurations
@@ -10,6 +10,8 @@ namespace sep490_be.Models.Configurations
             builder.ToTable("student_registrations");
             builder.HasKey(x => x.Id);
             builder.Property(x => x.PreferredSlotsJson).HasColumnType("nvarchar(max)");
+            builder.Property(x => x.PreferredSlotIndex).IsRequired(false);
+            builder.Property(x => x.PreferredDaysOfWeek).IsRequired(false);
 
             builder.HasOne(x => x.Student)
                 .WithMany()

@@ -428,7 +428,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<bool>.Fail("ERR_CLASS_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                if (existingEntity.Status != (int)ClassStatus.Planning)
+                if (existingEntity.Status != (int)ClassStatus.Planning && existingEntity.Status != (int)ClassStatus.Cancelled)
                 {
                     return ApiResponse<bool>.Fail("ERR_CLASS_ALREADY_STARTED", StatusCodes.Status400BadRequest);
                 }
@@ -456,16 +456,45 @@ namespace sep490_be.Services.Implementations
                     }
                 }
 
-                 // Remove StudentClasses relations to avoid orphans
-                 if (studentClasses.Any())
-                 {
-                     await _studentClassRepository.DeleteRangeAsync(studentClasses);
-                 }
+                  // Remove ClassSchedules relations to avoid orphans or constraint violations
+                  var schedules = await _scheduleRepository.FindAll()
+                      .Where(cs => cs.ClassId == id)
+                      .ToListAsync();
+                  if (schedules.Any())
+                  {
+                      await _scheduleRepository.DeleteRangeAsync(schedules);
+                  }
+
+                  // Remove Attendance records related to schedules to avoid constraint violations
+                  var scheduleIds = schedules.Select(s => s.Id).ToList();
+                  if (scheduleIds.Any())
+                  {
+                      var attendances = await _attendanceRepository.FindAll()
+                          .Where(a => a.ScheduleId.HasValue && scheduleIds.Contains(a.ScheduleId.Value))
+                          .ToListAsync();
+                      if (attendances.Any())
+                      {
+                          await _attendanceRepository.DeleteRangeAsync(attendances);
+                      }
+                  }
+
+                  // Remove StudentClasses relations to avoid orphans
+                  if (studentClasses.Any())
+                  {
+                      await _studentClassRepository.DeleteRangeAsync(studentClasses);
+                  }
 
                 // Delete the class itself
                 await _repository.DeleteAsync(existingEntity);
                 await _repository.SaveChangesAsync();
-                
+
+                // If this was the last remaining class for the semester, its saved schedule
+                // versions no longer reflect anything restorable — clear them out too.
+                if (existingEntity.SemesterId.HasValue)
+                {
+                    await _optService.PurgeScheduleVersionsIfSemesterEmptyAsync(existingEntity.SemesterId.Value);
+                }
+
                 await transaction.CommitAsync();
 
                 return ApiResponse<bool>.Ok(true, "DELETE_CLASS_SUCCESS");
@@ -799,22 +828,70 @@ namespace sep490_be.Services.Implementations
                 }
             }
 
-            // Kiểm tra trùng lịch học của học sinh (1 học sinh chỉ được học 1 lớp tại 1 thời điểm)
-            if (dto.StudentIds != null && dto.StudentIds.Any() && dto.StartDate.HasValue && dto.ExpectedLessons.HasValue && dto.ExpectedLessons.Value > 0 && dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+            // 1. Kiểm tra trạng thái đăng ký của học sinh trong học kỳ - khóa học (không được thêm học sinh đã xếp lớp ở lớp khác)
+            if (dto.SemesterId.HasValue && dto.SemesterId.Value > 0 && dto.CourseId.HasValue && dto.StudentIds != null && dto.StudentIds.Any())
+            {
+                var alreadyScheduledStudents = await _studentRegistrationRepository.FindAll()
+                    .Include(r => r.Student)
+                    .Where(r => r.SemesterId == dto.SemesterId.Value
+                             && r.CourseId == dto.CourseId.Value
+                             && r.Status == (int)StudentRegistrationStatus.Scheduled
+                             && dto.StudentIds.Contains(r.StudentId))
+                    .ToListAsync();
+
+                if (alreadyScheduledStudents.Any())
+                {
+                    var trulyConflicting = alreadyScheduledStudents;
+                    if (isEdit)
+                    {
+                        var alreadyInThisClassIds = await _studentClassRepository.FindAll()
+                            .Where(sc => sc.ClassId == dto.Id)
+                            .Select(sc => sc.StudentId)
+                            .ToListAsync();
+
+                        trulyConflicting = alreadyScheduledStudents
+                            .Where(s => !alreadyInThisClassIds.Contains(s.StudentId))
+                            .ToList();
+                    }
+
+                    if (trulyConflicting.Any())
+                    {
+                        var conflictEmails = trulyConflicting
+                            .Select(r => r.Student?.Email ?? r.StudentId.ToString())
+                            .Distinct()
+                            .ToList();
+                        return $"ERR_STUDENT_CONFLICT_{conflictEmails.Count}__{string.Join(",", conflictEmails)}";
+                    }
+                }
+            }
+
+            // 2. Kiểm tra trùng lịch học của học sinh (1 học sinh chỉ được học 1 lớp tại 1 thời điểm)
+            DateTime? proposedStartDate = dto.StartDate;
+            DateTime? proposedEndDate = null;
+            int? expectedLessons = dto.ExpectedLessons;
+
+            if (dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
+            {
+                var sem = await _semesterRepository.GetByIdAsync(dto.SemesterId.Value);
+                if (sem != null && !sem.IsDeleted)
+                {
+                    proposedStartDate = sem.StartDate;
+                    proposedEndDate = sem.EndDate;
+                }
+            }
+            else if (dto.StartDate.HasValue && expectedLessons.HasValue && expectedLessons.Value > 0 && dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
             {
                 var currentDate = dto.StartDate.Value;
                 int lessonNo = 1;
                 var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
-                DateTime? proposedEndDate = null;
-
                 if (!weeklySchedules.Any(w => w.DayOfWeek < 0 || w.DayOfWeek > 6))
                 {
-                    while (lessonNo <= dto.ExpectedLessons.Value)
+                    while (lessonNo <= expectedLessons.Value)
                     {
                         var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
                         if (match != null)
                         {
-                            if (lessonNo == dto.ExpectedLessons.Value)
+                            if (lessonNo == expectedLessons.Value)
                             {
                                 proposedEndDate = currentDate;
                             }
@@ -822,51 +899,109 @@ namespace sep490_be.Services.Implementations
                         }
                         currentDate = currentDate.AddDays(1);
                     }
+                }
+            }
 
-                    if (proposedEndDate.HasValue)
+            if (dto.StudentIds != null && dto.StudentIds.Any() && proposedStartDate.HasValue && proposedEndDate.HasValue && dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+            {
+                var otherStudentClasses = await _studentClassRepository.FindAll()
+                    .Include(sc => sc.Student)
+                    .Include(sc => sc.Class)
+                    .Where(sc => dto.StudentIds.Contains(sc.StudentId)
+                              && sc.ClassId != dto.Id
+                              && sc.Class != null
+                              && !sc.Class.IsDeleted
+                              && (sc.Status == (int)StudentClassStatus.Enrolled || sc.Status == (int)StudentClassStatus.Studying))
+                    .ToListAsync();
+
+                if (otherStudentClasses.Any())
+                {
+                    var otherClassIds = otherStudentClasses.Select(sc => sc.ClassId).Distinct().ToList();
+
+                    var otherSchedules = await _scheduleRepository.FindAll()
+                        .Include(cs => cs.TimeSlot)
+                        .Where(cs => cs.ClassId.HasValue
+                                  && otherClassIds.Contains(cs.ClassId.Value)
+                                  && cs.Class != null
+                                  && !cs.Class.IsDeleted
+                                  && cs.ScheduleDate >= proposedStartDate
+                                  && cs.ScheduleDate <= proposedEndDate)
+                        .ToListAsync();
+
+                    if (otherSchedules.Any())
                     {
-                        var proposedStartDate = dto.StartDate.Value;
+                        // Generate proposed schedules for comparison
+                        var propSchedules = new List<(DateTime Date, TimeSpan Start, TimeSpan End)>();
+                        var currentDate = proposedStartDate.Value;
+                        var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
 
-                        var otherStudentClasses = await _studentClassRepository.FindAll()
-                            .Include(sc => sc.Student)
-                            .Include(sc => sc.Class)
-                            .Where(sc => dto.StudentIds.Contains(sc.StudentId)
-                                      && sc.ClassId != dto.Id
-                                      && sc.Class != null
-                                      && !sc.Class.IsDeleted
-                                      && (sc.Status == (int)StudentClassStatus.Enrolled || sc.Status == (int)StudentClassStatus.Studying))
-                            .ToListAsync();
-
-                        if (otherStudentClasses.Any())
+                        if (dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
                         {
-                            var otherClassIds = otherStudentClasses.Select(sc => sc.ClassId).Distinct().ToList();
-
-                            var conflictingSchedules = await _scheduleRepository.FindAll()
-                                .Where(cs => cs.ClassId.HasValue
-                                          && otherClassIds.Contains(cs.ClassId.Value)
-                                          && cs.Class != null
-                                          && !cs.Class.IsDeleted
-                                          && cs.ScheduleDate >= proposedStartDate
-                                          && cs.ScheduleDate <= proposedEndDate)
-                                .ToListAsync();
-
-                            if (conflictingSchedules.Any())
+                            while (currentDate <= proposedEndDate.Value)
                             {
-                                var conflictingEmails = new List<string>();
-                                foreach (var sc in otherStudentClasses)
+                                var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                                if (match != null && TimeSpan.TryParse(match.StartTime, out var startSpan) && TimeSpan.TryParse(match.EndTime, out var endSpan))
                                 {
-                                    var hasConflict = conflictingSchedules.Any(cs => cs.ClassId == sc.ClassId);
-                                    if (hasConflict && sc.Student != null && !string.IsNullOrWhiteSpace(sc.Student.Email))
+                                    propSchedules.Add((currentDate, startSpan, endSpan));
+                                }
+                                currentDate = currentDate.AddDays(1);
+                            }
+                        }
+                        else
+                        {
+                            int lessonNo = 1;
+                            while (lessonNo <= expectedLessons.GetValueOrDefault(30))
+                            {
+                                var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                                if (match != null && TimeSpan.TryParse(match.StartTime, out var startSpan) && TimeSpan.TryParse(match.EndTime, out var endSpan))
+                                {
+                                    propSchedules.Add((currentDate, startSpan, endSpan));
+                                    lessonNo++;
+                                }
+                                currentDate = currentDate.AddDays(1);
+                            }
+                        }
+
+                        var conflictingStudentIds = new HashSet<int>();
+                        foreach (var sc in otherStudentClasses)
+                        {
+                            var classSchedules = otherSchedules.Where(s => s.ClassId == sc.ClassId).ToList();
+                            bool hasScheduleConflict = false;
+
+                            foreach (var prop in propSchedules)
+                            {
+                                foreach (var ext in classSchedules)
+                                {
+                                    if (ext.ScheduleDate?.Date == prop.Date.Date && ext.TimeSlot != null)
                                     {
-                                        conflictingEmails.Add(sc.Student.Email.Trim());
+                                        bool timeOverlaps = ext.TimeSlot.StartTime < prop.End && ext.TimeSlot.EndTime > prop.Start;
+                                        if (timeOverlaps)
+                                        {
+                                            hasScheduleConflict = true;
+                                            break;
+                                        }
                                     }
                                 }
+                                if (hasScheduleConflict) break;
+                            }
 
-                                if (conflictingEmails.Any())
-                                {
-                                    var uniqueEmails = conflictingEmails.Distinct().ToList();
-                                    return $"ERR_STUDENT_CONFLICT_{uniqueEmails.Count}__{string.Join(",", uniqueEmails)}";
-                                }
+                            if (hasScheduleConflict)
+                            {
+                                conflictingStudentIds.Add(sc.StudentId);
+                            }
+                        }
+
+                        if (conflictingStudentIds.Any())
+                        {
+                            var conflictingEmails = otherStudentClasses
+                                .Where(sc => conflictingStudentIds.Contains(sc.StudentId) && sc.Student != null && !string.IsNullOrWhiteSpace(sc.Student.Email))
+                                .Select(sc => sc.Student!.Email!.Trim())
+                                .Distinct()
+                                .ToList();
+
+                            if (conflictingEmails.Any())
+                            {
+                                return $"ERR_STUDENT_CONFLICT_{conflictingEmails.Count}__{string.Join(",", conflictingEmails)}";
                             }
                         }
                     }
@@ -878,6 +1013,10 @@ namespace sep490_be.Services.Implementations
             if (conflictCheck.Success && conflictCheck.Data != null && conflictCheck.Data.HasConflict)
             {
                 var firstConflict = conflictCheck.Data.Conflicts.First();
+                if (firstConflict.Type == "TeacherAvailability")
+                {
+                    return "ERR_TEACHER_UNAVAILABLE";
+                }
                 if (firstConflict.Type == "Teacher")
                 {
                     return $"ERR_TEACHER_CONFLICT_{firstConflict.ConflictClassCode}";
