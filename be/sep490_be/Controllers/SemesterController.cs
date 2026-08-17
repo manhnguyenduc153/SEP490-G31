@@ -105,6 +105,15 @@ namespace sep490_be.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
+        // POST: api/Semester/availability/bulk
+        [HttpPost("availability/bulk")]
+        [HasPermission(Permissions.Semester.Semester_Edit)]
+        public async Task<IActionResult> SaveTeacherAvailabilitiesBulk([FromBody] List<TeacherAvailabilitySaveDto> dtos)
+        {
+            var response = await _service.SaveTeacherAvailabilitiesBulkAsync(dtos);
+            return StatusCode(response.StatusCode, response);
+        }
+
         // GET: api/Semester/5/registrations
         [HttpGet("{semesterId}/registrations")]
         [HasPermission(Permissions.StudentRegistration.StudentRegistration_View)]
@@ -153,6 +162,15 @@ namespace sep490_be.Controllers
         public async Task<IActionResult> DeleteStudentRegistration(int id)
         {
             var response = await _service.DeleteStudentRegistrationAsync(id);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // POST: api/Semester/registrations/bulk-delete
+        [HttpPost("registrations/bulk-delete")]
+        [HasPermission(Permissions.StudentRegistration.StudentRegistration_Delete)]
+        public async Task<IActionResult> BulkDeleteStudentRegistrations([FromBody] List<int> ids)
+        {
+            var response = await _service.DeleteStudentRegistrationsAsync(ids);
             return StatusCode(response.StatusCode, response);
         }
     }
