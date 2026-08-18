@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using sep490_be.DTO;
@@ -6,6 +11,7 @@ using sep490_be.Enums;
 using sep490_be.Helpers;
 using sep490_be.Models;
 using sep490_be.Repositories.Interfaces;
+using sep490_be.Repositories.Common;
 using sep490_be.Services.Interfaces;
 
 namespace sep490_be.Services.Implementations
@@ -13,10 +19,17 @@ namespace sep490_be.Services.Implementations
     public class RoomService : IRoomService
     {
         private readonly IRoomRepository _repository;
+        private readonly IBaseRepository<ClassSchedule, ApplicationDbContext> _scheduleRepository;
+        private readonly IClassRepository _classRepository;
 
-        public RoomService(IRoomRepository repository)
+        public RoomService(
+            IRoomRepository repository,
+            IBaseRepository<ClassSchedule, ApplicationDbContext> scheduleRepository,
+            IClassRepository classRepository)
         {
             _repository = repository;
+            _scheduleRepository = scheduleRepository;
+            _classRepository = classRepository;
         }
 
         // ──────────────────────────────────────────────────────────────
@@ -368,6 +381,150 @@ namespace sep490_be.Services.Implementations
                 return "ERR_NAME_DUPLICATE";
 
             return null;
+        }
+
+        public async Task<ApiResponse<List<RoomDto>>> GetAvailableRoomsAsync(AvailableRoomFilterDto filterDto)
+        {
+            try
+            {
+                filterDto ??= new AvailableRoomFilterDto();
+
+                var query = _repository.FindAll()
+                    .Where(r => r.Status == (int)RoomStatus.Active && !r.IsDeleted);
+
+                // 1. Check Capacity
+                int? minCapacity = filterDto.MinCapacity;
+                if (!minCapacity.HasValue && filterDto.ClassId.HasValue)
+                {
+                    var cls = await _classRepository.FindAll()
+                        .Include(c => c.StudentClasses)
+                        .FirstOrDefaultAsync(c => c.Id == filterDto.ClassId.Value && !c.IsDeleted);
+                    if (cls != null && cls.StudentClasses != null)
+                    {
+                        minCapacity = cls.StudentClasses.Count;
+                    }
+                }
+
+                if (minCapacity.HasValue && minCapacity.Value > 0)
+                {
+                    query = query.Where(r => r.Capacity >= minCapacity.Value);
+                }
+
+                var rooms = await query.ToListAsync();
+
+                // 2. Check Schedule Conflict on specific Date + Slot
+                if (filterDto.Date.HasValue && filterDto.SlotIndex.HasValue)
+                {
+                    var targetDate = filterDto.Date.Value.Date;
+                    var fixedSlots = FixedTimeSlot.All;
+                    if (filterDto.SlotIndex.Value >= 0 && filterDto.SlotIndex.Value < fixedSlots.Length)
+                    {
+                        var targetSlot = fixedSlots[filterDto.SlotIndex.Value];
+
+                        var busySchedules = await _scheduleRepository.FindAll()
+                            .Include(cs => cs.TimeSlot)
+                            .Where(cs => cs.ScheduleDate.HasValue
+                                      && cs.ScheduleDate.Value.Date == targetDate
+                                      && cs.Status != (int)ClassScheduleStatus.Cancelled
+                                      && cs.RoomId.HasValue
+                                      && (!filterDto.ExcludeScheduleId.HasValue || cs.Id != filterDto.ExcludeScheduleId.Value)
+                                      && (!filterDto.ExcludeClassId.HasValue || cs.ClassId != filterDto.ExcludeClassId.Value))
+                            .ToListAsync();
+
+                        var occupiedRoomIds = new HashSet<int>();
+                        foreach (var bs in busySchedules)
+                        {
+                            if (bs.TimeSlot != null && bs.RoomId.HasValue)
+                            {
+                                if (bs.TimeSlot.StartTime < targetSlot.End && bs.TimeSlot.EndTime > targetSlot.Start)
+                                {
+                                    occupiedRoomIds.Add(bs.RoomId.Value);
+                                }
+                            }
+                        }
+
+                        rooms = rooms.Where(r => !occupiedRoomIds.Contains(r.Id)).ToList();
+                    }
+                }
+
+                // 3. Check Schedule Conflict across Date Range for Weekly Schedules
+                if (!string.IsNullOrWhiteSpace(filterDto.WeeklySchedulesJson) && filterDto.StartDate.HasValue && filterDto.EndDate.HasValue)
+                {
+                    try
+                    {
+                        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                        var weeklyItems = JsonSerializer.Deserialize<List<WeeklyScheduleFilterItem>>(filterDto.WeeklySchedulesJson, options);
+                        if (weeklyItems != null && weeklyItems.Any())
+                        {
+                            var rangeStart = filterDto.StartDate.Value.Date;
+                            var rangeEnd = filterDto.EndDate.Value.Date;
+
+                            var existingSchedules = await _scheduleRepository.FindAll()
+                                .Include(cs => cs.TimeSlot)
+                                .Where(cs => cs.ScheduleDate.HasValue
+                                          && cs.ScheduleDate.Value.Date >= rangeStart
+                                          && cs.ScheduleDate.Value.Date <= rangeEnd
+                                          && cs.Status != (int)ClassScheduleStatus.Cancelled
+                                          && cs.RoomId.HasValue
+                                          && (!filterDto.ExcludeClassId.HasValue || cs.ClassId != filterDto.ExcludeClassId.Value))
+                                .ToListAsync();
+
+                            var occupiedRoomIds = new HashSet<int>();
+                            foreach (var ws in weeklyItems)
+                            {
+                                if (TimeSpan.TryParse(ws.StartTime, out var wStart) && TimeSpan.TryParse(ws.EndTime, out var wEnd))
+                                {
+                                    foreach (var es in existingSchedules)
+                                    {
+                                        if ((int)es.ScheduleDate!.Value.DayOfWeek == ws.DayOfWeek && es.TimeSlot != null && es.RoomId.HasValue)
+                                        {
+                                            if (es.TimeSlot.StartTime < wEnd && es.TimeSlot.EndTime > wStart)
+                                            {
+                                                occupiedRoomIds.Add(es.RoomId.Value);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            rooms = rooms.Where(r => !occupiedRoomIds.Contains(r.Id)).ToList();
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore json parse error and proceed
+                    }
+                }
+
+                var dtoList = rooms
+                    .OrderBy(r => r.Capacity)
+                    .ThenBy(r => r.Name)
+                    .Select(r => new RoomDto
+                    {
+                        Id = r.Id,
+                        Code = r.Code,
+                        Name = r.Name,
+                        Building = r.Building,
+                        Floor = r.Floor,
+                        Capacity = r.Capacity,
+                        Status = r.Status,
+                        StatusName = ((RoomStatus)r.Status).ToString()
+                    })
+                    .ToList();
+
+                return ApiResponse<List<RoomDto>>.Ok(dtoList, "GET_AVAILABLE_ROOMS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<RoomDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        private class WeeklyScheduleFilterItem
+        {
+            public int DayOfWeek { get; set; }
+            public string StartTime { get; set; } = string.Empty;
+            public string EndTime { get; set; } = string.Empty;
         }
     }
 }
