@@ -1375,6 +1375,11 @@ namespace sep490_be.Services.Implementations
                         }
                     }
 
+                    // Route through ComputeAttemptBand so a stale/legacy Score never surfaces as an
+                    // off-grid band on the list (e.g. 6.1 instead of 6.0) — falls back to the raw
+                    // value for exams that aren't band-graded.
+                    latestScore = IeltsBandScale.ComputeAttemptBand(e, latestScore) ?? latestScore;
+
                     return new ExamDto
                     {
                         Id = e.Id,
