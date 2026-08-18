@@ -105,7 +105,8 @@ namespace sep490_be.Services.Implementations
                         Weight = component.Weight,
                         RawScore = Round1(rawScore),
                         Score = Round1(hasOverride && overrideScore.HasValue ? overrideScore.Value : rawScore),
-                        IsOverride = hasOverride
+                        IsOverride = hasOverride,
+                        Band = bandsBySkillCode.TryGetValue(component.Code, out var band) ? band : (decimal?)null
                     };
                 }).ToList();
 

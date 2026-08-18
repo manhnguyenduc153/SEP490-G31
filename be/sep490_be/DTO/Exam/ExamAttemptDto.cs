@@ -14,6 +14,7 @@ namespace sep490_be.DTO.Exam
         public DateTime StartTime { get; set; }
         public DateTime? SubmitTime { get; set; }
         public decimal? Score { get; set; }
+        public decimal? Band { get; set; } // IELTS band (Listening/Reading via correct-count lookup, Speaking/Writing via direct 0-9 grading)
         public int Status { get; set; } // 1 = In Progress, 2 = Submitted
         public int? Duration { get; set; }
         public int TabExitsCount { get; set; }
