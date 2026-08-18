@@ -939,9 +939,11 @@ namespace sep490_be.Services.Implementations
             public string CourseName { get; set; } = string.Empty;
             public int Size => StudentIds.Count;
             public List<int> StudentIds { get; set; } = new List<int>();
-            public string PreferredSlotBucket { get; set; } = "evening"; // morning, afternoon, evening
+            public int PreferredSlotIndex { get; set; } // 0-4
+            public int PreferredDaysOfWeek { get; set; } // Bitmask
             public int ExpectedLessons { get; set; } = 30;
             public int EnrollType { get; set; } = 0; // 0 = Offline, 1 = Online
+            public GradeLevel? RequiredGradeLevel { get; set; }
         }
 
         private List<DraftClass> GroupStudentsIntoDraftClasses(
@@ -955,10 +957,6 @@ namespace sep490_be.Services.Implementations
             // Ensure valid bounds
             if (minClassSize <= 0) minClassSize = 1;
             if (maxClassSize < minClassSize) maxClassSize = minClassSize;
-            if (allowedBuckets == null || allowedBuckets.Length < 3)
-            {
-                allowedBuckets = new[] { true, true, true };
-            }
 
             // Group by Course and EnrollType to separate Online/Offline students into distinct classes
             var byCourse = registrations.GroupBy(r => new { r.CourseId, r.EnrollType });
@@ -979,55 +977,109 @@ namespace sep490_be.Services.Implementations
 
                 var model = new CpModel();
 
-                // Variables
+                // Variables:
+                // x[i, k] = 1 if student i is assigned to class k
                 var x = new BoolVar[N, M];
                 var active = new BoolVar[M];
-                var isSlot = new BoolVar[M, 3]; // 0: morning, 1: afternoon, 2: evening
-
-                var slotNames = new[] { "morning", "afternoon", "evening" };
+                
+                // For each class k, we need to decide its preferred slot index (0-4) and its days of week bitmask (0-127)
+                // To keep it simple and optimized for CP-SAT:
+                // We define isSlot[k, s] = 1 if class k is at slot s (s from 0 to 4)
+                var isSlot = new BoolVar[M, 5];
+                
+                // We define hasDay[k, d] = 1 if class k uses dayOfWeek d (d from 0 to 6)
+                var hasDay = new BoolVar[M, 7];
 
                 for (int k = 0; k < M; k++)
                 {
                     active[k] = model.NewBoolVar($"active_{k}");
-                    for (int s = 0; s < 3; s++)
+                    
+                    // Sum of isSlot over s must equal active[k]
+                    var slotVars = new List<IntVar>();
+                    for (int s = 0; s < 5; s++)
                     {
                         isSlot[k, s] = model.NewBoolVar($"isSlot_{k}_{s}");
-                        if (!allowedBuckets[s])
-                        {
-                            model.Add(isSlot[k, s] == 0);
-                        }
+                        slotVars.Add(isSlot[k, s]);
                     }
-                    // Sum of isSlot over s must equal active[k]
-                    model.Add(LinearExpr.Sum(new IntVar[] { isSlot[k, 0], isSlot[k, 1], isSlot[k, 2] }) == active[k]);
+                    model.Add(LinearExpr.Sum(slotVars.ToArray()) == active[k]);
+
+                    for (int d = 0; d < 7; d++)
+                    {
+                        hasDay[k, d] = model.NewBoolVar($"hasDay_{k}_{d}");
+                        // If class is inactive, it cannot use any day
+                        model.Add(hasDay[k, d] <= active[k]);
+                    }
                 }
 
+                // Resolve student preferences and add compatibility constraints
                 for (int i = 0; i < N; i++)
                 {
                     var r = students[i];
-                    List<string> preferred;
-                    try
+                    int prefSlot = 4; // Default Evening (slot 4)
+                    int prefDaysMask = 127; // Default all days
+
+                    if (r.PreferredSlotIndex.HasValue && r.PreferredDaysOfWeek.HasValue)
                     {
-                        preferred = JsonSerializer.Deserialize<List<string>>(r.PreferredSlotsJson ?? "[]") ?? new List<string>();
+                        prefSlot = r.PreferredSlotIndex.Value;
+                        prefDaysMask = r.PreferredDaysOfWeek.Value;
                     }
-                    catch
+                    else
                     {
-                        preferred = new List<string>();
+                        // Backward compatibility logic: Parse PreferredSlotsJson
+                        List<string> preferred;
+                        try
+                        {
+                            preferred = JsonSerializer.Deserialize<List<string>>(r.PreferredSlotsJson ?? "[]") ?? new List<string>();
+                        }
+                        catch
+                        {
+                            preferred = new List<string>();
+                        }
+                        var normalized = preferred.Select(s => s.Trim().ToLower()).ToHashSet();
+                        if (normalized.Contains("morning"))
+                        {
+                            prefSlot = 0; // map to ca 1
+                            prefDaysMask = 62; // Mon-Fri
+                        }
+                        else if (normalized.Contains("afternoon"))
+                        {
+                            prefSlot = 2; // map to ca 3
+                            prefDaysMask = 62; // Mon-Fri
+                        }
+                        else
+                        {
+                            prefSlot = 4; // evening
+                            prefDaysMask = 62; // Mon-Fri
+                        }
                     }
-                    var normalized = preferred.Select(s => s.Trim().ToLower()).ToHashSet();
-                    if (!normalized.Any())
+
+                    // Get list of allowed days
+                    var allowedDays = new List<int>();
+                    for (int d = 0; d < 7; d++)
                     {
-                        normalized = new HashSet<string> { "morning", "afternoon", "evening" };
+                        if ((prefDaysMask & (1 << d)) != 0)
+                        {
+                            allowedDays.Add(d);
+                        }
                     }
+                    if (!allowedDays.Any()) allowedDays = new List<int> { 1, 2, 3, 4, 5 }; // Fallback Mon-Fri
 
                     for (int k = 0; k < M; k++)
                     {
                         x[i, k] = model.NewBoolVar($"x_{i}_{k}");
 
-                        for (int s = 0; s < 3; s++)
+                        // If student i is assigned to class k, the class must choose the student's preferred slot
+                        // i.e., x[i, k] <= isSlot[k, prefSlot]
+                        model.Add(x[i, k] <= isSlot[k, prefSlot]);
+
+                        // If student i is assigned to class k, the class days must be a subset of the student's preferred days.
+                        // For any day d that the class uses, if it's NOT in student's preferred days, student cannot be in class k.
+                        for (int d = 0; d < 7; d++)
                         {
-                            if (!normalized.Contains(slotNames[s]))
+                            if (!allowedDays.Contains(d))
                             {
-                                model.Add(x[i, k] + isSlot[k, s] <= 1);
+                                // x[i, k] + hasDay[k, d] <= 1
+                                model.Add(x[i, k] + hasDay[k, d] <= 1);
                             }
                         }
                     }
@@ -1084,15 +1136,26 @@ namespace sep490_be.Services.Implementations
                                 }
                             }
 
-                            string chosenSlot = "evening";
-                            for (int s = 0; s < 3; s++)
+                            int chosenSlot = 4;
+                            for (int s = 0; s < 5; s++)
                             {
                                 if (solver.Value(isSlot[k, s]) == 1)
                                 {
-                                    chosenSlot = slotNames[s];
+                                    chosenSlot = s;
                                     break;
                                 }
                             }
+
+                            int chosenDaysMask = 0;
+                            for (int d = 0; d < 7; d++)
+                            {
+                                if (solver.Value(hasDay[k, d]) == 1)
+                                {
+                                    chosenDaysMask |= (1 << d);
+                                }
+                            }
+                            // If no days were active for some reason, fallback to Monday (2) and Wednesday (8) = 10
+                            if (chosenDaysMask == 0) chosenDaysMask = 10;
 
                             draftClasses.Add(new DraftClass
                             {
@@ -1100,9 +1163,11 @@ namespace sep490_be.Services.Implementations
                                 CourseCode = course.Code ?? $"C_{course.Id}",
                                 CourseName = course.Name ?? "Khóa học",
                                 StudentIds = studentIds,
-                                PreferredSlotBucket = chosenSlot,
+                                PreferredSlotIndex = chosenSlot,
+                                PreferredDaysOfWeek = chosenDaysMask,
                                 ExpectedLessons = expectedLessons,
-                                EnrollType = groupEnrollType
+                                EnrollType = groupEnrollType,
+                                RequiredGradeLevel = course.RequiredGradeLevel
                             });
                         }
                     }
@@ -1112,16 +1177,16 @@ namespace sep490_be.Services.Implementations
             return draftClasses;
         }
 
-        public async Task<ApiResponse<List<ClassDto>>> AutoScheduleSemesterAsync(AutoScheduleSemesterRequestDto request)
+        public async Task<ApiResponse<AutoScheduleSemesterResultDto>> AutoScheduleSemesterAsync(AutoScheduleSemesterRequestDto request)
         {
             try
             {
                 if (request == null)
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_INVALID_REQUEST", StatusCodes.Status400BadRequest);
+                    return ApiResponse<AutoScheduleSemesterResultDto>.Fail("ERR_INVALID_REQUEST", StatusCodes.Status400BadRequest);
 
                 var semester = await _semesterRepository.GetByIdAsync(request.SemesterId);
                 if (semester == null || semester.IsDeleted)
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
+                    return ApiResponse<AutoScheduleSemesterResultDto>.Fail("ERR_SEMESTER_NOT_FOUND", StatusCodes.Status404NotFound);
 
                 // 1. Get all pending registrations for the semester
                 var registrations = await _studentRegistrationRepository.FindAll()
@@ -1131,7 +1196,7 @@ namespace sep490_be.Services.Implementations
                     .ToListAsync();
 
                 if (!registrations.Any())
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_PENDING_REGISTRATIONS_FOUND", StatusCodes.Status400BadRequest);
+                    return ApiResponse<AutoScheduleSemesterResultDto>.Fail("ERR_NO_PENDING_REGISTRATIONS_FOUND", StatusCodes.Status400BadRequest);
 
                 // Map time preference buckets → allowed slot indices
                 var slotMap = new Dictionary<string, int[]>
@@ -1160,16 +1225,10 @@ namespace sep490_be.Services.Implementations
                 }
                 var globalAllowedSlots = globalAllowedSlotsList.Distinct().ToArray();
 
-                // Compute allowedBuckets for GroupStudentsIntoDraftClasses
-                bool[] allowedBuckets = new bool[3]; // 0: morning, 1: afternoon, 2: evening
-                allowedBuckets[0] = globalAllowedSlots.Contains(0) || globalAllowedSlots.Contains(1);
-                allowedBuckets[1] = globalAllowedSlots.Contains(2) || globalAllowedSlots.Contains(3);
-                allowedBuckets[2] = globalAllowedSlots.Contains(4);
-
                 // 2. Group registrations into Draft Classes using CP-SAT solver to handle multiple slot preferences optimally
-                var draftClasses = GroupStudentsIntoDraftClasses(registrations, request.MaxClassSize, request.MinClassSize, allowedBuckets);
+                var draftClasses = GroupStudentsIntoDraftClasses(registrations, request.MaxClassSize, request.MinClassSize, null);
                 if (!draftClasses.Any())
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_DRAFT_CLASSES_GENERATED", StatusCodes.Status400BadRequest);
+                    return ApiResponse<AutoScheduleSemesterResultDto>.Fail("ERR_NO_DRAFT_CLASSES_GENERATED", StatusCodes.Status400BadRequest);
 
                 // 3. Load active Teachers and Rooms
                 var teachersQuery = _teacherRepository.FindAll()
@@ -1189,9 +1248,9 @@ namespace sep490_be.Services.Implementations
                 var rooms = await roomsQuery.ToListAsync();
 
                 if (!teachers.Any())
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_TEACHERS", StatusCodes.Status400BadRequest);
+                    return ApiResponse<AutoScheduleSemesterResultDto>.Fail("ERR_NO_ACTIVE_TEACHERS", StatusCodes.Status400BadRequest);
                 if (!rooms.Any())
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_ACTIVE_ROOMS", StatusCodes.Status400BadRequest);
+                    return ApiResponse<AutoScheduleSemesterResultDto>.Fail("ERR_NO_ACTIVE_ROOMS", StatusCodes.Status400BadRequest);
 
                 // 4. Load teacher availabilities for the semester
                 var availabilities = await _availabilityRepository.FindAll()
@@ -1213,28 +1272,7 @@ namespace sep490_be.Services.Implementations
 
                 // Global allowed slots and slotMap are resolved at the top of AutoScheduleSemesterAsync
 
-                // Filter out draft classes that do not intersect with the global allowed slots of this schedule run
-                // (e.g. if run is morning-only, skip evening classes so they remain Pending)
-                var filteredDraftClasses = new List<DraftClass>();
-                foreach (var draft in draftClasses)
-                {
-                    var preferredSlots = !string.IsNullOrWhiteSpace(draft.PreferredSlotBucket) && slotMap.ContainsKey(draft.PreferredSlotBucket.ToLower())
-                        ? slotMap[draft.PreferredSlotBucket.ToLower()]
-                        : Array.Empty<int>();
-
-                    var classAllowedSlots = preferredSlots.Intersect(globalAllowedSlots).ToArray();
-                    if (classAllowedSlots.Any())
-                    {
-                        filteredDraftClasses.Add(draft);
-                    }
-                }
-
-                if (!filteredDraftClasses.Any())
-                {
-                    return ApiResponse<List<ClassDto>>.Fail("ERR_NO_DRAFT_CLASSES_MATCH_TIME_PREFERENCES", StatusCodes.Status400BadRequest);
-                }
-                draftClasses = filteredDraftClasses;
-
+                // We keep all generated draft classes since they now target specific slot indices directly
                 int numClasses = draftClasses.Count;
                 int numTeachers = teachers.Count;
                 int numRooms = rooms.Count;
@@ -1246,6 +1284,7 @@ namespace sep490_be.Services.Implementations
                 var teacherVar = new IntVar[numClasses];
                 var roomVar = new IntVar[numClasses];
                 var roomPenaltyVar = new IntVar[numClasses];
+                var gradeWasteVar = new IntVar[numClasses];
                 var dayVar = new IntVar[numClasses, freq];
                 var slotIndexVar = new IntVar[numClasses, freq];
                 var slotVar = new IntVar[numClasses, freq]; // flat = day * numFixed + slotIndex
@@ -1276,31 +1315,63 @@ namespace sep490_be.Services.Implementations
                     }).ToArray();
                     model.AddElement(roomVar[i], roomPenaltiesForClass, roomPenaltyVar[i]);
 
-                    // Intersect preferred slot of draft class with globally allowed slots
-                    var preferredSlots = !string.IsNullOrWhiteSpace(draft.PreferredSlotBucket) && slotMap.ContainsKey(draft.PreferredSlotBucket.ToLower())
-                        ? slotMap[draft.PreferredSlotBucket.ToLower()]
-                        : Array.Empty<int>();
-
-                    var classAllowedSlots = preferredSlots.Intersect(globalAllowedSlots).ToArray();
-                    if (!classAllowedSlots.Any())
+                    // ── Teacher Grade Level Qualification & Waste Penalty ────────────
+                    // Hard Constraint: Teacher's band must be >= Course's required band
+                    if (draft.RequiredGradeLevel.HasValue)
                     {
-                        // Fallback: use all globally allowed slots if no intersection (e.g., admin restricted morning, student wanted evening)
-                        classAllowedSlots = globalAllowedSlots;
+                        int reqLevel = (int)draft.RequiredGradeLevel.Value;
+                        for (int tIdx = 0; tIdx < numTeachers; tIdx++)
+                        {
+                            var t = teachers[tIdx];
+                            // If teacher has no grade level specified, or their level < course requirement -> CANNOT teach this class
+                            int tLevel = t.GradeLevel.HasValue ? (int)t.GradeLevel.Value : 0;
+                            if (tLevel < reqLevel)
+                            {
+                                model.Add(teacherVar[i] != tIdx);
+                            }
+                        }
+                    }
+
+                    // Soft Penalty: Minimize grade level waste (teacher level - required level)
+                    // This ensures high-band teachers are prioritized for high-band courses first,
+                    // and lower-band teachers (who qualify) take the remaining classes.
+                    gradeWasteVar[i] = model.NewIntVar(0, 9999, $"gradeWaste_{i}");
+                    long[] gradeWasteForClass = teachers.Select(t => {
+                        int tLevel = t.GradeLevel.HasValue ? (int)t.GradeLevel.Value : 65;
+                        int reqLevel = draft.RequiredGradeLevel.HasValue ? (int)draft.RequiredGradeLevel.Value : 65;
+                        return tLevel >= reqLevel ? (long)(tLevel - reqLevel) : 9999L;
+                    }).ToArray();
+                    model.AddElement(teacherVar[i], gradeWasteForClass, gradeWasteVar[i]);
+
+                    // Allowed Days for this draft class based on bitmask
+                    var classAllowedDaysList = new List<int>();
+                    for (int d = 0; d < 7; d++)
+                    {
+                        if ((draft.PreferredDaysOfWeek & (1 << d)) != 0)
+                        {
+                            classAllowedDaysList.Add(d);
+                        }
+                    }
+                    // Filter allowed days to Mon-Fri if weekend is not allowed
+                    var classAllowedDays = classAllowedDaysList.Intersect(allowedDays).ToArray();
+                    if (!classAllowedDays.Any())
+                    {
+                        classAllowedDays = allowedDays; // fallback to all general allowed days
                     }
 
                     for (int j = 0; j < freq; j++)
                     {
-                        // Day variable
-                        dayVar[i, j] = model.NewIntVar(allowedDays.Min(), allowedDays.Max(), $"day_{i}_{j}");
-                        // Slot variable: full range, constrained below via AddBoolOr
-                        slotIndexVar[i, j] = model.NewIntVar(0, numFixed - 1, $"fs_{i}_{j}");
+                        // Day variable: restricted to classAllowedDays
+                        dayVar[i, j] = model.NewIntVar(classAllowedDays.Min(), classAllowedDays.Max(), $"day_{i}_{j}");
+                        // Slot variable: pin to exact PreferredSlotIndex
+                        slotIndexVar[i, j] = model.NewIntVar(draft.PreferredSlotIndex, draft.PreferredSlotIndex, $"fs_{i}_{j}");
                         slotVar[i, j] = model.NewIntVar(0, 7 * numFixed - 1, $"flat_{i}_{j}");
                         model.Add(slotVar[i, j] == dayVar[i, j] * numFixed + slotIndexVar[i, j]);
 
-                        // Restrict dayVar to allowedDays (handles non-contiguous weekday sets)
-                        if (allowedDays.Length < allowedDays.Max() - allowedDays.Min() + 1)
+                        // Restrict dayVar to classAllowedDays
+                        if (classAllowedDays.Length < classAllowedDays.Max() - classAllowedDays.Min() + 1)
                         {
-                            var dayLiterals = allowedDays.Select(d =>
+                            var dayLiterals = classAllowedDays.Select(d =>
                             {
                                 var b = model.NewBoolVar($"dayOk_{i}_{j}_{d}");
                                 model.Add(dayVar[i, j] == d).OnlyEnforceIf(b);
@@ -1308,19 +1379,6 @@ namespace sep490_be.Services.Implementations
                                 return (ILiteral)b;
                             }).ToArray();
                             model.AddBoolOr(dayLiterals);
-                        }
-
-                        // ALWAYS restrict slotIndexVar to exactly classAllowedSlots
-                        // Using AddBoolOr ensures correctness for both contiguous and non-contiguous slot sets
-                        {
-                            var slotLiterals = classAllowedSlots.Select(s =>
-                            {
-                                var b = model.NewBoolVar($"slotOk_{i}_{j}_{s}");
-                                model.Add(slotIndexVar[i, j] == s).OnlyEnforceIf(b);
-                                model.Add(slotIndexVar[i, j] != s).OnlyEnforceIf(b.Not());
-                                return (ILiteral)b;
-                            }).ToArray();
-                            model.AddBoolOr(slotLiterals);
                         }
                     }
 
@@ -1330,13 +1388,13 @@ namespace sep490_be.Services.Implementations
                         model.Add(slotIndexVar[i, j] == slotIndexVar[i, 0]);
                     }
 
-                    // Sessions of the same class: ordered days + gap constraint
-                    for (int j = 0; j < freq - 1; j++)
+                    // Sessions of the same class: must be in different days (no gap constraint, just different)
+                    for (int j1 = 0; j1 < freq; j1++)
                     {
-                        if (request.Constraints.AllowConsecutiveDays)
-                            model.Add(dayVar[i, j + 1] > dayVar[i, j]);
-                        else
-                            model.Add(dayVar[i, j + 1] >= dayVar[i, j] + 2);
+                        for (int j2 = j1 + 1; j2 < freq; j2++)
+                        {
+                            model.Add(dayVar[i, j1] != dayVar[i, j2]);
+                        }
                     }
                 }
 
@@ -1530,6 +1588,13 @@ namespace sep490_be.Services.Implementations
                 model.Add(weightedRoomPenalty == totalRoomPenalty * 5);
                 objectiveExpressions.Add(weightedRoomPenalty);
 
+                // Add grade waste penalty (minimize assigning high-band teachers to lower-band courses)
+                var totalGradeWaste = model.NewIntVar(0, 999999, "totalGradeWaste");
+                model.Add(totalGradeWaste == LinearExpr.Sum(gradeWasteVar));
+                var weightedGradeWaste = model.NewIntVar(0, 999999 * 20, "weightedGradeWaste");
+                model.Add(weightedGradeWaste == totalGradeWaste * 20);
+                objectiveExpressions.Add(weightedGradeWaste);
+
                 // ── Optimization: Minimize active teaching days & gaps for teachers ───────────
                 if (numClasses > 1)
                 {
@@ -1672,7 +1737,7 @@ namespace sep490_be.Services.Implementations
 
                 if (status != CpSolverStatus.Feasible && status != CpSolverStatus.Optimal)
                 {
-                    var diagMsg = DiagnoseInfeasibility(
+                    var reasons = DiagnoseInfeasibility(
                         draftClasses,
                         teachers,
                         rooms,
@@ -1681,7 +1746,13 @@ namespace sep490_be.Services.Implementations
                         globalAllowedSlots,
                         freq,
                         numFixed);
-                    return ApiResponse<List<ClassDto>>.Fail(diagMsg, StatusCodes.Status409Conflict);
+                    return new ApiResponse<AutoScheduleSemesterResultDto>
+                    {
+                        Success = false,
+                        StatusCode = StatusCodes.Status409Conflict,
+                        Message = "ERR_SCHEDULE_INFEASIBLE",
+                        Data = new AutoScheduleSemesterResultDto { InfeasibilityReasons = reasons }
+                    };
                 }
 
                 // 12. Build in-memory draft result (do NOT persist to DB yet)
@@ -1701,8 +1772,8 @@ namespace sep490_be.Services.Implementations
                     {
                         coursePrefix = "KH";
                     }
-                    var classCode = $"{coursePrefix}{DateTime.Now:ddMMHH}_{semester.Code}_{draft.PreferredSlotBucket.Substring(0, 3).ToUpper()}_{i + 1}";
-                    var className = $"Lớp {draft.CourseName} - {semester.Name} ({draft.PreferredSlotBucket}) - Lớp {i + 1}";
+                    var classCode = $"{coursePrefix}{DateTime.Now:ddMMHH}_{semester.Code}_CA{draft.PreferredSlotIndex + 1}_{i + 1}";
+                    var className = $"Lớp {draft.CourseName} - {semester.Name} (Ca {draft.PreferredSlotIndex + 1}) - Lớp {i + 1}";
 
                     // Build weekly schedules for this draft class
                     var newWS = new List<WeeklyScheduleDto>();
@@ -1798,12 +1869,421 @@ namespace sep490_be.Services.Implementations
                     });
                 }
 
-                return ApiResponse<List<ClassDto>>.Ok(resultList, "AUTO_SCHEDULING_SEMESTER_DRAFT_GENERATED");
+                // 13. Build reliability report: solver confidence, coverage, independent hard-constraint
+                // validation and human-readable soft-constraint/descriptive metrics for the UI.
+                var reliability = BuildSemesterReliabilityReport(
+                    resultList, draftClasses, registrations, teachers, rooms,
+                    teacherAvailMap, dbSchedules, status, freq);
+
+                return ApiResponse<AutoScheduleSemesterResultDto>.Ok(
+                    new AutoScheduleSemesterResultDto { Classes = resultList, Reliability = reliability },
+                    "AUTO_SCHEDULING_SEMESTER_DRAFT_GENERATED");
             }
             catch (Exception ex)
             {
-                return ApiResponse<List<ClassDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+                return ApiResponse<AutoScheduleSemesterResultDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Reliability report for AutoScheduleSemesterAsync — lets the UI show, without manual
+        // checking, whether a generated schedule is trustworthy: solver confidence, how many
+        // requested students actually got placed, an independent re-check of every hard
+        // constraint against the produced output, and soft-constraint/descriptive metrics
+        // expressed in real business units with named drill-down (which teacher/room/class).
+        // ─────────────────────────────────────────────────────────────────────
+        private ScheduleReliabilityReportDto BuildSemesterReliabilityReport(
+            List<ClassDto> resultList,
+            List<DraftClass> draftClasses,
+            List<StudentRegistration> registrations,
+            List<Teacher> teachers,
+            List<Room> rooms,
+            Dictionary<int, HashSet<(int, int)>> teacherAvailMap,
+            List<ClassSchedule> dbSchedules,
+            CpSolverStatus status,
+            int sessionsPerWeek)
+        {
+            var report = new ScheduleReliabilityReportDto
+            {
+                SolverStatus = status.ToString(),
+                IsProvenOptimal = status == CpSolverStatus.Optimal
+            };
+
+            // Coverage: how many of the requested students actually got placed into a class.
+            var scheduledStudentIds = draftClasses.SelectMany(d => d.StudentIds).ToHashSet();
+            var draftGroupKeys = draftClasses.Select(d => (d.CourseId, d.EnrollType)).ToHashSet();
+            report.Coverage.TotalRequested = registrations.Count;
+            report.Coverage.TotalScheduled = registrations.Count(r => scheduledStudentIds.Contains(r.StudentId));
+            report.Coverage.ScheduledRatePercent = report.Coverage.TotalRequested == 0
+                ? 100
+                : Math.Round(100.0 * report.Coverage.TotalScheduled / report.Coverage.TotalRequested, 1);
+
+            foreach (var r in registrations.Where(r => !scheduledStudentIds.Contains(r.StudentId)))
+            {
+                bool hasGroupClass = draftGroupKeys.Contains((r.CourseId, r.EnrollType));
+                report.Coverage.UnscheduledStudents.Add(new UnscheduledStudentDto
+                {
+                    StudentId = r.StudentId,
+                    StudentName = r.Student?.Name ?? $"HS #{r.StudentId}",
+                    CourseId = r.CourseId,
+                    CourseName = r.Course?.Name ?? $"Khóa học #{r.CourseId}",
+                    ReasonCode = hasGroupClass ? "TIME_MISMATCH" : "NO_GROUP_CLASS"
+                });
+            }
+
+            report.HardConstraintChecks = ValidateHardConstraints(resultList, draftClasses, teachers, rooms, teacherAvailMap, dbSchedules);
+            report.SoftMetrics = BuildSoftMetrics(resultList, draftClasses, teachers, rooms, sessionsPerWeek);
+            report.DescriptiveStats = BuildDescriptiveStats(resultList, draftClasses, teachers, rooms);
+
+            return report;
+        }
+
+        // Independent re-check of every hard constraint against the produced output — decoupled from
+        // the CP-SAT model itself, so a bug in the constraint formulation doesn't silently pass as valid.
+        private List<HardConstraintCheckDto> ValidateHardConstraints(
+            List<ClassDto> resultList,
+            List<DraftClass> draftClasses,
+            List<Teacher> teachers,
+            List<Room> rooms,
+            Dictionary<int, HashSet<(int, int)>> teacherAvailMap,
+            List<ClassSchedule> dbSchedules)
+        {
+            var checks = new List<HardConstraintCheckDto>();
+
+            var sessions = resultList
+                .SelectMany(cls => cls.Schedules.Select(s => new { Cls = cls, Session = s }))
+                .Where(x => x.Session.ScheduleDate.HasValue)
+                .ToList();
+
+            // Teacher double-booking across the generated classes
+            var teacherConflicts = new List<string>();
+            foreach (var grp in sessions.Where(x => x.Session.TeacherId.HasValue)
+                         .GroupBy(x => (x.Session.ScheduleDate!.Value.Date, x.Session.StartTime, x.Session.TeacherId)))
+            {
+                var classNames = grp.Select(x => x.Cls.Name).Distinct().ToList();
+                if (classNames.Count > 1)
+                {
+                    teacherConflicts.Add($"Giáo viên {grp.First().Session.TeacherName} bị trùng lịch ngày {grp.Key.Date:dd/MM} ({grp.First().Session.StartTime}-{grp.First().Session.EndTime}) giữa các lớp: {string.Join(", ", classNames)}.");
+                }
+            }
+            checks.Add(new HardConstraintCheckDto { Name = "Trùng lịch giáo viên", ViolationCount = teacherConflicts.Count, ViolationDetails = teacherConflicts });
+
+            // Room double-booking across the generated classes
+            var roomConflicts = new List<string>();
+            foreach (var grp in sessions.Where(x => x.Session.RoomId.HasValue)
+                         .GroupBy(x => (x.Session.ScheduleDate!.Value.Date, x.Session.StartTime, x.Session.RoomId)))
+            {
+                var classNames = grp.Select(x => x.Cls.Name).Distinct().ToList();
+                if (classNames.Count > 1)
+                {
+                    roomConflicts.Add($"Phòng {grp.First().Session.RoomName} bị trùng lịch ngày {grp.Key.Date:dd/MM} ({grp.First().Session.StartTime}-{grp.First().Session.EndTime}) giữa các lớp: {string.Join(", ", classNames)}.");
+                }
+            }
+            checks.Add(new HardConstraintCheckDto { Name = "Trùng lịch phòng học", ViolationCount = roomConflicts.Count, ViolationDetails = roomConflicts });
+
+            // Room capacity vs class size (Offline classes only)
+            var capacityViolations = new List<string>();
+            for (int i = 0; i < resultList.Count; i++)
+            {
+                var draft = draftClasses[i];
+                if (draft.EnrollType == 1) continue;
+                var roomId = resultList[i].Schedules.FirstOrDefault()?.RoomId;
+                var room = rooms.FirstOrDefault(r => r.Id == roomId);
+                if (room != null && (room.Capacity ?? int.MaxValue) < resultList[i].StudentCount)
+                {
+                    capacityViolations.Add($"Lớp {resultList[i].Name} ({resultList[i].StudentCount} HS) vượt sức chứa phòng {room.Name} ({room.Capacity} chỗ).");
+                }
+            }
+            checks.Add(new HardConstraintCheckDto { Name = "Vượt sức chứa phòng học", ViolationCount = capacityViolations.Count, ViolationDetails = capacityViolations });
+
+            // Sessions placed outside a teacher's declared availability
+            var availabilityViolations = new List<string>();
+            foreach (var cls in resultList)
+            {
+                if (!cls.TeacherId.HasValue || !teacherAvailMap.TryGetValue(cls.TeacherId.Value, out var active)) continue;
+                foreach (var s in cls.Schedules)
+                {
+                    if (!s.ScheduleDate.HasValue || !TimeSpan.TryParse(s.StartTime, out var st)) continue;
+                    var fs = FixedTimeSlot.FromStartTime(st);
+                    if (fs == null) continue;
+                    int day = (int)s.ScheduleDate.Value.DayOfWeek;
+                    if (!active.Contains((day, fs.Index)))
+                    {
+                        availabilityViolations.Add($"Giáo viên {cls.TeacherName} được xếp dạy lớp {cls.Name} ngày {s.ScheduleDate:dd/MM} ({fs.Name}) ngoài giờ đã khai báo rảnh.");
+                    }
+                }
+            }
+            checks.Add(new HardConstraintCheckDto { Name = "Ngoài giờ rảnh đã khai báo của giáo viên", ViolationCount = availabilityViolations.Count, ViolationDetails = availabilityViolations });
+
+            // Teacher grade-band below the course's required band
+            var gradeViolations = new List<string>();
+            for (int i = 0; i < resultList.Count; i++)
+            {
+                var draft = draftClasses[i];
+                if (!draft.RequiredGradeLevel.HasValue) continue;
+                var teacher = teachers.FirstOrDefault(t => t.Id == resultList[i].TeacherId);
+                if (teacher == null) continue;
+                int tLevel = teacher.GradeLevel.HasValue ? (int)teacher.GradeLevel.Value : 0;
+                if (tLevel < (int)draft.RequiredGradeLevel.Value)
+                {
+                    gradeViolations.Add($"Lớp {resultList[i].Name} yêu cầu band {draft.RequiredGradeLevel.Value.GetStringValue()}, giáo viên {teacher.Name} chỉ đạt {(teacher.GradeLevel.HasValue ? teacher.GradeLevel.Value.GetStringValue() : "chưa xác định")}.");
+                }
+            }
+            checks.Add(new HardConstraintCheckDto { Name = "Giáo viên dưới band yêu cầu khóa học", ViolationCount = gradeViolations.Count, ViolationDetails = gradeViolations });
+
+            // Conflict against schedules already committed to the database
+            var dbConflicts = new List<string>();
+            foreach (var cls in resultList)
+            {
+                foreach (var s in cls.Schedules)
+                {
+                    if (!s.ScheduleDate.HasValue || !TimeSpan.TryParse(s.StartTime, out var st)) continue;
+                    foreach (var ext in dbSchedules)
+                    {
+                        if (!ext.ScheduleDate.HasValue || ext.TimeSlot == null) continue;
+                        if (ext.ScheduleDate.Value.Date != s.ScheduleDate.Value.Date || ext.TimeSlot.StartTime != st) continue;
+
+                        if (s.TeacherId.HasValue && ext.TeacherId.HasValue && s.TeacherId == ext.TeacherId)
+                            dbConflicts.Add($"Lớp {cls.Name} ngày {s.ScheduleDate:dd/MM} ({s.StartTime}-{s.EndTime}) trùng giáo viên với lịch đã có trong hệ thống.");
+                        if (s.RoomId.HasValue && ext.RoomId.HasValue && s.RoomId == ext.RoomId)
+                            dbConflicts.Add($"Lớp {cls.Name} ngày {s.ScheduleDate:dd/MM} ({s.StartTime}-{s.EndTime}) trùng phòng với lịch đã có trong hệ thống.");
+                    }
+                }
+            }
+            checks.Add(new HardConstraintCheckDto { Name = "Trùng lịch với dữ liệu đã có trong hệ thống", ViolationCount = dbConflicts.Count, ViolationDetails = dbConflicts });
+
+            return checks;
+        }
+
+        // Soft-constraint metrics in real business units (buổi/tuần, %, chỗ ngồi), each with a
+        // threshold-derived status and named drill-down — mirrors exactly what the CP-SAT objective
+        // function optimized for, so a bad number here explains why the objective value is what it is.
+        private List<SoftMetricDto> BuildSoftMetrics(
+            List<ClassDto> resultList,
+            List<DraftClass> draftClasses,
+            List<Teacher> teachers,
+            List<Room> rooms,
+            int sessionsPerWeek)
+        {
+            var metrics = new List<SoftMetricDto>();
+            if (!resultList.Any()) return metrics;
+
+            // Teacher load balance
+            var teacherLoad = resultList
+                .Where(c => c.TeacherId.HasValue)
+                .GroupBy(c => c.TeacherId!.Value)
+                .Select(g => new
+                {
+                    TeacherName = teachers.FirstOrDefault(t => t.Id == g.Key)?.Name ?? $"GV #{g.Key}",
+                    ClassCount = g.Count(),
+                    SessionsPerWeek = g.Count() * sessionsPerWeek
+                })
+                .OrderByDescending(x => x.SessionsPerWeek)
+                .ToList();
+            if (teacherLoad.Count > 1)
+            {
+                var max = teacherLoad.First();
+                var min = teacherLoad.Last();
+                int diff = max.SessionsPerWeek - min.SessionsPerWeek;
+                metrics.Add(new SoftMetricDto
+                {
+                    Name = "Cân bằng tải giáo viên",
+                    DisplayValue = $"Chênh lệch {diff} buổi/tuần",
+                    Status = diff <= 2 ? "Good" : diff <= 5 ? "Warning" : "Bad",
+                    Details = new List<string>
+                    {
+                        $"Cao nhất: {max.TeacherName} — {max.SessionsPerWeek} buổi/tuần ({max.ClassCount} lớp)",
+                        $"Thấp nhất: {min.TeacherName} — {min.SessionsPerWeek} buổi/tuần ({min.ClassCount} lớp)"
+                    }
+                });
+            }
+
+            // Room load balance (Offline classes only — Online classes have no room)
+            var roomLoad = resultList
+                .Select(c => c.Schedules.FirstOrDefault()?.RoomId)
+                .Where(id => id.HasValue)
+                .GroupBy(id => id!.Value)
+                .Select(g => new
+                {
+                    RoomName = rooms.FirstOrDefault(r => r.Id == g.Key)?.Name ?? $"Phòng #{g.Key}",
+                    ClassCount = g.Count(),
+                    SessionsPerWeek = g.Count() * sessionsPerWeek
+                })
+                .OrderByDescending(x => x.SessionsPerWeek)
+                .ToList();
+            if (roomLoad.Count > 1)
+            {
+                var max = roomLoad.First();
+                var min = roomLoad.Last();
+                int diff = max.SessionsPerWeek - min.SessionsPerWeek;
+                metrics.Add(new SoftMetricDto
+                {
+                    Name = "Cân bằng tải phòng học",
+                    DisplayValue = $"Chênh lệch {diff} buổi/tuần",
+                    Status = diff <= 2 ? "Good" : diff <= 6 ? "Warning" : "Bad",
+                    Details = new List<string>
+                    {
+                        $"Cao nhất: Phòng {max.RoomName} — {max.SessionsPerWeek} buổi/tuần ({max.ClassCount} lớp)",
+                        $"Thấp nhất: Phòng {min.RoomName} — {min.SessionsPerWeek} buổi/tuần ({min.ClassCount} lớp)"
+                    }
+                });
+            }
+
+            // Room fill rate (Offline classes only)
+            var fillRates = new List<(string ClassName, string RoomName, int Size, int Capacity)>();
+            for (int i = 0; i < resultList.Count; i++)
+            {
+                if (draftClasses[i].EnrollType == 1) continue;
+                var roomId = resultList[i].Schedules.FirstOrDefault()?.RoomId;
+                var room = rooms.FirstOrDefault(r => r.Id == roomId);
+                if (room?.Capacity is int cap && cap > 0)
+                    fillRates.Add((resultList[i].Name, room.Name, resultList[i].StudentCount, cap));
+            }
+            if (fillRates.Any())
+            {
+                double avgRate = fillRates.Average(x => 100.0 * x.Size / x.Capacity);
+                var lowest = fillRates.OrderBy(x => (double)x.Size / x.Capacity).First();
+                metrics.Add(new SoftMetricDto
+                {
+                    Name = "Hiệu suất sử dụng phòng học",
+                    DisplayValue = $"Lấp đầy trung bình {avgRate:F0}%",
+                    Status = avgRate >= 80 ? "Good" : avgRate >= 60 ? "Warning" : "Bad",
+                    Details = new List<string>
+                    {
+                        $"Thấp nhất: Lớp {lowest.ClassName} — {lowest.Size}/{lowest.Capacity} chỗ ({100.0 * lowest.Size / lowest.Capacity:F0}%) tại phòng {lowest.RoomName}"
+                    }
+                });
+            }
+
+            // Teacher grade-band waste (how far above the course's required band the assigned teacher is)
+            var wasteList = new List<(string ClassName, string TeacherName, int WasteBands)>();
+            for (int i = 0; i < resultList.Count; i++)
+            {
+                var draft = draftClasses[i];
+                if (!draft.RequiredGradeLevel.HasValue) continue;
+                var teacher = teachers.FirstOrDefault(t => t.Id == resultList[i].TeacherId);
+                if (teacher?.GradeLevel == null) continue;
+                int wasteBands = ((int)teacher.GradeLevel.Value - (int)draft.RequiredGradeLevel.Value) / 5;
+                wasteList.Add((resultList[i].Name, teacher.Name, wasteBands));
+            }
+            if (wasteList.Any())
+            {
+                int matched = wasteList.Count(x => x.WasteBands == 0);
+                double pct = 100.0 * matched / wasteList.Count;
+                metrics.Add(new SoftMetricDto
+                {
+                    Name = "Phù hợp năng lực giáo viên theo band khóa học",
+                    DisplayValue = $"{matched}/{wasteList.Count} lớp có giáo viên đúng band yêu cầu ({pct:F0}%)",
+                    Status = pct >= 90 ? "Good" : pct >= 75 ? "Warning" : "Bad",
+                    Details = wasteList.Where(x => x.WasteBands > 0)
+                        .Select(x => $"Lớp {x.ClassName}: giáo viên {x.TeacherName} cao hơn {x.WasteBands} bậc band so với yêu cầu")
+                        .ToList()
+                });
+            }
+
+            // Gaps in a teacher's teaching day (idle slots between two sessions on the same day)
+            var byTeacherDate = resultList
+                .Where(c => c.TeacherId.HasValue)
+                .SelectMany(c => c.Schedules.Select(s => new { c.TeacherId, c.TeacherName, s.ScheduleDate, s.StartTime }))
+                .Where(x => x.ScheduleDate.HasValue && x.StartTime != null)
+                .GroupBy(x => (x.TeacherId!.Value, x.ScheduleDate!.Value.Date))
+                .ToList();
+            if (byTeacherDate.Any())
+            {
+                var gapDetails = new List<string>();
+                var flaggedTeachers = new HashSet<int>();
+                foreach (var grp in byTeacherDate)
+                {
+                    var slotIndices = grp
+                        .Select(x => TimeSpan.TryParse(x.StartTime, out var st) ? FixedTimeSlot.FromStartTime(st)?.Index : null)
+                        .Where(idx => idx.HasValue)
+                        .Select(idx => idx!.Value)
+                        .Distinct()
+                        .OrderBy(x => x)
+                        .ToList();
+                    if (slotIndices.Count < 2) continue;
+                    int span = slotIndices.Last() - slotIndices.First() + 1;
+                    if (span > slotIndices.Count)
+                    {
+                        var teacherName = grp.First().TeacherName ?? $"GV #{grp.Key.Item1}";
+                        gapDetails.Add($"{teacherName}: có giờ trống ngày {grp.Key.Item2:dd/MM} (dạy Ca {string.Join(", Ca ", slotIndices.Select(idx => idx + 1))})");
+                        flaggedTeachers.Add(grp.Key.Item1);
+                    }
+                }
+                metrics.Add(new SoftMetricDto
+                {
+                    Name = "Giờ trống trong ngày dạy của giáo viên",
+                    DisplayValue = $"{flaggedTeachers.Count} giáo viên có giờ trống giữa các ca dạy",
+                    Status = flaggedTeachers.Count == 0 ? "Good" : flaggedTeachers.Count <= 2 ? "Warning" : "Bad",
+                    Details = gapDetails
+                });
+            }
+
+            return metrics;
+        }
+
+        // Descriptive stats (band distribution, class size, room capacity) for the overview UI —
+        // same numbers a manual check would produce, computed once instead of by hand.
+        private ScheduleDescriptiveStatsDto BuildDescriptiveStats(
+            List<ClassDto> resultList,
+            List<DraftClass> draftClasses,
+            List<Teacher> teachers,
+            List<Room> rooms)
+        {
+            var stats = new ScheduleDescriptiveStatsDto();
+            if (!resultList.Any()) return stats;
+
+            for (int i = 0; i < resultList.Count; i++)
+            {
+                var draft = draftClasses[i];
+                // "NONE_REQUIRED" is a sentinel the frontend translates for display — real band
+                // values (e.g. "IELTS 6.5") come from GetStringValue() and are language-neutral labels.
+                var key = draft.RequiredGradeLevel.HasValue ? draft.RequiredGradeLevel.Value.GetStringValue() : "NONE_REQUIRED";
+                stats.ClassesByGradeBand[key] = stats.ClassesByGradeBand.GetValueOrDefault(key) + 1;
+            }
+
+            var usedTeacherIds = resultList.Where(c => c.TeacherId.HasValue).Select(c => c.TeacherId!.Value).Distinct();
+            foreach (var tid in usedTeacherIds)
+            {
+                var teacher = teachers.FirstOrDefault(t => t.Id == tid);
+                var key = teacher?.GradeLevel.HasValue == true ? teacher.GradeLevel.Value.GetStringValue() : "UNSPECIFIED";
+                stats.TeachersByGradeBandInUse[key] = stats.TeachersByGradeBandInUse.GetValueOrDefault(key) + 1;
+            }
+
+            stats.AvgClassSize = Math.Round(resultList.Average(c => c.StudentCount), MidpointRounding.AwayFromZero);
+
+            var largest = resultList.OrderByDescending(c => c.StudentCount).First();
+            var smallest = resultList.OrderBy(c => c.StudentCount).First();
+            stats.LargestClass = new ClassSizeExtremeDto { ClassCode = largest.Code, ClassName = largest.Name, Size = largest.StudentCount };
+            stats.SmallestClass = new ClassSizeExtremeDto { ClassCode = smallest.Code, ClassName = smallest.Name, Size = smallest.StudentCount };
+
+            var usedRoomCapacities = resultList
+                .Select(c => c.Schedules.FirstOrDefault()?.RoomId)
+                .Where(id => id.HasValue)
+                .Select(id => rooms.FirstOrDefault(r => r.Id == id!.Value)?.Capacity)
+                .Where(cap => cap.HasValue)
+                .Select(cap => cap!.Value)
+                .ToList();
+            if (usedRoomCapacities.Any())
+            {
+                stats.AvgRoomCapacity = Math.Round(usedRoomCapacities.Average(), 1);
+            }
+
+            var offlineFillRates = new List<double>();
+            for (int i = 0; i < resultList.Count; i++)
+            {
+                if (draftClasses[i].EnrollType == 1) continue;
+                var roomId = resultList[i].Schedules.FirstOrDefault()?.RoomId;
+                var room = rooms.FirstOrDefault(r => r.Id == roomId);
+                if (room?.Capacity is int cap && cap > 0)
+                    offlineFillRates.Add(100.0 * resultList[i].StudentCount / cap);
+            }
+            if (offlineFillRates.Any())
+            {
+                stats.AvgRoomFillRatePercent = Math.Round(offlineFillRates.Average(), 1);
+            }
+
+            return stats;
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -2573,7 +3053,9 @@ namespace sep490_be.Services.Implementations
             };
         }
 
-        private string DiagnoseInfeasibility(
+        // Returns coded reasons (not pre-formatted sentences) so the frontend can localize each one via
+        // backendMessages.infeasibilityReasons.<Code> with the given Params interpolated in.
+        private List<InfeasibilityReasonDto> DiagnoseInfeasibility(
             List<DraftClass> draftClasses,
             List<Teacher> teachers,
             List<Room> rooms,
@@ -2583,7 +3065,7 @@ namespace sep490_be.Services.Implementations
             int freq,
             int numFixed)
         {
-            var errors = new List<string>();
+            var reasons = new List<InfeasibilityReasonDto>();
 
             // Check room capacity for each draft class
             foreach (var draft in draftClasses)
@@ -2591,26 +3073,33 @@ namespace sep490_be.Services.Implementations
                 var suitableRooms = rooms.Where(r => (r.Capacity ?? int.MaxValue) >= draft.Size).ToList();
                 if (!suitableRooms.Any())
                 {
-                    errors.Add($"Khóa học '{draft.CourseName}': Không có phòng học nào có sức chứa đủ cho sĩ số {draft.Size} (Phòng lớn nhất: {rooms.Max(r => r.Capacity ?? 0)}).");
+                    reasons.Add(new InfeasibilityReasonDto
+                    {
+                        Code = "ROOM_CAPACITY_INSUFFICIENT",
+                        Params = new Dictionary<string, string>
+                        {
+                            ["courseName"] = draft.CourseName,
+                            ["classSize"] = draft.Size.ToString(),
+                            ["maxRoomCapacity"] = rooms.Max(r => r.Capacity ?? 0).ToString()
+                        }
+                    });
                 }
             }
 
             // Check teacher availability for each class
-            var slotMap = new Dictionary<string, int[]>
-            {
-                { "morning",   new[] { 0, 1 } },
-                { "afternoon", new[] { 2, 3 } },
-                { "evening",   new[] { 4 }    }
-            };
-
             foreach (var draft in draftClasses)
             {
-                var preferredSlots = !string.IsNullOrWhiteSpace(draft.PreferredSlotBucket) && slotMap.ContainsKey(draft.PreferredSlotBucket.ToLower())
-                    ? slotMap[draft.PreferredSlotBucket.ToLower()]
-                    : Array.Empty<int>();
-
-                var classAllowedSlots = preferredSlots.Intersect(globalAllowedSlots).ToArray();
-                if (!classAllowedSlots.Any()) classAllowedSlots = globalAllowedSlots;
+                var preferredSlot = draft.PreferredSlotIndex;
+                var classAllowedDaysList = new List<int>();
+                for (int d = 0; d < 7; d++)
+                {
+                    if ((draft.PreferredDaysOfWeek & (1 << d)) != 0)
+                    {
+                        classAllowedDaysList.Add(d);
+                    }
+                }
+                var classAllowedDays = classAllowedDaysList.Intersect(allowedDays).ToArray();
+                if (!classAllowedDays.Any()) classAllowedDays = allowedDays;
 
                 bool hasTeacher = false;
                 foreach (var t in teachers)
@@ -2621,7 +3110,7 @@ namespace sep490_be.Services.Implementations
                         break;
                     }
                     var active = teacherAvailMap[t.Id];
-                    var matchingSlots = active.Where(slot => allowedDays.Contains(slot.Item1) && classAllowedSlots.Contains(slot.Item2));
+                    var matchingSlots = active.Where(slot => classAllowedDays.Contains(slot.Item1) && slot.Item2 == preferredSlot);
                     if (matchingSlots.Any())
                     {
                         hasTeacher = true;
@@ -2631,8 +3120,16 @@ namespace sep490_be.Services.Implementations
 
                 if (!hasTeacher)
                 {
-                    var slotNames = string.Join(", ", classAllowedSlots.Select(s => $"Ca {s + 1}"));
-                    errors.Add($"Khóa học '{draft.CourseName}': Không có giáo viên nào có lịch rảnh vào các ca học được phép ({slotNames}) trong các ngày đã chọn.");
+                    reasons.Add(new InfeasibilityReasonDto
+                    {
+                        Code = "TEACHER_NO_AVAILABILITY",
+                        Params = new Dictionary<string, string>
+                        {
+                            ["courseName"] = draft.CourseName,
+                            ["slotNumber"] = (preferredSlot + 1).ToString(),
+                            ["days"] = string.Join(", ", classAllowedDays.Select(GetDayOfWeekName))
+                        }
+                    });
                 }
             }
 
@@ -2641,7 +3138,15 @@ namespace sep490_be.Services.Implementations
             int totalRoomSlots = allowedDays.Length * globalAllowedSlots.Length * rooms.Count;
             if (totalSessions > totalRoomSlots)
             {
-                errors.Add($"Tổng số buổi học cần xếp ({totalSessions} buổi) vượt quá tổng công suất phòng học khả dụng ({totalRoomSlots} lượt). Vui lòng thêm phòng học hoặc chọn thêm ngày/ca học.");
+                reasons.Add(new InfeasibilityReasonDto
+                {
+                    Code = "ROOM_SLOT_CAPACITY_EXCEEDED",
+                    Params = new Dictionary<string, string>
+                    {
+                        ["totalSessions"] = totalSessions.ToString(),
+                        ["totalRoomSlots"] = totalRoomSlots.ToString()
+                    }
+                });
             }
 
             // Check total teacher availability capacity
@@ -2661,15 +3166,23 @@ namespace sep490_be.Services.Implementations
 
             if (totalTeacherSlots < totalSessions)
             {
-                errors.Add($"Tổng số buổi giáo viên có thể dạy ({totalTeacherSlots} buổi) ít hơn tổng số buổi học cần xếp ({totalSessions} buổi). Vui lòng thêm giáo viên hoặc mở rộng ca/ngày dạy.");
+                reasons.Add(new InfeasibilityReasonDto
+                {
+                    Code = "TEACHER_SLOT_CAPACITY_INSUFFICIENT",
+                    Params = new Dictionary<string, string>
+                    {
+                        ["totalTeacherSlots"] = totalTeacherSlots.ToString(),
+                        ["totalSessions"] = totalSessions.ToString()
+                    }
+                });
             }
 
-            if (errors.Any())
+            if (reasons.Any())
             {
-                return string.Join(" \n", errors);
+                return reasons;
             }
 
-            return "Không tìm thấy phương án xếp lịch khả thi do xung đột ràng buộc bận giữa giáo viên, phòng học hoặc các quy định giãn cách ngày học.";
+            return new List<InfeasibilityReasonDto> { new() { Code = "GENERIC_INFEASIBLE" } };
         }
 
         private static ClassDto MapToDto(Class entity) => new()

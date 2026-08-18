@@ -65,16 +65,62 @@ namespace sep490_be.Repositories.Implementations
             return (decimal)attended / totalSessions * 10m;
         }
 
-        public async Task<decimal> CalculateHomeworkScoreAsync(int classId, int studentId)
+        public async Task<Dictionary<string, decimal>> CalculateExamSkillScoresAsync(int classId, int studentId)
         {
-            var homeworks = await _dbContext.Homeworks.AsNoTracking().Where(x => x.ClassId == classId).Select(x => new { x.Id, x.TotalScore }).ToListAsync();
-            if (homeworks.Count == 0) return 0m;
-            var homeworkIds = homeworks.Select(x => x.Id).ToList();
-            var submissions = await _dbContext.HomeworkSubmissions.AsNoTracking().Where(x => x.StudentId == studentId && homeworkIds.Contains(x.HomeworkId))
-                .GroupBy(x => x.HomeworkId).Select(g => new { HomeworkId = g.Key, Score = g.Max(x => x.Score) }).ToListAsync();
-            var scoreByHomework = submissions.ToDictionary(x => x.HomeworkId, x => x.Score);
-            var normalizedScores = homeworks.Select(homework => NormalizeScore(scoreByHomework.TryGetValue(homework.Id, out var s) ? s : null, homework.TotalScore));
-            return normalizedScores.Sum() / homeworks.Count;
+            var exams = await _dbContext.Exams.AsNoTracking()
+                .Include(e => e.ExamQuestions)
+                    .ThenInclude(eq => eq.Question)
+                .Include(e => e.ExamAttempts)
+                .Where(e => e.ClassId == classId)
+                .ToListAsync();
+
+            var scoresBySkill = new Dictionary<string, List<decimal>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["listening"] = new List<decimal>(),
+                ["reading"] = new List<decimal>(),
+                ["speaking"] = new List<decimal>(),
+                ["writing"] = new List<decimal>()
+            };
+
+            foreach (var exam in exams)
+            {
+                var skillCode = GetExamSkillCode(exam);
+                if (skillCode == null) continue;
+
+                var bestScore = exam.ExamAttempts
+                    .Where(attempt => attempt.StudentId == studentId)
+                    .Select(attempt => NormalizeScore(attempt.Score, exam.TotalScore ?? 10m))
+                    .DefaultIfEmpty(0m)
+                    .Max();
+
+                scoresBySkill[skillCode].Add(bestScore);
+            }
+
+            return scoresBySkill.ToDictionary(
+                item => item.Key,
+                item => item.Value.Count > 0 ? item.Value.Sum() / item.Value.Count : 0m,
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static string? GetExamSkillCode(Exam exam)
+        {
+            var skillTypes = exam.ExamQuestions
+                .Select(eq => eq.Question?.SkillType)
+                .Where(skillType => skillType.HasValue)
+                .Select(skillType => skillType!.Value)
+                .Distinct()
+                .ToList();
+
+            if (skillTypes.Count != 1) return null;
+
+            return skillTypes[0] switch
+            {
+                1 => "listening",
+                2 => "reading",
+                3 => "speaking",
+                4 => "writing",
+                _ => null
+            };
         }
 
         // Target scale is 9 (band), not 10: the overall class average is reported in band units
@@ -151,87 +197,6 @@ namespace sep490_be.Repositories.Implementations
             }).ToList();
         }
 
-        public async Task<sep490_be.DTO.StudentGrade.SkillScoreResult> CalculateExamSkillScoresAsync(int classId, int studentId)
-        {
-            var result = new sep490_be.DTO.StudentGrade.SkillScoreResult();
-            result.Scores["listening"] = 0m;
-            result.Scores["reading"] = 0m;
-            result.Scores["writing"] = 0m;
-            result.Scores["speaking"] = 0m;
-
-            var exams = await _dbContext.Exams.AsNoTracking()
-                .Include(e => e.ExamQuestions)
-                .ThenInclude(eq => eq.Question)
-                .Where(e => e.ClassId == classId)
-                .ToListAsync();
-
-            if (exams.Count == 0) return result;
-
-            var examIds = exams.Select(x => x.Id).ToList();
-            var attempts = await _dbContext.ExamAttempts.AsNoTracking()
-                .Where(x => x.StudentId == studentId && examIds.Contains(x.ExamId))
-                .GroupBy(x => x.ExamId)
-                .Select(g => new { ExamId = g.Key, Score = g.Max(x => x.Score) })
-                .ToListAsync();
-
-            var scoreByExam = attempts.ToDictionary(x => x.ExamId, x => x.Score);
-
-            var skillMap = new Dictionary<int, string>
-            {
-                { 1, "listening" },
-                { 2, "reading" },
-                { 3, "speaking" },
-                { 4, "writing" }
-            };
-
-            var scoresBySkill = new Dictionary<string, List<decimal>>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["listening"] = new List<decimal>(),
-                ["reading"] = new List<decimal>(),
-                ["writing"] = new List<decimal>(),
-                ["speaking"] = new List<decimal>()
-            };
-
-            var bandsBySkill = new Dictionary<string, List<decimal>>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["listening"] = new List<decimal>(),
-                ["reading"] = new List<decimal>(),
-                ["writing"] = new List<decimal>(),
-                ["speaking"] = new List<decimal>()
-            };
-
-            foreach (var exam in exams)
-            {
-                // Only exams with a single, recognized skill reach here (skillMap only has 1-4),
-                // so every exam counted below is band-graded — Score already IS the band, no
-                // rescaling against exam.TotalScore needed. A missing attempt counts as 0.
-                var skillType = IeltsBandScale.GetSingleSkillType(exam);
-                if (skillType == null || !skillMap.TryGetValue(skillType.Value, out var skillCode)) continue;
-
-                var rawScore = scoreByExam.TryGetValue(exam.Id, out var s) ? (s ?? 0m) : 0m;
-                scoresBySkill[skillCode].Add(rawScore);
-                bandsBySkill[skillCode].Add(rawScore);
-            }
-
-            foreach (var kvp in scoresBySkill)
-            {
-                if (kvp.Value.Count > 0)
-                {
-                    result.Scores[kvp.Key] = kvp.Value.Sum() / kvp.Value.Count;
-                }
-            }
-
-            foreach (var kvp in bandsBySkill)
-            {
-                if (kvp.Value.Count > 0)
-                {
-                    result.Bands[kvp.Key] = IeltsBandScale.RoundToHalfBand(kvp.Value.Sum() / kvp.Value.Count);
-                }
-            }
-
-            return result;
-        }
-
         public async Task<Student?> ResolveStudentByIdentifiersAsync(IEnumerable<string> identifiers, HashSet<string> lookupSet)
         {
             var lookup = identifiers.ToList();
@@ -270,11 +235,10 @@ namespace sep490_be.Repositories.Implementations
             if (existingComponents.Count == 0)
             {
                 _dbContext.GradeComponents.AddRange(
-                    new GradeComponent { CourseId = courseId, Code = "listening", Name = "Listening", Weight = 17.5m, SortOrder = 1, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "reading", Name = "Reading", Weight = 17.5m, SortOrder = 2, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "writing", Name = "Writing", Weight = 17.5m, SortOrder = 3, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "speaking", Name = "Speaking", Weight = 17.5m, SortOrder = 4, IsSystem = true },
-                    new GradeComponent { CourseId = courseId, Code = "homework", Name = "Homework", Weight = 30m, SortOrder = 5, IsSystem = true }
+                    new GradeComponent { CourseId = courseId, Code = "listening", Name = "Listening", Weight = 25m, SortOrder = 1, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "reading", Name = "Reading", Weight = 25m, SortOrder = 2, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "writing", Name = "Writing", Weight = 25m, SortOrder = 3, IsSystem = true },
+                    new GradeComponent { CourseId = courseId, Code = "speaking", Name = "Speaking", Weight = 25m, SortOrder = 4, IsSystem = true }
                 );
                 await _dbContext.SaveChangesAsync();
                 return;
@@ -287,6 +251,7 @@ namespace sep490_be.Repositories.Implementations
                 (Code: "writing", Name: "Writing", SortOrder: 3),
                 (Code: "speaking", Name: "Speaking", SortOrder: 4)
             };
+            var changed = false;
 
             var legacyExam = existingComponents.FirstOrDefault(x => x.IsSystem && x.Code.Equals("exam", StringComparison.OrdinalIgnoreCase));
             if (legacyExam != null)
@@ -308,6 +273,7 @@ namespace sep490_be.Repositories.Implementations
                     _dbContext.GradeComponents.Add(component);
                     existingComponents.Add(component);
                 }
+                changed = true;
             }
 
             var legacyAttendance = existingComponents.FirstOrDefault(x => x.Code.Equals("attendance", StringComparison.OrdinalIgnoreCase));
@@ -344,12 +310,46 @@ namespace sep490_be.Repositories.Implementations
                     .Where(x => x.Id == legacyAttendance.Id)
                     .ExecuteDeleteAsync();
                 _dbContext.Entry(legacyAttendance).State = EntityState.Detached;
+                existingComponents.Remove(legacyAttendance);
+                changed = true;
             }
 
-            if (legacyExam == null && legacyAttendance == null) return;
+            var legacyHomework = existingComponents.FirstOrDefault(x => x.IsSystem && x.Code.Equals("homework", StringComparison.OrdinalIgnoreCase));
+            if (legacyHomework != null)
+            {
+                await _dbContext.StudentGradeOverrides.IgnoreQueryFilters()
+                    .Where(x => x.GradeComponentId == legacyHomework.Id)
+                    .ExecuteDeleteAsync();
+                await _dbContext.GradeComponents.IgnoreQueryFilters()
+                    .Where(x => x.Id == legacyHomework.Id)
+                    .ExecuteDeleteAsync();
+                _dbContext.Entry(legacyHomework).State = EntityState.Detached;
+                existingComponents.Remove(legacyHomework);
+                changed = true;
+            }
 
-            var homework = existingComponents.FirstOrDefault(x => x.Code.Equals("homework", StringComparison.OrdinalIgnoreCase));
-            if (homework != null) homework.SortOrder = 5;
+            if (!changed) return;
+
+            foreach (var skill in skills)
+            {
+                var component = existingComponents.FirstOrDefault(x => x.Code.Equals(skill.Code, StringComparison.OrdinalIgnoreCase));
+                if (component == null)
+                {
+                    component = new GradeComponent
+                    {
+                        CourseId = courseId,
+                        Code = skill.Code,
+                        Name = skill.Name,
+                        IsSystem = true
+                    };
+                    _dbContext.GradeComponents.Add(component);
+                    existingComponents.Add(component);
+                }
+
+                component.Weight = 25m;
+                component.SortOrder = skill.SortOrder;
+            }
+
             await _dbContext.SaveChangesAsync();
         }
 

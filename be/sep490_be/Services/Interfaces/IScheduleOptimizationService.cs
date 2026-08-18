@@ -8,7 +8,7 @@ namespace sep490_be.Services.Interfaces
     public interface IScheduleOptimizationService
     {
         Task<ApiResponse<List<ClassDto>>> AutoScheduleAsync(List<int> classIds, AutoScheduleConstraintDto constraints);
-        Task<ApiResponse<List<ClassDto>>> AutoScheduleSemesterAsync(AutoScheduleSemesterRequestDto request);
+        Task<ApiResponse<AutoScheduleSemesterResultDto>> AutoScheduleSemesterAsync(AutoScheduleSemesterRequestDto request);
         Task<ApiResponse<List<ClassDto>>> SaveSemesterScheduleDraftAsync(SaveScheduleDraftRequestDto request);
         Task<ApiResponse<ScheduleVersionListItemDto>> SaveScheduleVersionAsync(int semesterId, string name);
         Task<ApiResponse<List<ScheduleVersionListItemDto>>> GetScheduleVersionsAsync(int semesterId);

@@ -1135,8 +1135,10 @@ namespace sep490_be.Tests.Services
                 });
 
             response.Success.Should().BeTrue();
-            response.Message.Should().Be("AUTO_SCHEDULING_SEMESTER_COMPLETED");
-            response.Data.Should().ContainSingle();
+            response.Message.Should().Be("AUTO_SCHEDULING_SEMESTER_DRAFT_GENERATED");
+            response.Data.Should().NotBeNull();
+            response.Data!.Classes.Should().ContainSingle();
+            response.Data.Reliability.Should().NotBeNull();
         }
 
         [Fact]
@@ -1178,8 +1180,10 @@ namespace sep490_be.Tests.Services
 
             response.Success.Should().BeTrue();
             response.StatusCode.Should().Be(StatusCodes.Status200OK);
-            response.Message.Should().Be("AUTO_SCHEDULING_SEMESTER_COMPLETED");
-            response.Data.Should().NotBeEmpty();
+            response.Message.Should().Be("AUTO_SCHEDULING_SEMESTER_DRAFT_GENERATED");
+            response.Data.Should().NotBeNull();
+            response.Data!.Classes.Should().NotBeEmpty();
+            response.Data.Reliability.Coverage.TotalScheduled.Should().Be(2);
             context.Classes.Should().NotBeEmpty();
             context.StudentRegistrations
                 .Should().OnlyContain(registration =>

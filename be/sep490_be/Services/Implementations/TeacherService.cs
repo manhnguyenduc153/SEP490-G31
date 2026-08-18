@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Identity;
 using System.Text.Json;
 using System.Net.Mail;
 using System.Text.RegularExpressions;
+using sep490_be.Repositories.Common;
 
 namespace sep490_be.Services.Implementations
 {
@@ -21,15 +22,24 @@ namespace sep490_be.Services.Implementations
         private readonly ITeacherRepository _repository;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly ICourseRepository _courseRepository;
+        private readonly IBaseRepository<TeacherAvailability, ApplicationDbContext> _availabilityRepository;
+        private readonly IBaseRepository<ClassSchedule, ApplicationDbContext> _scheduleRepository;
 
         public TeacherService(
             ITeacherRepository repository,
             UserManager<IdentityUser> userManager,
-            RoleManager<IdentityRole> roleManager)
+            RoleManager<IdentityRole> roleManager,
+            ICourseRepository courseRepository,
+            IBaseRepository<TeacherAvailability, ApplicationDbContext> availabilityRepository,
+            IBaseRepository<ClassSchedule, ApplicationDbContext> scheduleRepository)
         {
             _repository = repository;
             _userManager = userManager;
             _roleManager = roleManager;
+            _courseRepository = courseRepository;
+            _availabilityRepository = availabilityRepository;
+            _scheduleRepository = scheduleRepository;
         }
 
         public async Task<ApiResponse<PagingResponse<TeacherDto>>> GetAllAsync(TeacherSearchDto searchDto, string? username, bool hasViewPermission)
@@ -305,27 +315,65 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<TeacherDto>>.Fail("ERR_TEACHER_IMPORT_EMPTY", StatusCodes.Status400BadRequest);
                 }
 
+                // Pre-load all existing active/inactive codes, emails, phones to memory for fast checking
+                var existingTeachers = await _repository.FindAll()
+                    .Select(t => new { t.Code, t.Email, t.Phone })
+                    .ToListAsync();
+
+                var existingCodes = new HashSet<string>(
+                    existingTeachers.Where(t => !string.IsNullOrEmpty(t.Code)).Select(t => t.Code.Trim()), 
+                    StringComparer.OrdinalIgnoreCase);
+
+                var existingEmails = new HashSet<string>(
+                    existingTeachers.Where(t => !string.IsNullOrEmpty(t.Email)).Select(t => t.Email!.Trim()), 
+                    StringComparer.OrdinalIgnoreCase);
+
+                var existingPhones = new HashSet<string>(
+                    existingTeachers.Where(t => !string.IsNullOrEmpty(t.Phone)).Select(t => t.Phone!.Trim()), 
+                    StringComparer.OrdinalIgnoreCase);
+
                 var createdTeachers = new List<Teacher>();
-                var importCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var importEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var batchCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var batchEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var batchPhones = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var dto in dtos)
                 {
+                    var cleanCode = dto.Code?.Trim() ?? string.Empty;
+                    var cleanEmail = dto.Email?.Trim();
+                    var cleanPhone = dto.Phone?.Trim();
+
+                    // Check if record exists in DB or in current batch (by Code, Email, or Phone) -> Skip
+                    if (!string.IsNullOrEmpty(cleanCode) && (existingCodes.Contains(cleanCode) || batchCodes.Contains(cleanCode)))
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrEmpty(cleanEmail) && (existingEmails.Contains(cleanEmail) || batchEmails.Contains(cleanEmail)))
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrEmpty(cleanPhone) && (existingPhones.Contains(cleanPhone) || batchPhones.Contains(cleanPhone)))
+                    {
+                        continue;
+                    }
+
+                    // Validate other field constraints (format, length, etc.)
                     var validationError = await ValidateAsync(dto, isEdit: false);
                     if (validationError != null)
                     {
+                        // If validation error is duplicate code/email, skip
+                        if (validationError == "ERR_CODE_DUPLICATE" || validationError == "ERR_EMAIL_DUPLICATE")
+                        {
+                            continue;
+                        }
                         return ApiResponse<List<TeacherDto>>.Fail(validationError, StatusCodes.Status400BadRequest);
                     }
 
-                    if (!importCodes.Add(dto.Code.Trim()))
-                    {
-                        return ApiResponse<List<TeacherDto>>.Fail("ERR_CODE_DUPLICATE", StatusCodes.Status400BadRequest);
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(dto.Email) && !importEmails.Add(dto.Email.Trim()))
-                    {
-                        return ApiResponse<List<TeacherDto>>.Fail("ERR_EMAIL_DUPLICATE", StatusCodes.Status400BadRequest);
-                    }
+                    if (!string.IsNullOrEmpty(cleanCode)) batchCodes.Add(cleanCode);
+                    if (!string.IsNullOrEmpty(cleanEmail)) batchEmails.Add(cleanEmail);
+                    if (!string.IsNullOrEmpty(cleanPhone)) batchPhones.Add(cleanPhone);
 
                     var entity = dto.Adapt<Teacher>();
                     entity.Id = 0;
@@ -337,7 +385,10 @@ namespace sep490_be.Services.Implementations
                     createdTeachers.Add(entity);
                 }
 
-                await _repository.SaveChangesAsync();
+                if (createdTeachers.Any())
+                {
+                    await _repository.SaveChangesAsync();
+                }
 
                 var resultDtos = createdTeachers.Select(MapToDto).ToList();
                 // Populate HasAccount
@@ -352,7 +403,7 @@ namespace sep490_be.Services.Implementations
                     dto.HasAccount = dto.Email != null && existingAccountEmails.Contains(dto.Email);
                 }
 
-                return ApiResponse<List<TeacherDto>>.Created(resultDtos, "IMPORT_TEACHERS_SUCCESS");
+                return ApiResponse<List<TeacherDto>>.Ok(resultDtos, "IMPORT_TEACHERS_SUCCESS");
             }
             catch (Exception)
             {
@@ -435,6 +486,8 @@ namespace sep490_be.Services.Implementations
             Address = entity.Address,
             Status = entity.Status,
             Description = entity.Description,
+            GradeLevel = entity.GradeLevel.HasValue ? (int)entity.GradeLevel.Value : null,
+            GradeLevelName = entity.GradeLevel.HasValue ? entity.GradeLevel.Value.GetStringValue() : null,
             Avatar = entity.Avatar,
             Certificates = DeserializeCertificates(entity.Certificate)
         };
@@ -654,7 +707,216 @@ namespace sep490_be.Services.Implementations
                     return "ERR_EMAIL_DUPLICATE";
             }
 
+            if (dto.GradeLevel.HasValue && !Enum.IsDefined(typeof(GradeLevel), dto.GradeLevel.Value))
+                return "ERR_TEACHER_GRADE_LEVEL_INVALID";
+
             return null;
+        }
+
+        public async Task<ApiResponse<List<TeacherDto>>> GetAvailableTeachersAsync(AvailableTeacherFilterDto filterDto)
+        {
+            try
+            {
+                var query = _repository.FindAll()
+                    .Where(t => t.Status == (int)TeacherStatus.Active && !t.IsDeleted);
+
+                // 1. Filter by Course's RequiredGradeLevel
+                if (filterDto.CourseId.HasValue && filterDto.CourseId.Value > 0)
+                {
+                    var course = await _courseRepository.FindAll()
+                        .FirstOrDefaultAsync(c => c.Id == filterDto.CourseId.Value && !c.IsDeleted);
+
+                    if (course != null && course.RequiredGradeLevel.HasValue)
+                    {
+                        int reqLevel = (int)course.RequiredGradeLevel.Value;
+                        query = query.Where(t => t.GradeLevel.HasValue && (int)t.GradeLevel.Value >= reqLevel);
+                    }
+                }
+
+                var teachers = await query.ToListAsync();
+
+                // 2. Filter by single slot or weekly schedules availability (TeacherAvailability)
+                if (filterDto.SemesterId.HasValue && filterDto.SemesterId.Value > 0)
+                {
+                    var avList = await _availabilityRepository.FindAll()
+                        .Where(ta => ta.SemesterId == filterDto.SemesterId.Value)
+                        .ToListAsync();
+
+                    var teacherAvailMap = avList
+                        .GroupBy(ta => ta.TeacherId)
+                        .ToDictionary(g => g.Key, g => g.Select(x => (x.DayOfWeek, x.SlotIndex)).ToHashSet());
+
+                    // Case A: Single slot specified (DayOfWeek & SlotIndex)
+                    if (filterDto.DayOfWeek.HasValue && filterDto.SlotIndex.HasValue)
+                    {
+                        int dow = filterDto.DayOfWeek.Value;
+                        int slotIdx = filterDto.SlotIndex.Value;
+
+                        teachers = teachers.Where(t =>
+                        {
+                            if (!teacherAvailMap.ContainsKey(t.Id)) return true; // No restriction registered
+                            return teacherAvailMap[t.Id].Contains((dow, slotIdx));
+                        }).ToList();
+                    }
+
+                    // Case B: Weekly schedules pattern specified
+                    if (!string.IsNullOrWhiteSpace(filterDto.WeeklySchedulesJson))
+                    {
+                        try
+                        {
+                            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                            var weeklyItems = JsonSerializer.Deserialize<List<WeeklyScheduleFilterItem>>(filterDto.WeeklySchedulesJson, options);
+                            if (weeklyItems != null && weeklyItems.Any())
+                            {
+                                var requiredSlots = new List<(int DayOfWeek, int SlotIndex)>();
+                                foreach (var item in weeklyItems)
+                                {
+                                    if (TimeSpan.TryParse(item.StartTime, out var st))
+                                    {
+                                        var fixedSlot = FixedTimeSlot.FromStartTime(st);
+                                        if (fixedSlot != null)
+                                        {
+                                            requiredSlots.Add((item.DayOfWeek, fixedSlot.Index));
+                                        }
+                                    }
+                                }
+
+                                if (requiredSlots.Any())
+                                {
+                                    teachers = teachers.Where(t =>
+                                    {
+                                        if (!teacherAvailMap.ContainsKey(t.Id)) return true;
+                                        var teacherSlots = teacherAvailMap[t.Id];
+                                        return requiredSlots.All(rs => teacherSlots.Contains(rs));
+                                    }).ToList();
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore json parse error and proceed
+                        }
+                    }
+                }
+
+                // 3. Filter by ClassSchedule conflict on a specific Date + Slot
+                if (filterDto.Date.HasValue && filterDto.SlotIndex.HasValue)
+                {
+                    var targetDate = filterDto.Date.Value.Date;
+                    var fixedSlots = FixedTimeSlot.All;
+                    if (filterDto.SlotIndex.Value >= 0 && filterDto.SlotIndex.Value < fixedSlots.Length)
+                    {
+                        var targetSlot = fixedSlots[filterDto.SlotIndex.Value];
+
+                        var busySchedules = await _scheduleRepository.FindAll()
+                            .Include(cs => cs.TimeSlot)
+                            .Include(cs => cs.Class)
+                            .Where(cs => cs.ScheduleDate.HasValue 
+                                      && cs.ScheduleDate.Value.Date == targetDate
+                                      && cs.Status != (int)ClassScheduleStatus.Cancelled
+                                      && (!filterDto.ExcludeScheduleId.HasValue || cs.Id != filterDto.ExcludeScheduleId.Value)
+                                      && (!filterDto.ExcludeClassId.HasValue || cs.ClassId != filterDto.ExcludeClassId.Value))
+                            .ToListAsync();
+
+                        var busyTeacherIds = new HashSet<int>();
+                        foreach (var bs in busySchedules)
+                        {
+                            if (bs.TimeSlot != null)
+                            {
+                                // Check overlap
+                                if (bs.TimeSlot.StartTime < targetSlot.End && bs.TimeSlot.EndTime > targetSlot.Start)
+                                {
+                                    if (bs.TeacherId.HasValue) busyTeacherIds.Add(bs.TeacherId.Value);
+                                    else if (bs.Class != null && bs.Class.TeacherId.HasValue) busyTeacherIds.Add(bs.Class.TeacherId.Value);
+                                }
+                            }
+                        }
+
+                        teachers = teachers.Where(t => !busyTeacherIds.Contains(t.Id)).ToList();
+                    }
+                }
+
+                // 4. Filter by ClassSchedule conflict across Date Range for Weekly Schedules
+                if (!string.IsNullOrWhiteSpace(filterDto.WeeklySchedulesJson) && filterDto.StartDate.HasValue && filterDto.EndDate.HasValue)
+                {
+                    try
+                    {
+                        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                        var weeklyItems = JsonSerializer.Deserialize<List<WeeklyScheduleFilterItem>>(filterDto.WeeklySchedulesJson, options);
+                        if (weeklyItems != null && weeklyItems.Any())
+                        {
+                            var rangeStart = filterDto.StartDate.Value.Date;
+                            var rangeEnd = filterDto.EndDate.Value.Date;
+
+                            var existingSchedules = await _scheduleRepository.FindAll()
+                                .Include(cs => cs.TimeSlot)
+                                .Include(cs => cs.Class)
+                                .Where(cs => cs.ScheduleDate.HasValue
+                                          && cs.ScheduleDate.Value.Date >= rangeStart
+                                          && cs.ScheduleDate.Value.Date <= rangeEnd
+                                          && cs.Status != (int)ClassScheduleStatus.Cancelled
+                                          && (!filterDto.ExcludeClassId.HasValue || cs.ClassId != filterDto.ExcludeClassId.Value))
+                                .ToListAsync();
+
+                            var conflictingTeacherIds = new HashSet<int>();
+                            foreach (var ws in weeklyItems)
+                            {
+                                if (TimeSpan.TryParse(ws.StartTime, out var wStart) && TimeSpan.TryParse(ws.EndTime, out var wEnd))
+                                {
+                                    foreach (var es in existingSchedules)
+                                    {
+                                        if ((int)es.ScheduleDate!.Value.DayOfWeek == ws.DayOfWeek && es.TimeSlot != null)
+                                        {
+                                            if (es.TimeSlot.StartTime < wEnd && es.TimeSlot.EndTime > wStart)
+                                            {
+                                                if (es.TeacherId.HasValue) conflictingTeacherIds.Add(es.TeacherId.Value);
+                                                else if (es.Class != null && es.Class.TeacherId.HasValue) conflictingTeacherIds.Add(es.Class.TeacherId.Value);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            teachers = teachers.Where(t => !conflictingTeacherIds.Contains(t.Id)).ToList();
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore json parse error and proceed
+                    }
+                }
+
+                var dtoList = teachers.Select(t => new TeacherDto
+                {
+                    Id = t.Id,
+                    Code = t.Code,
+                    Name = t.Name,
+                    Email = t.Email,
+                    Phone = t.Phone,
+                    Address = t.Address,
+                    Status = t.Status,
+                    GradeLevel = t.GradeLevel.HasValue ? (int)t.GradeLevel.Value : null,
+                    GradeLevelName = t.GradeLevel.HasValue ? t.GradeLevel.Value.GetStringValue() : null,
+                    Avatar = t.Avatar,
+                    Description = t.Description,
+                    Certificates = !string.IsNullOrEmpty(t.Certificate) 
+                        ? JsonSerializer.Deserialize<List<string>>(t.Certificate) ?? new List<string>() 
+                        : new List<string>()
+                }).OrderBy(t => t.Name).ToList();
+
+                return ApiResponse<List<TeacherDto>>.Ok(dtoList, "GET_AVAILABLE_TEACHERS_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<TeacherDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        private class WeeklyScheduleFilterItem
+        {
+            public int DayOfWeek { get; set; }
+            public string StartTime { get; set; } = string.Empty;
+            public string EndTime { get; set; } = string.Empty;
         }
     }
 }
