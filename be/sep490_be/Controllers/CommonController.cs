@@ -111,5 +111,29 @@ namespace sep490_be.Controllers
             var response = await _questionCategoryService.GetAllAsync(searchDto);
             return StatusCode(response.StatusCode, response);
         }
+
+        // GET: api/Common/teachers/available
+        [HttpGet("teachers/available")]
+        public async Task<IActionResult> GetAvailableTeachers([FromQuery] AvailableTeacherFilterDto filterDto)
+        {
+            var response = await _teacherService.GetAvailableTeachersAsync(filterDto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // GET: api/Common/rooms/available
+        [HttpGet("rooms/available")]
+        public async Task<IActionResult> GetAvailableRooms([FromQuery] AvailableRoomFilterDto filterDto)
+        {
+            var response = await _roomService.GetAvailableRoomsAsync(filterDto);
+            return StatusCode(response.StatusCode, response);
+        }
+
+        // PUT: api/Common/schedules/{id}
+        [HttpPut("schedules/{id}")]
+        public async Task<IActionResult> UpdateScheduleSlot(int id, [FromBody] UpdateScheduleSlotDto dto)
+        {
+            var response = await _classService.UpdateScheduleSlotAsync(id, dto);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }

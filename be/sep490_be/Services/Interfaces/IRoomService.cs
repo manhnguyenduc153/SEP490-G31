@@ -1,4 +1,4 @@
-﻿using sep490_be.DTO;
+using sep490_be.DTO;
 using sep490_be.DTO.Room;
 
 namespace sep490_be.Services.Interfaces
@@ -28,6 +28,9 @@ namespace sep490_be.Services.Interfaces
 
         /// <summary>Lịch sử dụng của phòng học (ClassSchedule + ExamSchedule)</summary>
         Task<ApiResponse<PagingResponse<RoomScheduleDto>>> GetScheduleAsync(int roomId, BaseSearchDto searchDto);
+
+        /// <summary>Lấy danh sách phòng học khả dụng (thỏa mãn sức chứa và không bị trùng lịch)</summary>
+        Task<ApiResponse<List<RoomDto>>> GetAvailableRoomsAsync(AvailableRoomFilterDto filterDto);
     }
 }
 

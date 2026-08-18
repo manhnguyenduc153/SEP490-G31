@@ -1685,6 +1685,158 @@ namespace sep490_be.Services.Implementations
                 // Suppress exception
             }
         }
+
+        public async Task<ApiResponse<ClassScheduleDto>> UpdateScheduleSlotAsync(int id, UpdateScheduleSlotDto dto)
+        {
+            try
+            {
+                var schedule = await _scheduleRepository.FindAll(trackChanges: true)
+                    .Include(cs => cs.Class).ThenInclude(c => c.Course)
+                    .Include(cs => cs.TimeSlot)
+                    .Include(cs => cs.Room)
+                    .Include(cs => cs.Teacher)
+                    .FirstOrDefaultAsync(cs => cs.Id == id && !cs.IsDeleted);
+
+                if (schedule == null)
+                    return ApiResponse<ClassScheduleDto>.Fail("ERR_SCHEDULE_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                // Check past schedule: cannot edit schedules that have already taken place
+                if (schedule.ScheduleDate.HasValue)
+                {
+                    var now = DateTime.Now;
+                    var scheduleDate = schedule.ScheduleDate.Value.Date;
+                    if (schedule.TimeSlot != null)
+                    {
+                        var slotEndTime = scheduleDate.Add(schedule.TimeSlot.EndTime);
+                        if (slotEndTime < now)
+                            return ApiResponse<ClassScheduleDto>.Fail("ERR_CANNOT_EDIT_PAST_SCHEDULE", StatusCodes.Status400BadRequest);
+                    }
+                    else if (scheduleDate < DateTime.Today)
+                    {
+                        return ApiResponse<ClassScheduleDto>.Fail("ERR_CANNOT_EDIT_PAST_SCHEDULE", StatusCodes.Status400BadRequest);
+                    }
+                }
+
+                // 1. Update Teacher
+                if (dto.TeacherId.HasValue)
+                {
+                    var teacher = await _teacherRepository.FindAll()
+                        .FirstOrDefaultAsync(t => t.Id == dto.TeacherId.Value && t.Status == (int)TeacherStatus.Active && !t.IsDeleted);
+
+                    if (teacher == null)
+                        return ApiResponse<ClassScheduleDto>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status400BadRequest);
+
+                    if (schedule.Class?.Course?.RequiredGradeLevel.HasValue == true)
+                    {
+                        int reqBand = (int)schedule.Class.Course.RequiredGradeLevel.Value;
+                        if (!teacher.GradeLevel.HasValue || (int)teacher.GradeLevel.Value < reqBand)
+                            return ApiResponse<ClassScheduleDto>.Fail("ERR_TEACHER_GRADE_LEVEL_INSUFFICIENT", StatusCodes.Status400BadRequest);
+                    }
+
+                    if (schedule.ScheduleDate.HasValue && schedule.TimeSlot != null)
+                    {
+                        var targetDate = schedule.ScheduleDate.Value.Date;
+                        var hasTeacherConflict = await _scheduleRepository.FindAll()
+                            .Include(cs => cs.TimeSlot)
+                            .Include(cs => cs.Class)
+                            .AnyAsync(cs => cs.Id != id
+                                         && cs.ScheduleDate.HasValue
+                                         && cs.ScheduleDate.Value.Date == targetDate
+                                         && cs.Status != (int)ClassScheduleStatus.Cancelled
+                                         && (cs.TeacherId == dto.TeacherId.Value || (cs.TeacherId == null && cs.Class != null && cs.Class.TeacherId == dto.TeacherId.Value))
+                                         && cs.TimeSlot != null
+                                         && cs.TimeSlot.StartTime < schedule.TimeSlot.EndTime
+                                         && cs.TimeSlot.EndTime > schedule.TimeSlot.StartTime);
+
+                        if (hasTeacherConflict)
+                            return ApiResponse<ClassScheduleDto>.Fail("ERR_TEACHER_CONFLICT", StatusCodes.Status400BadRequest);
+                    }
+
+                    schedule.TeacherId = dto.TeacherId.Value;
+                }
+                else
+                {
+                    schedule.TeacherId = null;
+                }
+
+                // 2. Update Room
+                if (dto.RoomId.HasValue)
+                {
+                    var room = await _roomRepository.FindAll()
+                        .FirstOrDefaultAsync(r => r.Id == dto.RoomId.Value && r.Status == (int)GeneralStatus.Active && !r.IsDeleted);
+
+                    if (room == null)
+                        return ApiResponse<ClassScheduleDto>.Fail("ERR_ROOM_NOT_FOUND", StatusCodes.Status400BadRequest);
+
+                    if (schedule.ScheduleDate.HasValue && schedule.TimeSlot != null)
+                    {
+                        var targetDate = schedule.ScheduleDate.Value.Date;
+                        var hasRoomConflict = await _scheduleRepository.FindAll()
+                            .Include(cs => cs.TimeSlot)
+                            .AnyAsync(cs => cs.Id != id
+                                         && cs.ScheduleDate.HasValue
+                                         && cs.ScheduleDate.Value.Date == targetDate
+                                         && cs.Status != (int)ClassScheduleStatus.Cancelled
+                                         && cs.RoomId == dto.RoomId.Value
+                                         && cs.TimeSlot != null
+                                         && cs.TimeSlot.StartTime < schedule.TimeSlot.EndTime
+                                         && cs.TimeSlot.EndTime > schedule.TimeSlot.StartTime);
+
+                        if (hasRoomConflict)
+                            return ApiResponse<ClassScheduleDto>.Fail("ERR_ROOM_CONFLICT", StatusCodes.Status400BadRequest);
+                    }
+
+                    schedule.RoomId = dto.RoomId.Value;
+                }
+                else
+                {
+                    schedule.RoomId = null;
+                }
+
+                if (dto.Note != null)
+                {
+                    schedule.Note = dto.Note;
+                }
+
+                await _scheduleRepository.SaveChangesAsync();
+
+                // Reload navigation properties for output
+                var updated = await _scheduleRepository.FindAll()
+                    .Include(cs => cs.TimeSlot)
+                    .Include(cs => cs.Room)
+                    .Include(cs => cs.Class)
+                    .Include(cs => cs.Teacher)
+                    .FirstOrDefaultAsync(cs => cs.Id == id);
+
+                var resultDto = new ClassScheduleDto
+                {
+                    Id = updated!.Id,
+                    ClassId = updated.ClassId,
+                    ClassCode = updated.Class?.Code,
+                    ClassName = updated.Class?.Name,
+                    LessonNo = updated.LessonNo,
+                    ScheduleDate = updated.ScheduleDate,
+                    SlotId = updated.SlotId,
+                    SlotName = updated.TimeSlot?.Name,
+                    StartTime = updated.TimeSlot != null ? updated.TimeSlot.StartTime.ToString(@"hh\:mm") : null,
+                    EndTime = updated.TimeSlot != null ? updated.TimeSlot.EndTime.ToString(@"hh\:mm") : null,
+                    RoomId = updated.RoomId,
+                    RoomName = updated.Room?.Name,
+                    TeacherId = updated.TeacherId,
+                    TeacherName = updated.Teacher != null ? updated.Teacher.Name : (updated.Class?.Teacher?.Name),
+                    TeacherAvatar = updated.Teacher != null ? updated.Teacher.Avatar : (updated.Class?.Teacher?.Avatar),
+                    Status = updated.Status,
+                    Note = updated.Note,
+                    ClassStatus = updated.Class?.Status
+                };
+
+                return ApiResponse<ClassScheduleDto>.Ok(resultDto, "UPDATE_SCHEDULE_SLOT_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<ClassScheduleDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
     }
 }
 
