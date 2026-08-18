@@ -89,7 +89,8 @@ namespace sep490_be.Repositories.Implementations
 
                 var bestScore = exam.ExamAttempts
                     .Where(attempt => attempt.StudentId == studentId)
-                    .Select(attempt => NormalizeScore(attempt.Score, exam.TotalScore ?? 10m))
+                    .Select(attempt => IeltsBandScale.ComputeAttemptBand(exam, attempt.Score)
+                        ?? NormalizeScore(attempt.Score, exam.TotalScore ?? 10m))
                     .DefaultIfEmpty(0m)
                     .Max();
 

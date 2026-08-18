@@ -77,37 +77,19 @@ namespace sep490_be.Common
             return skills.Count == 1 ? skills[0] : (int?)null;
         }
 
-        // An average that lands exactly on a quarter band (x.25 / x.75) always resolves to the
-        // half band between its two neighboring whole bands: x.25 rounds UP to x.5, and x.75
-        // rounds DOWN to x.5 (never up to the next whole band). Anything else rounds normally.
+        // Round to the nearest IELTS half-band. Quarter-band boundaries round up:
+        // 6.25 -> 6.5, values below 6.25 -> 6.0, and 6.75 -> 7.0.
         public static decimal RoundToHalfBand(decimal raw)
         {
-            var doubled = raw * 2m; // work in half-band units
-            var floor = Math.Floor(doubled);
-            var frac = doubled - floor;
-
-            decimal roundedDoubled;
-            if (frac == 0.5m)
-            {
-                // Exactly between two half-band steps: floor and floor+1 are one even, one odd.
-                // The odd one always represents an x.5 result, which is what we want either way.
-                var flooredIsOdd = (long)floor % 2 != 0;
-                roundedDoubled = flooredIsOdd ? floor : floor + 1m;
-            }
-            else
-            {
-                roundedDoubled = Math.Round(doubled, MidpointRounding.AwayFromZero);
-            }
-
-            return roundedDoubled / 2m;
+            var clamped = Math.Max(SpeakingWritingMinBand, Math.Min(SpeakingWritingMaxBand, raw));
+            return Math.Floor(clamped * 2m + 0.5m) / 2m;
         }
 
         // Speaking/Writing are graded directly on the 0-9 band scale by the teacher; the entered
         // score IS the band, just clamped to range and normalized to the official half-band grid.
         public static decimal RoundSpeakingWritingBand(decimal rawScore)
         {
-            var clamped = Math.Max(SpeakingWritingMinBand, Math.Min(SpeakingWritingMaxBand, rawScore));
-            return RoundToHalfBand(clamped);
+            return RoundToHalfBand(rawScore);
         }
 
         // ExamAttempt.Score is now stored directly in band units for all 4 skills (Listening/Reading
