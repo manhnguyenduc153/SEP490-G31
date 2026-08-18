@@ -92,16 +92,18 @@ namespace sep490_be.Common
             return RoundToHalfBand(rawScore);
         }
 
-        // ExamAttempt.Score is now stored directly in band units for all 4 skills (Listening/Reading
+        // ExamAttempt.Score is stored directly in band units for all 4 skills (Listening/Reading
         // via GetBandForListeningReading at grading time, Speaking/Writing via direct 0-9 grading),
-        // so this just mirrors Score for band-graded exams and hides it for legacy mixed-skill ones.
+        // so this mirrors Score for band-graded exams and hides it for legacy mixed-skill ones.
+        // Always re-rounds through RoundToHalfBand so a stale/legacy Score value (e.g. from before
+        // this scoring model existed) never surfaces as an off-grid band like 6.1.
         public static decimal? ComputeAttemptBand(Exam exam, decimal? score)
         {
             if (!score.HasValue) return null;
 
             var skill = GetSingleSkillType(exam);
             return skill is ListeningSkillType or ReadingSkillType or SpeakingSkillType or WritingSkillType
-                ? score
+                ? RoundToHalfBand(score.Value)
                 : null;
         }
     }
