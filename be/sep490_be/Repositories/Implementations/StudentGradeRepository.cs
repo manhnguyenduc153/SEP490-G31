@@ -1,3 +1,4 @@
+using sep490_be.Common;
 using sep490_be.Models;
 using sep490_be.Repositories.Interfaces;
 using sep490_be.Repositories.Common;
@@ -76,10 +77,13 @@ namespace sep490_be.Repositories.Implementations
             return normalizedScores.Sum() / homeworks.Count;
         }
 
+        // Target scale is 9 (band), not 10: the overall class average is reported in band units
+        // now that Listening/Reading/Writing/Speaking all store their score directly as a band.
+        // Only Homework (and any legacy mixed-skill exam) still needs rescaling through here.
         private static decimal NormalizeScore(decimal? score, decimal total)
         {
             if (!score.HasValue || total <= 0) return 0m;
-            return Math.Max(0m, Math.Min(10m, score.Value / total * 10m));
+            return Math.Max(0m, Math.Min(9m, score.Value / total * 9m));
         }
 
         public async Task<List<sep490_be.DTO.StudentGrade.MyGradeHomeworkDto>> GetHomeworkScoresAsync(int classId, int studentId)
@@ -113,8 +117,9 @@ namespace sep490_be.Repositories.Implementations
         public async Task<List<sep490_be.DTO.StudentGrade.MyGradeExamDto>> GetExamScoresAsync(int classId, int studentId)
         {
             var exams = await _dbContext.Exams.AsNoTracking()
+                .Include(x => x.ExamQuestions)
+                .ThenInclude(eq => eq.Question)
                 .Where(x => x.ClassId == classId)
-                .Select(x => new { x.Id, x.Title, x.TotalScore })
                 .ToListAsync();
 
             if (exams.Count == 0) return new();
@@ -128,25 +133,31 @@ namespace sep490_be.Repositories.Implementations
 
             var scoreByExam = attempts.ToDictionary(x => x.ExamId, x => x.Score);
 
-            return exams.Select(e => new sep490_be.DTO.StudentGrade.MyGradeExamDto
+            return exams.Select(e =>
             {
-                Id = e.Id,
-                Title = e.Title,
-                TotalScore = e.TotalScore ?? 10m,
-                Score = scoreByExam.TryGetValue(e.Id, out var s) ? s : null,
-                NormalizedScore = NormalizeScore(scoreByExam.TryGetValue(e.Id, out var s2) ? s2 : null, e.TotalScore ?? 10m)
+                var score = scoreByExam.TryGetValue(e.Id, out var s) ? s : null;
+                var band = IeltsBandScale.ComputeAttemptBand(e, score);
+                return new sep490_be.DTO.StudentGrade.MyGradeExamDto
+                {
+                    Id = e.Id,
+                    Title = e.Title,
+                    TotalScore = e.TotalScore ?? 10m,
+                    Score = score,
+                    // Band-graded exams (all 4 skills) are already on the final scale; only
+                    // legacy mixed-skill exams still need rescaling against exam.TotalScore.
+                    NormalizedScore = band ?? NormalizeScore(score, e.TotalScore ?? 10m),
+                    Band = band
+                };
             }).ToList();
         }
 
-        public async Task<Dictionary<string, decimal>> CalculateExamSkillScoresAsync(int classId, int studentId)
+        public async Task<sep490_be.DTO.StudentGrade.SkillScoreResult> CalculateExamSkillScoresAsync(int classId, int studentId)
         {
-            var result = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["listening"] = 0m,
-                ["reading"] = 0m,
-                ["writing"] = 0m,
-                ["speaking"] = 0m
-            };
+            var result = new sep490_be.DTO.StudentGrade.SkillScoreResult();
+            result.Scores["listening"] = 0m;
+            result.Scores["reading"] = 0m;
+            result.Scores["writing"] = 0m;
+            result.Scores["speaking"] = 0m;
 
             var exams = await _dbContext.Exams.AsNoTracking()
                 .Include(e => e.ExamQuestions)
@@ -181,29 +192,40 @@ namespace sep490_be.Repositories.Implementations
                 ["speaking"] = new List<decimal>()
             };
 
+            var bandsBySkill = new Dictionary<string, List<decimal>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["listening"] = new List<decimal>(),
+                ["reading"] = new List<decimal>(),
+                ["writing"] = new List<decimal>(),
+                ["speaking"] = new List<decimal>()
+            };
+
             foreach (var exam in exams)
             {
-                var skillCodes = exam.ExamQuestions
-                    .Select(eq => eq.Question?.SkillType ?? 1)
-                    .Select(st => skillMap.TryGetValue(st, out var code) ? code : null)
-                    .Where(code => code != null)
-                    .Distinct()
-                    .ToList();
+                // Only exams with a single, recognized skill reach here (skillMap only has 1-4),
+                // so every exam counted below is band-graded — Score already IS the band, no
+                // rescaling against exam.TotalScore needed. A missing attempt counts as 0.
+                var skillType = IeltsBandScale.GetSingleSkillType(exam);
+                if (skillType == null || !skillMap.TryGetValue(skillType.Value, out var skillCode)) continue;
 
-                if (skillCodes.Count == 1)
-                {
-                    var skillCode = skillCodes[0]!;
-                    var rawScore = scoreByExam.TryGetValue(exam.Id, out var s) ? s : 0m;
-                    var normalized = NormalizeScore(rawScore, exam.TotalScore ?? 10m);
-                    scoresBySkill[skillCode].Add(normalized);
-                }
+                var rawScore = scoreByExam.TryGetValue(exam.Id, out var s) ? (s ?? 0m) : 0m;
+                scoresBySkill[skillCode].Add(rawScore);
+                bandsBySkill[skillCode].Add(rawScore);
             }
 
             foreach (var kvp in scoresBySkill)
             {
                 if (kvp.Value.Count > 0)
                 {
-                    result[kvp.Key] = kvp.Value.Sum() / kvp.Value.Count;
+                    result.Scores[kvp.Key] = kvp.Value.Sum() / kvp.Value.Count;
+                }
+            }
+
+            foreach (var kvp in bandsBySkill)
+            {
+                if (kvp.Value.Count > 0)
+                {
+                    result.Bands[kvp.Key] = IeltsBandScale.RoundToHalfBand(kvp.Value.Sum() / kvp.Value.Count);
                 }
             }
 

@@ -97,10 +97,11 @@ namespace sep490_be.Services.Implementations
                 };
 
                 var examSkillScores = await _repository.CalculateExamSkillScoresAsync(classInfo.Id, studentId);
-                foreach (var kvp in examSkillScores)
+                foreach (var kvp in examSkillScores.Scores)
                 {
                     rawScores[kvp.Key] = kvp.Value;
                 }
+                var bandsBySkillCode = examSkillScores.Bands;
 
                 var scoreComponents = components.Select(component =>
                 {
@@ -114,7 +115,8 @@ namespace sep490_be.Services.Implementations
                         Weight = component.Weight,
                         RawScore = Round1(rawScore),
                         Score = Round1(hasOverride && overrideScore.HasValue ? overrideScore.Value : rawScore),
-                        IsOverride = hasOverride
+                        IsOverride = hasOverride,
+                        Band = bandsBySkillCode.TryGetValue(component.Code, out var band) ? band : (decimal?)null
                     };
                 }).ToList();
 

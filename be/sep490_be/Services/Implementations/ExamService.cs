@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using sep490_be.Common;
 using sep490_be.DTO;
 using sep490_be.DTO.Exam;
 using sep490_be.DTO.Question;
@@ -684,7 +685,10 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<ExamAttemptDto>>.Fail("ERR_STUDENT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                var exam = await _examRepository.FindAll().FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
+                var exam = await _examRepository.FindAll()
+                    .Include(e => e.ExamQuestions)
+                    .ThenInclude(eq => eq.Question)
+                    .FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
                 if (exam == null)
                 {
                     return ApiResponse<List<ExamAttemptDto>>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
@@ -749,7 +753,7 @@ namespace sep490_be.Services.Implementations
                                 // Check correctness
                                 var correctAnswers = qDto.QuestionAnswers.Where(qa => qa.IsCorrect).Select(qa => qa.Content.Trim().ToLower()).ToList();
                                 var correctIds = qDto.QuestionAnswers.Where(qa => qa.IsCorrect).Select(qa => qa.Id.ToString()).ToList();
-                                
+
                                 if (!string.IsNullOrEmpty(ans.AnswerContent))
                                 {
                                     var stdAns = ans.AnswerContent.Trim().ToLower();
@@ -768,11 +772,24 @@ namespace sep490_be.Services.Implementations
                             }
                         }
                         var totalExamQuestions = questionsMap.Count;
-                        if (exam.TotalScore.HasValue && totalExamQuestions > 0 && attempt.Answers.Count == totalExamQuestions && attempt.Answers.All(a => a.IsCorrect == true))
+                        var readSkillType = IeltsBandScale.GetSingleSkillType(exam);
+                        if (readSkillType == IeltsBandScale.ListeningSkillType || readSkillType == IeltsBandScale.ReadingSkillType)
+                        {
+                            // Recompute as a band on every read (not just when perfect) so historical
+                            // attempts stored under the old points-per-question scoring self-heal too.
+                            var correctCount = attempt.Answers.Count(a => a.IsCorrect == true);
+                            attempt.Score = IeltsBandScale.GetBandForListeningReading(correctCount, totalExamQuestions) ?? attempt.Score;
+                        }
+                        else if (exam.TotalScore.HasValue && totalExamQuestions > 0 && attempt.Answers.Count == totalExamQuestions && attempt.Answers.All(a => a.IsCorrect == true))
                         {
                             attempt.Score = exam.TotalScore.Value;
                         }
                     }
+                }
+
+                foreach (var attempt in attempts)
+                {
+                    attempt.Band = IeltsBandScale.ComputeAttemptBand(exam, attempt.Score);
                 }
 
                 return ApiResponse<List<ExamAttemptDto>>.Ok(attempts, "GET_ATTEMPTS_SUCCESS");
@@ -787,7 +804,10 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var exam = await _examRepository.FindAll().FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
+                var exam = await _examRepository.FindAll()
+                    .Include(e => e.ExamQuestions)
+                    .ThenInclude(eq => eq.Question)
+                    .FirstOrDefaultAsync(e => e.Id == examId && !e.IsDeleted);
                 if (exam == null)
                 {
                     return ApiResponse<List<ExamAttemptDto>>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
@@ -860,11 +880,24 @@ namespace sep490_be.Services.Implementations
                             }
                         }
                         var totalExamQuestions = questionsMap.Count;
-                        if (exam.TotalScore.HasValue && totalExamQuestions > 0 && attempt.Answers.Count == totalExamQuestions && attempt.Answers.All(a => a.IsCorrect == true))
+                        var readSkillType = IeltsBandScale.GetSingleSkillType(exam);
+                        if (readSkillType == IeltsBandScale.ListeningSkillType || readSkillType == IeltsBandScale.ReadingSkillType)
+                        {
+                            // Recompute as a band on every read (not just when perfect) so historical
+                            // attempts stored under the old points-per-question scoring self-heal too.
+                            var correctCount = attempt.Answers.Count(a => a.IsCorrect == true);
+                            attempt.Score = IeltsBandScale.GetBandForListeningReading(correctCount, totalExamQuestions) ?? attempt.Score;
+                        }
+                        else if (exam.TotalScore.HasValue && totalExamQuestions > 0 && attempt.Answers.Count == totalExamQuestions && attempt.Answers.All(a => a.IsCorrect == true))
                         {
                             attempt.Score = exam.TotalScore.Value;
                         }
                     }
+                }
+
+                foreach (var attempt in attempts)
+                {
+                    attempt.Band = IeltsBandScale.ComputeAttemptBand(exam, attempt.Score);
                 }
 
                 return ApiResponse<List<ExamAttemptDto>>.Ok(attempts, "GET_ATTEMPTS_SUCCESS");
@@ -1115,12 +1148,24 @@ namespace sep490_be.Services.Implementations
                 }
                 else
                 {
-                    var totalExamQuestions = exam.ExamQuestions.Count;
-                    if (exam.TotalScore.HasValue && totalExamQuestions > 0 && listAnswers.Count == totalExamQuestions && listAnswers.All(a => a.IsCorrect == true))
+                    var submitSkillType = IeltsBandScale.GetSingleSkillType(exam);
+                    if (submitSkillType == IeltsBandScale.ListeningSkillType || submitSkillType == IeltsBandScale.ReadingSkillType)
                     {
-                        totalScore = exam.TotalScore.Value;
+                        // Score IS the IELTS band now: correct-answer count scaled to a /40-equivalent,
+                        // not a sum of per-question points. Unanswered questions count as wrong.
+                        var correctCount = listAnswers.Count(a => a.IsCorrect == true);
+                        attempt.Score = IeltsBandScale.GetBandForListeningReading(correctCount, exam.ExamQuestions.Count) ?? 0m;
                     }
-                    attempt.Score = totalScore;
+                    else
+                    {
+                        // Legacy/mixed-skill exams keep the old points-per-question scoring.
+                        var totalExamQuestions = exam.ExamQuestions.Count;
+                        if (exam.TotalScore.HasValue && totalExamQuestions > 0 && listAnswers.Count == totalExamQuestions && listAnswers.All(a => a.IsCorrect == true))
+                        {
+                            totalScore = exam.TotalScore.Value;
+                        }
+                        attempt.Score = totalScore;
+                    }
                 }
                 await _examRepository.SaveChangesAsync();
                 await _examRepository.CommitTransactionAsync();
@@ -1136,6 +1181,7 @@ namespace sep490_be.Services.Implementations
                     StartTime = attempt.StartTime,
                     SubmitTime = attempt.SubmitTime,
                     Score = attempt.Score,
+                    Band = IeltsBandScale.ComputeAttemptBand(exam, attempt.Score),
                     Status = attempt.Status,
                     Duration = exam.Duration,
                     TabExitsCount = attempt.TabExitsCount,
@@ -1288,6 +1334,8 @@ namespace sep490_be.Services.Implementations
                 var exams = await _examRepository.FindAll()
                     .Include(e => e.Class)
                     .Include(e => e.ExamAttempts)
+                    .Include(e => e.ExamQuestions)
+                        .ThenInclude(eq => eq.Question)
                     .Where(e => e.ClassId.HasValue && classIds.Contains(e.ClassId.Value) && e.Status == 1 && !e.IsDeleted)
                     .OrderByDescending(e => e.Id)
                     .ToListAsync();
@@ -1351,7 +1399,8 @@ namespace sep490_be.Services.Implementations
                         QuestionCount = _examRepository.FindAllExamQuestions().Count(eq => eq.ExamId == e.Id),
                         SubmissionCount = studentAttempts.Count,
                         LatestScore = latestScore,
-                        IsGraded = isGraded
+                        IsGraded = isGraded,
+                        SkillType = IeltsBandScale.GetSingleSkillType(e)
                     };
                 }).ToList();
 
@@ -1398,6 +1447,8 @@ namespace sep490_be.Services.Implementations
                     .Include(a => a.ExamAnswers)
                     .Include(a => a.Student)
                     .Include(a => a.Exam)
+                        .ThenInclude(e => e.ExamQuestions)
+                            .ThenInclude(eq => eq.Question)
                     .FirstOrDefaultAsync(a => a.Id == attemptId && !a.IsDeleted);
 
                 if (attempt == null)
@@ -1405,7 +1456,12 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ExamAttemptDto>.Fail("ERR_ATTEMPT_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                decimal maxScore = attempt.Exam?.TotalScore ?? 10m;
+                // Speaking/Writing are graded directly on the 0-9 IELTS band scale rather than
+                // against the exam's configured TotalScore.
+                var gradedSkillType = attempt.Exam != null ? IeltsBandScale.GetSingleSkillType(attempt.Exam) : null;
+                bool isBandGraded = gradedSkillType == IeltsBandScale.SpeakingSkillType || gradedSkillType == IeltsBandScale.WritingSkillType;
+
+                decimal maxScore = isBandGraded ? IeltsBandScale.SpeakingWritingMaxBand : (attempt.Exam?.TotalScore ?? 10m);
                 if (gradeDto.Score < 0)
                 {
                     return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_SCORE_INVALID", StatusCodes.Status400BadRequest);
@@ -1415,7 +1471,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ExamAttemptDto>.Fail("ERR_EXAM_SCORE_EXCEEDS_TOTAL", StatusCodes.Status400BadRequest);
                 }
 
-                attempt.Score = gradeDto.Score;
+                attempt.Score = isBandGraded ? IeltsBandScale.RoundToHalfBand(gradeDto.Score) : gradeDto.Score;
                 attempt.Status = 2; // Graded / Submitted
 
                 foreach (var ans in attempt.ExamAnswers)
@@ -1447,6 +1503,7 @@ namespace sep490_be.Services.Implementations
                     StartTime = attempt.StartTime,
                     SubmitTime = attempt.SubmitTime,
                     Score = attempt.Score,
+                    Band = attempt.Exam != null ? IeltsBandScale.ComputeAttemptBand(attempt.Exam, attempt.Score) : null,
                     Status = attempt.Status,
                     Duration = attempt.Exam?.Duration,
                     TabExitsCount = attempt.TabExitsCount,

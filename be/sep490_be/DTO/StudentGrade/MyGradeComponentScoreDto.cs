@@ -9,5 +9,6 @@ namespace sep490_be.DTO.StudentGrade
         public decimal Score { get; set; }
         public decimal RawScore { get; set; }
         public bool IsOverride { get; set; }
+        public decimal? Band { get; set; }
     }
 }
