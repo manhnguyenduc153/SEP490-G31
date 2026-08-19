@@ -24,15 +24,8 @@ namespace sep490_be.Extensions
 
             services.AddHttpContextAccessor();
 
-            // 2. Cấu hình Redis Cache
-            var redisConnectionString = configuration["Redis:ConnectionString"] ?? "localhost:6379";
-            services.AddSingleton<IConnectionMultiplexer>(
-                ConnectionMultiplexer.Connect(redisConnectionString));
-            services.AddStackExchangeRedisCache(options =>
-            {
-                options.Configuration = redisConnectionString;
-                options.InstanceName = "PRN232_";
-            });
+            // 2. Cấu hình Cache: Sử dụng In-Memory Distributed Cache cho local (0ms latency, không bị nghẽn mạng)
+            services.AddDistributedMemoryCache();
 
             return services;
         }

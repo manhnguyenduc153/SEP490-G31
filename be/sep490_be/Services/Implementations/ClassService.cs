@@ -1638,8 +1638,18 @@ namespace sep490_be.Services.Implementations
             return "KH00001";
         }
 
+        private static DateTime _lastAutoStatusUpdate = DateTime.MinValue;
+
         private async Task AutoUpdateClassStatusesAsync()
         {
+            // Chỉ chạy quét cập nhật trạng thái lớp tối đa 1 lần mỗi 10 phút, tránh nghẽn DB trên mỗi request GET
+            if (DateTime.UtcNow - _lastAutoStatusUpdate < TimeSpan.FromMinutes(10))
+            {
+                return;
+            }
+
+            _lastAutoStatusUpdate = DateTime.UtcNow;
+
             try
             {
                 var today = DateTime.Today;
@@ -1835,6 +1845,338 @@ namespace sep490_be.Services.Implementations
             catch (Exception ex)
             {
                 return ApiResponse<ClassScheduleDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        public async Task<ApiResponse<MoveScheduleSlotResultDto>> MoveScheduleSlotAsync(int id, MoveScheduleSlotDto dto)
+        {
+            try
+            {
+                var schedule = await _scheduleRepository.FindAll(trackChanges: true)
+                    .Include(cs => cs.Class).ThenInclude(c => c.Course)
+                    .Include(cs => cs.TimeSlot)
+                    .Include(cs => cs.Room)
+                    .Include(cs => cs.Teacher)
+                    .FirstOrDefaultAsync(cs => cs.Id == id && !cs.IsDeleted);
+
+                if (schedule == null)
+                    return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_SCHEDULE_NOT_FOUND", StatusCodes.Status404NotFound);
+
+                // 1. Check if the original schedule was in the past
+                if (schedule.ScheduleDate.HasValue)
+                {
+                    var now = DateTime.Now;
+                    var scheduleDate = schedule.ScheduleDate.Value.Date;
+                    if (schedule.TimeSlot != null)
+                    {
+                        var slotEndTime = scheduleDate.Add(schedule.TimeSlot.EndTime);
+                        if (slotEndTime < now)
+                            return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_CANNOT_EDIT_PAST_SCHEDULE", StatusCodes.Status400BadRequest);
+                    }
+                    else if (scheduleDate < DateTime.Today)
+                    {
+                        return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_CANNOT_EDIT_PAST_SCHEDULE", StatusCodes.Status400BadRequest);
+                    }
+                }
+
+                // 2. Check if target date is in the past
+                var targetDate = dto.NewDate.Date;
+                if (targetDate < DateTime.Today)
+                {
+                    return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_CANNOT_MOVE_TO_PAST_DATE", StatusCodes.Status400BadRequest);
+                }
+
+                // 3. Resolve target TimeSlot
+                TimeSlot? targetSlot = null;
+                FixedTimeSlot? fixedSlot = null;
+                if (dto.NewSlotId.HasValue)
+                {
+                    targetSlot = await _timeSlotRepository.GetByIdAsync(dto.NewSlotId.Value);
+                    if (targetSlot != null)
+                    {
+                        fixedSlot = FixedTimeSlot.FromStartTime(targetSlot.StartTime);
+                    }
+                }
+                else if (dto.NewSlotIndex.HasValue && dto.NewSlotIndex.Value >= 0 && dto.NewSlotIndex.Value < FixedTimeSlot.All.Length)
+                {
+                    fixedSlot = FixedTimeSlot.All[dto.NewSlotIndex.Value];
+                    targetSlot = await _timeSlotRepository.FindAll()
+                        .FirstOrDefaultAsync(ts => ts.StartTime == fixedSlot.Start && ts.EndTime == fixedSlot.End);
+                    if (targetSlot == null)
+                    {
+                        targetSlot = new TimeSlot
+                        {
+                            Code = $"TS_{fixedSlot.Start:hhmm}_{fixedSlot.End:hhmm}",
+                            Name = fixedSlot.Name,
+                            StartTime = fixedSlot.Start,
+                            EndTime = fixedSlot.End
+                        };
+                        await _timeSlotRepository.AddAsync(targetSlot);
+                    }
+                }
+
+                if (targetSlot == null)
+                {
+                    return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_SLOT_NOT_FOUND", StatusCodes.Status400BadRequest);
+                }
+
+                // If moving to today, check if target slot has already passed
+                if (targetDate == DateTime.Today && targetDate.Add(targetSlot.EndTime) < DateTime.Now)
+                {
+                    return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_CANNOT_MOVE_TO_PAST_DATE", StatusCodes.Status400BadRequest);
+                }
+
+                int? effectiveTeacherId = dto.TeacherId ?? schedule.TeacherId ?? schedule.Class?.TeacherId;
+                int? effectiveRoomId = dto.RoomId ?? schedule.RoomId;
+
+                // Load students in this class
+                var studentClasses = await _studentClassRepository.FindAll()
+                    .Include(sc => sc.Student)
+                    .Where(sc => sc.ClassId == schedule.ClassId && !sc.Student.IsDeleted)
+                    .ToListAsync();
+                int studentCount = studentClasses.Count;
+
+                // 4. Room checks
+                if (effectiveRoomId.HasValue)
+                {
+                    var room = await _roomRepository.GetByIdAsync(effectiveRoomId.Value);
+                    if (room == null || room.Status != (int)GeneralStatus.Active || room.IsDeleted)
+                        return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_ROOM_NOT_FOUND", StatusCodes.Status400BadRequest);
+
+                    if (schedule.Class?.Type != 1 && room.Capacity.HasValue && studentCount > room.Capacity.Value)
+                    {
+                        return ApiResponse<MoveScheduleSlotResultDto>.Fail($"ERR_ROOM_CAPACITY_EXCEEDED_{room.Name}", StatusCodes.Status400BadRequest);
+                    }
+
+                    // Hard constraint: Room conflict
+                    var hasRoomConflict = await _scheduleRepository.FindAll()
+                        .Include(cs => cs.TimeSlot)
+                        .AnyAsync(cs => cs.Id != id
+                                     && cs.ScheduleDate.HasValue
+                                     && cs.ScheduleDate.Value.Date == targetDate
+                                     && cs.Status != (int)ClassScheduleStatus.Cancelled
+                                     && cs.RoomId == effectiveRoomId.Value
+                                     && cs.TimeSlot != null
+                                     && cs.TimeSlot.StartTime < targetSlot.EndTime
+                                     && cs.TimeSlot.EndTime > targetSlot.StartTime);
+
+                    if (hasRoomConflict)
+                        return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_ROOM_CONFLICT", StatusCodes.Status400BadRequest);
+                }
+
+                // 5. Teacher checks
+                if (effectiveTeacherId.HasValue)
+                {
+                    var teacher = await _teacherRepository.FindAll()
+                        .FirstOrDefaultAsync(t => t.Id == effectiveTeacherId.Value && t.Status == (int)TeacherStatus.Active && !t.IsDeleted);
+
+                    if (teacher == null)
+                        return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_TEACHER_NOT_FOUND", StatusCodes.Status400BadRequest);
+
+                    if (schedule.Class?.Course?.RequiredGradeLevel.HasValue == true)
+                    {
+                        int reqBand = (int)schedule.Class.Course.RequiredGradeLevel.Value;
+                        if (!teacher.GradeLevel.HasValue || (int)teacher.GradeLevel.Value < reqBand)
+                            return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_TEACHER_GRADE_LEVEL_INSUFFICIENT", StatusCodes.Status400BadRequest);
+                    }
+
+                    // Hard constraint: Teacher conflict
+                    var hasTeacherConflict = await _scheduleRepository.FindAll()
+                        .Include(cs => cs.TimeSlot)
+                        .Include(cs => cs.Class)
+                        .AnyAsync(cs => cs.Id != id
+                                     && cs.ScheduleDate.HasValue
+                                     && cs.ScheduleDate.Value.Date == targetDate
+                                     && cs.Status != (int)ClassScheduleStatus.Cancelled
+                                     && (cs.TeacherId == effectiveTeacherId.Value || (cs.TeacherId == null && cs.Class != null && cs.Class.TeacherId == effectiveTeacherId.Value))
+                                     && cs.TimeSlot != null
+                                     && cs.TimeSlot.StartTime < targetSlot.EndTime
+                                     && cs.TimeSlot.EndTime > targetSlot.StartTime);
+
+                    if (hasTeacherConflict)
+                        return ApiResponse<MoveScheduleSlotResultDto>.Fail("ERR_TEACHER_CONFLICT", StatusCodes.Status400BadRequest);
+                }
+
+                // 6. Hard constraint: Student schedule overlap
+                var studentIds = studentClasses.Select(sc => sc.StudentId).Distinct().ToList();
+                if (studentIds.Any())
+                {
+                    var otherClassIds = await _studentClassRepository.FindAll()
+                        .Where(sc => studentIds.Contains(sc.StudentId)
+                                  && sc.ClassId != schedule.ClassId
+                                  && (sc.Status == (int)StudentClassStatus.Enrolled || sc.Status == (int)StudentClassStatus.Studying))
+                        .Select(sc => new { sc.StudentId, sc.ClassId })
+                        .ToListAsync();
+
+                    if (otherClassIds.Any())
+                    {
+                        var distinctOtherClassIds = otherClassIds.Select(x => x.ClassId).Distinct().ToList();
+                        var overlappingOtherSchedules = await _scheduleRepository.FindAll()
+                            .Include(cs => cs.TimeSlot)
+                            .Include(cs => cs.Class)
+                            .Where(cs => cs.ClassId.HasValue
+                                      && distinctOtherClassIds.Contains(cs.ClassId.Value)
+                                      && cs.ScheduleDate.HasValue
+                                      && cs.ScheduleDate.Value.Date == targetDate
+                                      && cs.Status != (int)ClassScheduleStatus.Cancelled
+                                      && cs.TimeSlot != null
+                                      && cs.TimeSlot.StartTime < targetSlot.EndTime
+                                      && cs.TimeSlot.EndTime > targetSlot.StartTime)
+                            .ToListAsync();
+
+                        if (overlappingOtherSchedules.Any())
+                        {
+                            var conflictClassIdSet = overlappingOtherSchedules.Select(s => s.ClassId!.Value).ToHashSet();
+                            var conflictingStudentIds = otherClassIds
+                                .Where(x => conflictClassIdSet.Contains(x.ClassId))
+                                .Select(x => x.StudentId)
+                                .Distinct()
+                                .ToList();
+
+                            if (conflictingStudentIds.Any())
+                            {
+                                var conflictingEmails = studentClasses
+                                    .Where(sc => conflictingStudentIds.Contains(sc.StudentId) && sc.Student != null && !string.IsNullOrWhiteSpace(sc.Student.Email))
+                                    .Select(sc => sc.Student!.Email!.Trim())
+                                    .Distinct()
+                                    .ToList();
+                                return ApiResponse<MoveScheduleSlotResultDto>.Fail(
+                                    $"ERR_STUDENT_CONFLICT_{conflictingEmails.Count}__{string.Join(",", conflictingEmails)}",
+                                    StatusCodes.Status400BadRequest);
+                            }
+                        }
+                    }
+                }
+
+                // 7. Soft constraint: Student expected lesson preferences
+                var warnings = new List<StudentPreferenceWarningDto>();
+                if (schedule.Class?.SemesterId.HasValue == true && schedule.Class?.CourseId.HasValue == true && studentIds.Any())
+                {
+                    int semesterId = schedule.Class.SemesterId.Value;
+                    int courseId = schedule.Class.CourseId.Value;
+
+                    var studentRegs = await _studentRegistrationRepository.FindAll()
+                        .Include(sr => sr.Student)
+                        .Where(sr => sr.SemesterId == semesterId
+                                  && sr.CourseId == courseId
+                                  && studentIds.Contains(sr.StudentId))
+                        .ToListAsync();
+
+                    int targetDayOfWeek = (int)targetDate.DayOfWeek; // 0=Sunday, 1=Monday, etc.
+                    int targetSlotIndex = fixedSlot?.Index ?? FixedTimeSlot.FromStartTime(targetSlot.StartTime)?.Index ?? -1;
+
+                    string[] dayNames = new[] { "Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7" };
+
+                    foreach (var reg in studentRegs)
+                    {
+                        bool dayMismatch = false;
+                        bool slotMismatch = false;
+
+                        if (reg.PreferredDaysOfWeek.HasValue && reg.PreferredDaysOfWeek.Value > 0)
+                        {
+                            int mask = reg.PreferredDaysOfWeek.Value;
+                            if ((mask & (1 << targetDayOfWeek)) == 0)
+                            {
+                                dayMismatch = true;
+                            }
+                        }
+
+                        if (reg.PreferredSlotIndex.HasValue && targetSlotIndex >= 0)
+                        {
+                            if (reg.PreferredSlotIndex.Value != targetSlotIndex)
+                            {
+                                slotMismatch = true;
+                            }
+                        }
+
+                        if (dayMismatch || slotMismatch)
+                        {
+                            var prefDaysList = new List<string>();
+                            if (reg.PreferredDaysOfWeek.HasValue)
+                            {
+                                for (int d = 0; d < 7; d++)
+                                {
+                                    if ((reg.PreferredDaysOfWeek.Value & (1 << d)) != 0)
+                                        prefDaysList.Add(dayNames[d]);
+                                }
+                            }
+                            string prefDaysStr = prefDaysList.Any() ? string.Join(", ", prefDaysList) : "Bất kỳ";
+
+                            string prefSlotStr = "Bất kỳ";
+                            if (reg.PreferredSlotIndex.HasValue && reg.PreferredSlotIndex.Value >= 0 && reg.PreferredSlotIndex.Value < FixedTimeSlot.All.Length)
+                            {
+                                prefSlotStr = FixedTimeSlot.All[reg.PreferredSlotIndex.Value].Name;
+                            }
+
+                            warnings.Add(new StudentPreferenceWarningDto
+                            {
+                                StudentId = reg.StudentId,
+                                StudentName = reg.Student?.Name,
+                                StudentEmail = reg.Student?.Email,
+                                PreferredDays = prefDaysStr,
+                                PreferredSlot = prefSlotStr
+                            });
+                        }
+                    }
+                }
+
+                // 8. Soft constraint prompt
+                if (!dto.ForceOverride && warnings.Any())
+                {
+                    return ApiResponse<MoveScheduleSlotResultDto>.Ok(new MoveScheduleSlotResultDto
+                    {
+                        HasSoftConflict = true,
+                        Warnings = warnings
+                    }, "WARNING_STUDENT_PREFERENCES_VIOLATED");
+                }
+
+                // 9. Save changes
+                schedule.ScheduleDate = targetDate;
+                schedule.SlotId = targetSlot.Id;
+                if (dto.TeacherId.HasValue) schedule.TeacherId = dto.TeacherId.Value;
+                if (dto.RoomId.HasValue) schedule.RoomId = dto.RoomId.Value;
+
+                await _scheduleRepository.SaveChangesAsync();
+
+                var updated = await _scheduleRepository.FindAll()
+                    .Include(cs => cs.TimeSlot)
+                    .Include(cs => cs.Room)
+                    .Include(cs => cs.Class)
+                    .Include(cs => cs.Teacher)
+                    .FirstOrDefaultAsync(cs => cs.Id == id);
+
+                var resultDto = new ClassScheduleDto
+                {
+                    Id = updated!.Id,
+                    ClassId = updated.ClassId,
+                    ClassCode = updated.Class?.Code,
+                    ClassName = updated.Class?.Name,
+                    LessonNo = updated.LessonNo,
+                    ScheduleDate = updated.ScheduleDate,
+                    SlotId = updated.SlotId,
+                    SlotName = updated.TimeSlot?.Name,
+                    StartTime = updated.TimeSlot != null ? updated.TimeSlot.StartTime.ToString(@"hh\:mm") : null,
+                    EndTime = updated.TimeSlot != null ? updated.TimeSlot.EndTime.ToString(@"hh\:mm") : null,
+                    RoomId = updated.RoomId,
+                    RoomName = updated.Room?.Name,
+                    TeacherId = updated.TeacherId,
+                    TeacherName = updated.Teacher != null ? updated.Teacher.Name : (updated.Class?.Teacher?.Name),
+                    TeacherAvatar = updated.Teacher != null ? updated.Teacher.Avatar : (updated.Class?.Teacher?.Avatar),
+                    Status = updated.Status,
+                    Note = updated.Note,
+                    ClassStatus = updated.Class?.Status
+                };
+
+                return ApiResponse<MoveScheduleSlotResultDto>.Ok(new MoveScheduleSlotResultDto
+                {
+                    UpdatedSlot = resultDto,
+                    HasSoftConflict = false,
+                    Warnings = warnings
+                }, "MOVE_SCHEDULE_SLOT_SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<MoveScheduleSlotResultDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
     }

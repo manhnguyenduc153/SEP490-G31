@@ -1003,12 +1003,16 @@ namespace sep490_be.Services.Implementations
                     }
                     model.Add(LinearExpr.Sum(slotVars.ToArray()) == active[k]);
 
+                    var dayVars = new List<IntVar>();
                     for (int d = 0; d < 7; d++)
                     {
                         hasDay[k, d] = model.NewBoolVar($"hasDay_{k}_{d}");
                         // If class is inactive, it cannot use any day
                         model.Add(hasDay[k, d] <= active[k]);
+                        dayVars.Add(hasDay[k, d]);
                     }
+                    // Each active class must select at least 2 days
+                    model.Add(LinearExpr.Sum(dayVars.ToArray()) >= 2 * active[k]);
                 }
 
                 // Resolve student preferences and add compatibility constraints
@@ -1154,8 +1158,33 @@ namespace sep490_be.Services.Implementations
                                     chosenDaysMask |= (1 << d);
                                 }
                             }
-                            // If no days were active for some reason, fallback to Monday (2) and Wednesday (8) = 10
-                            if (chosenDaysMask == 0) chosenDaysMask = 10;
+
+                            // Compute intersection of preferred days of all assigned students
+                            if (studentIds.Any())
+                            {
+                                int studentIntersection = ~0;
+                                int studentUnion = 0;
+                                foreach (var r in students.Where(st => studentIds.Contains(st.StudentId)))
+                                {
+                                    int sMask = r.PreferredDaysOfWeek ?? 62;
+                                    if (sMask != 0)
+                                    {
+                                        studentIntersection &= sMask;
+                                        studentUnion |= sMask;
+                                    }
+                                }
+                                if (studentIntersection != ~0 && studentIntersection != 0)
+                                {
+                                    chosenDaysMask = studentIntersection;
+                                }
+                                else if (chosenDaysMask == 0 && studentUnion != 0)
+                                {
+                                    chosenDaysMask = studentUnion;
+                                }
+                            }
+
+                            // Fallback to T2, T4, T6 (bitmask 42) if still 0
+                            if (chosenDaysMask == 0) chosenDaysMask = 42;
 
                             draftClasses.Add(new DraftClass
                             {
@@ -1265,10 +1294,8 @@ namespace sep490_be.Services.Implementations
                 var fixedSlots = FixedTimeSlot.All;
                 int numFixed = fixedSlots.Length;
 
-                // Allowed days (DayOfWeek)
-                var allowedDays = request.Constraints.AllowWeekend
-                    ? new[] { 0, 1, 2, 3, 4, 5, 6 }
-                    : new[] { 1, 2, 3, 4, 5 };
+                // Allowed days (DayOfWeek): Always include all 7 days (Mon-Sun) since each class's dayVar is strictly governed by its own PreferredDaysOfWeek
+                var allowedDays = new[] { 0, 1, 2, 3, 4, 5, 6 };
 
                 // Global allowed slots and slotMap are resolved at the top of AutoScheduleSemesterAsync
 
@@ -1352,11 +1379,10 @@ namespace sep490_be.Services.Implementations
                             classAllowedDaysList.Add(d);
                         }
                     }
-                    // Filter allowed days to Mon-Fri if weekend is not allowed
-                    var classAllowedDays = classAllowedDaysList.Intersect(allowedDays).ToArray();
+                    var classAllowedDays = classAllowedDaysList.ToArray();
                     if (!classAllowedDays.Any())
                     {
-                        classAllowedDays = allowedDays; // fallback to all general allowed days
+                        classAllowedDays = allowedDays; // fallback to all days
                     }
 
                     for (int j = 0; j < freq; j++)
@@ -3067,26 +3093,69 @@ namespace sep490_be.Services.Implementations
         {
             var reasons = new List<InfeasibilityReasonDto>();
 
-            // Check room capacity for each draft class
+            if (!draftClasses.Any())
+            {
+                reasons.Add(new InfeasibilityReasonDto
+                {
+                    Code = "NO_STUDENTS_TO_SCHEDULE",
+                    Params = new Dictionary<string, string>()
+                });
+                return reasons;
+            }
+
+            // 1. Check if allowed days count matches sessions frequency
             foreach (var draft in draftClasses)
             {
-                var suitableRooms = rooms.Where(r => (r.Capacity ?? int.MaxValue) >= draft.Size).ToList();
-                if (!suitableRooms.Any())
+                var classAllowedDaysList = new List<int>();
+                for (int d = 0; d < 7; d++)
+                {
+                    if ((draft.PreferredDaysOfWeek & (1 << d)) != 0)
+                    {
+                        classAllowedDaysList.Add(d);
+                    }
+                }
+                var classAllowedDays = classAllowedDaysList.ToArray();
+                if (!classAllowedDays.Any()) classAllowedDays = allowedDays;
+
+                if (classAllowedDays.Length < freq)
                 {
                     reasons.Add(new InfeasibilityReasonDto
                     {
-                        Code = "ROOM_CAPACITY_INSUFFICIENT",
+                        Code = "NOT_ENOUGH_DAYS_FOR_FREQUENCY",
                         Params = new Dictionary<string, string>
                         {
                             ["courseName"] = draft.CourseName,
-                            ["classSize"] = draft.Size.ToString(),
-                            ["maxRoomCapacity"] = rooms.Max(r => r.Capacity ?? 0).ToString()
+                            ["availableDaysCount"] = classAllowedDays.Length.ToString(),
+                            ["freq"] = freq.ToString()
                         }
                     });
                 }
             }
 
-            // Check teacher availability for each class
+            // 2. Check Teacher Qualification by Grade Level
+            foreach (var draft in draftClasses)
+            {
+                if (draft.RequiredGradeLevel.HasValue)
+                {
+                    int reqLevel = (int)draft.RequiredGradeLevel.Value;
+                    var qualifiedTeachers = teachers.Where(t => (t.GradeLevel.HasValue ? (int)t.GradeLevel.Value : 0) >= reqLevel).ToList();
+                    if (!qualifiedTeachers.Any())
+                    {
+                        string bandStr = (reqLevel / 10.0).ToString("0.0");
+                        reasons.Add(new InfeasibilityReasonDto
+                        {
+                            Code = "TEACHER_BAND_INSUFFICIENT",
+                            Params = new Dictionary<string, string>
+                            {
+                                ["courseName"] = draft.CourseName,
+                                ["requiredBand"] = bandStr
+                            }
+                        });
+                    }
+                }
+            }
+
+            // 3. Check Qualified Teacher Availability for each class
             foreach (var draft in draftClasses)
             {
                 var preferredSlot = draft.PreferredSlotIndex;
@@ -3101,55 +3170,142 @@ namespace sep490_be.Services.Implementations
                 var classAllowedDays = classAllowedDaysList.Intersect(allowedDays).ToArray();
                 if (!classAllowedDays.Any()) classAllowedDays = allowedDays;
 
-                bool hasTeacher = false;
-                foreach (var t in teachers)
+                int reqLevel = draft.RequiredGradeLevel.HasValue ? (int)draft.RequiredGradeLevel.Value : 0;
+                var qualifiedTeachers = teachers.Where(t => (t.GradeLevel.HasValue ? (int)t.GradeLevel.Value : 0) >= reqLevel).ToList();
+
+                if (qualifiedTeachers.Any())
                 {
-                    if (!teacherAvailMap.ContainsKey(t.Id))
+                    bool hasQualifiedAvailTeacher = false;
+                    foreach (var t in qualifiedTeachers)
                     {
-                        hasTeacher = true;
-                        break;
+                        if (!teacherAvailMap.ContainsKey(t.Id))
+                        {
+                            hasQualifiedAvailTeacher = true;
+                            break;
+                        }
+                        var active = teacherAvailMap[t.Id];
+                        int matchingDaysCount = classAllowedDays.Count(d => active.Contains((d, preferredSlot)));
+                        if (matchingDaysCount >= freq)
+                        {
+                            hasQualifiedAvailTeacher = true;
+                            break;
+                        }
                     }
-                    var active = teacherAvailMap[t.Id];
-                    var matchingSlots = active.Where(slot => classAllowedDays.Contains(slot.Item1) && slot.Item2 == preferredSlot);
-                    if (matchingSlots.Any())
+
+                    if (!hasQualifiedAvailTeacher)
                     {
-                        hasTeacher = true;
-                        break;
+                        string bandStr = (reqLevel / 10.0).ToString("0.0");
+                        reasons.Add(new InfeasibilityReasonDto
+                        {
+                            Code = "TEACHER_NO_QUALIFIED_AVAILABILITY",
+                            Params = new Dictionary<string, string>
+                            {
+                                ["courseName"] = draft.CourseName,
+                                ["requiredBand"] = bandStr,
+                                ["slotNumber"] = (preferredSlot + 1).ToString(),
+                                ["days"] = string.Join(", ", classAllowedDays.Select(GetDayOfWeekName))
+                            }
+                        });
                     }
                 }
+            }
 
-                if (!hasTeacher)
+            // 4. Check room capacity for each Offline draft class
+            foreach (var draft in draftClasses.Where(c => c.EnrollType != 1))
+            {
+                var suitableRooms = rooms.Where(r => (r.Capacity ?? int.MaxValue) >= draft.Size).ToList();
+                if (!suitableRooms.Any())
                 {
                     reasons.Add(new InfeasibilityReasonDto
                     {
-                        Code = "TEACHER_NO_AVAILABILITY",
+                        Code = "ROOM_CAPACITY_INSUFFICIENT",
                         Params = new Dictionary<string, string>
                         {
                             ["courseName"] = draft.CourseName,
-                            ["slotNumber"] = (preferredSlot + 1).ToString(),
-                            ["days"] = string.Join(", ", classAllowedDays.Select(GetDayOfWeekName))
+                            ["classSize"] = draft.Size.ToString(),
+                            ["maxRoomCapacity"] = (rooms.Any() ? rooms.Max(r => r.Capacity ?? 0) : 0).ToString()
                         }
                     });
                 }
             }
 
-            // Check total room-slot capacity
-            int totalSessions = draftClasses.Count * freq;
+            // 5. Check Room Slot Overload (Offline classes competing for rooms in the same slot & day)
+            for (int s = 0; s < numFixed; s++)
+            {
+                var offlineClassesInSlot = draftClasses.Where(c => c.EnrollType != 1 && c.PreferredSlotIndex == s).ToList();
+                if (offlineClassesInSlot.Count > rooms.Count)
+                {
+                    for (int d = 0; d < 7; d++)
+                    {
+                        int overlapCount = offlineClassesInSlot.Count(c => (c.PreferredDaysOfWeek & (1 << d)) != 0);
+                        if (overlapCount > rooms.Count)
+                        {
+                            reasons.Add(new InfeasibilityReasonDto
+                            {
+                                Code = "ROOM_OVERLOAD_IN_SLOT",
+                                Params = new Dictionary<string, string>
+                                {
+                                    ["slotNumber"] = (s + 1).ToString(),
+                                    ["dayName"] = GetDayOfWeekName(d),
+                                    ["offlineClasses"] = overlapCount.ToString(),
+                                    ["availableRooms"] = rooms.Count.ToString()
+                                }
+                            });
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 6. Check Teacher Slot Overload (Classes competing for teachers in the same slot & day)
+            for (int s = 0; s < numFixed; s++)
+            {
+                for (int d = 0; d < 7; d++)
+                {
+                    int classesCount = draftClasses.Count(c => c.PreferredSlotIndex == s && (c.PreferredDaysOfWeek & (1 << d)) != 0);
+                    if (classesCount > 0)
+                    {
+                        int availTeachersCount = teachers.Count(t =>
+                        {
+                            if (!teacherAvailMap.ContainsKey(t.Id)) return true;
+                            return teacherAvailMap[t.Id].Contains((d, s));
+                        });
+
+                        if (classesCount > availTeachersCount)
+                        {
+                            reasons.Add(new InfeasibilityReasonDto
+                            {
+                                Code = "TEACHER_OVERLOAD_IN_SLOT",
+                                Params = new Dictionary<string, string>
+                                {
+                                    ["slotNumber"] = (s + 1).ToString(),
+                                    ["dayName"] = GetDayOfWeekName(d),
+                                    ["requiredTeachers"] = classesCount.ToString(),
+                                    ["availableTeachers"] = availTeachersCount.ToString()
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 7. Check total room-slot capacity
+            int totalOfflineSessions = draftClasses.Count(c => c.EnrollType != 1) * freq;
             int totalRoomSlots = allowedDays.Length * globalAllowedSlots.Length * rooms.Count;
-            if (totalSessions > totalRoomSlots)
+            if (totalOfflineSessions > totalRoomSlots)
             {
                 reasons.Add(new InfeasibilityReasonDto
                 {
                     Code = "ROOM_SLOT_CAPACITY_EXCEEDED",
                     Params = new Dictionary<string, string>
                     {
-                        ["totalSessions"] = totalSessions.ToString(),
+                        ["totalSessions"] = totalOfflineSessions.ToString(),
                         ["totalRoomSlots"] = totalRoomSlots.ToString()
                     }
                 });
             }
 
-            // Check total teacher availability capacity
+            // 8. Check total teacher availability capacity
             int totalTeacherSlots = 0;
             foreach (var t in teachers)
             {
@@ -3164,6 +3320,7 @@ namespace sep490_be.Services.Implementations
                 }
             }
 
+            int totalSessions = draftClasses.Count * freq;
             if (totalTeacherSlots < totalSessions)
             {
                 reasons.Add(new InfeasibilityReasonDto
