@@ -82,7 +82,6 @@ Desktop.ini
 ## =========================
 
 # Docker
-.dockerignore
 
 # Entity Framework
 Migrations/*.Designer.cs
