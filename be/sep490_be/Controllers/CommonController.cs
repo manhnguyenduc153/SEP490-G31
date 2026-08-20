@@ -135,5 +135,13 @@ namespace sep490_be.Controllers
             var response = await _classService.UpdateScheduleSlotAsync(id, dto);
             return StatusCode(response.StatusCode, response);
         }
+
+        // POST: api/Common/schedules/{id}/move
+        [HttpPost("schedules/{id}/move")]
+        public async Task<IActionResult> MoveScheduleSlot(int id, [FromBody] MoveScheduleSlotDto dto)
+        {
+            var response = await _classService.MoveScheduleSlotAsync(id, dto);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }

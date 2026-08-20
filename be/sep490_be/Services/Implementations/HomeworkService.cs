@@ -55,7 +55,7 @@ namespace sep490_be.Services.Implementations
                 if (!isEnrolled) return ApiResponse<IEnumerable<HomeworkDto>>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
             }
 
-            var homeworks = await _homeworkRepository.FindByCondition(h => h.ClassId == classId && !h.IsDeleted)
+            var homeworks = await _homeworkRepository.FindByCondition(h => h.ClassId == classId && !h.IsDeleted && (h.Class == null || !h.Class.IsDeleted))
                 .Include(h => h.Teacher)
                 .Include(h => h.Class)
                 .OrderByDescending(h => h.CreatedAt)
@@ -92,7 +92,7 @@ namespace sep490_be.Services.Implementations
 
             var isEnrolled = await _homeworkRepository.IsStudentEnrolledInClassWithStatusAsync(student.Id, classId, new[] { 0, 1, 2 });
             if (!isEnrolled) return ApiResponse<IEnumerable<HomeworkDto>>.Fail("FORBIDDEN", StatusCodes.Status403Forbidden);
-            var homeworks = await _homeworkRepository.FindByCondition(h => h.ClassId == classId && !h.IsDeleted && h.Status == 1)
+            var homeworks = await _homeworkRepository.FindByCondition(h => h.ClassId == classId && !h.IsDeleted && h.Status == 1 && (h.Class == null || !h.Class.IsDeleted))
                 .Include(h => h.Teacher)
                 .Include(h => h.Class)
                 .OrderByDescending(h => h.CreatedAt)

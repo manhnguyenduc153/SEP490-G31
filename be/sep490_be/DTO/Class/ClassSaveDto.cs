@@ -33,11 +33,33 @@ namespace sep490_be.DTO.Class
         public string? NewCourseName { get; set; }
 
         /// <summary>
+        /// 0 = Weekly (repeated across semester), 1 = SpecificSessions (custom per-session / monthly).
+        /// </summary>
+        public int ScheduleConfigMode { get; set; } = 0;
+        public bool ForceOverride { get; set; } = false;
+        public List<SpecificSessionScheduleDto> SpecificSchedules { get; set; } = new List<SpecificSessionScheduleDto>();
+        /// <summary>
         /// Convenience helper: extract student IDs from Students list (for backward-compatible logic).
         /// </summary>
-        public List<int> StudentIds => Students.Select(s => s.StudentId).ToList();
+        public List<int> StudentIds => Students?.Select(s => s.StudentId).ToList() ?? new List<int>();
 
         public string TextSearch => StringHelper.GenerateTextSearch(Code, Name, Description, ScheduleDisplay);
+    }
+
+    /// <summary>
+    /// Represents an individual scheduled session in specific session / monthly mode.
+    /// </summary>
+    public class SpecificSessionScheduleDto
+    {
+        public int? Id { get; set; }
+        public int LessonNo { get; set; }
+        public DateTime ScheduleDate { get; set; }
+        public int? SlotId { get; set; }
+        public int? SlotIndex { get; set; }
+        public string? StartTime { get; set; }
+        public string? EndTime { get; set; }
+        public int? RoomId { get; set; }
+        public int? TeacherId { get; set; }
     }
 
     /// <summary>

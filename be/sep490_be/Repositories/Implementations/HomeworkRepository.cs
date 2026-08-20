@@ -43,12 +43,12 @@ namespace sep490_be.Repositories.Implementations
 
         public async Task<bool> IsStudentEnrolledInClassAsync(int studentId, int classId)
         {
-            return await _dbContext.StudentClasses.AnyAsync(sc => sc.StudentId == studentId && sc.ClassId == classId);
+            return await _dbContext.StudentClasses.AnyAsync(sc => sc.StudentId == studentId && sc.ClassId == classId && sc.Class != null && !sc.Class.IsDeleted);
         }
 
         public async Task<bool> IsStudentEnrolledInClassWithStatusAsync(int studentId, int classId, int[] statuses)
         {
-            return await _dbContext.StudentClasses.AnyAsync(sc => sc.StudentId == studentId && sc.ClassId == classId && statuses.Contains(sc.Status));
+            return await _dbContext.StudentClasses.AnyAsync(sc => sc.StudentId == studentId && sc.ClassId == classId && statuses.Contains(sc.Status) && sc.Class != null && !sc.Class.IsDeleted);
         }
 
         public async Task<bool> TeacherExistsAsync(int teacherId)
