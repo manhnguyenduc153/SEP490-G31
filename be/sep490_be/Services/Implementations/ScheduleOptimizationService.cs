@@ -2748,7 +2748,9 @@ namespace sep490_be.Services.Implementations
                             SemesterId = entity.SemesterId,
                             ExpectedLessons = draftClass.ExpectedLessons,
                             TeacherId = entity.TeacherId,
-                            WeeklySchedules = draftClass.WeeklySchedules
+                            WeeklySchedules = draftClass.WeeklySchedules,
+                            ScheduleConfigMode = (draftClass.SpecificSchedules != null && draftClass.SpecificSchedules.Any()) ? 1 : 0,
+                            SpecificSchedules = draftClass.SpecificSchedules ?? new()
                         };
 
                         await GenerateClassSchedulesHelperAsync(entity, saveDto);
@@ -2950,7 +2952,9 @@ namespace sep490_be.Services.Implementations
                 if (snapshot == null || snapshot.Classes == null || !snapshot.Classes.Any())
                     return ApiResponse<List<ClassDto>>.Fail("ERR_CORRUPTED_BACKUP_DATA", StatusCodes.Status400BadRequest);
 
-                var teacherIds = snapshot.Classes.Select(c => c.TeacherId).Distinct().ToList();
+                var teacherIds = snapshot.Classes.Select(c => c.TeacherId)
+                    .Concat(snapshot.Classes.SelectMany(c => c.SpecificSchedules.Where(s => s.TeacherId.HasValue).Select(s => s.TeacherId!.Value)))
+                    .Distinct().ToList();
                 var teachers = await _teacherRepository.FindAll()
                     .Where(t => teacherIds.Contains(t.Id))
                     .ToDictionaryAsync(t => t.Id, t => t);
@@ -2959,6 +2963,7 @@ namespace sep490_be.Services.Implementations
                     .SelectMany(c => c.WeeklySchedules)
                     .Where(w => w.RoomId.HasValue)
                     .Select(w => w.RoomId!.Value)
+                    .Concat(snapshot.Classes.SelectMany(c => c.SpecificSchedules.Where(s => s.RoomId.HasValue).Select(s => s.RoomId!.Value)))
                     .Distinct()
                     .ToList();
                 var rooms = await _roomRepository.FindAll()
@@ -2969,35 +2974,67 @@ namespace sep490_be.Services.Implementations
                 foreach (var cls in snapshot.Classes)
                 {
                     teachers.TryGetValue(cls.TeacherId, out var teacher);
-                    var orderedWS = cls.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
                     var inMemorySchedules = new List<ClassScheduleDto>();
-                    int lessonNo = 1;
-                    var cur = semester.StartDate;
-                    while (cur <= semester.EndDate)
+
+                    if (cls.SpecificSchedules != null && cls.SpecificSchedules.Any())
                     {
-                        var match = orderedWS.FirstOrDefault(w => (int)cur.DayOfWeek == w.DayOfWeek);
-                        if (match != null && TimeSpan.TryParse(match.StartTime, out var st) && TimeSpan.TryParse(match.EndTime, out _))
+                        int lessonNo = 1;
+                        foreach (var spec in cls.SpecificSchedules.OrderBy(s => s.ScheduleDate).ThenBy(s => s.LessonNo))
                         {
-                            var room = match.RoomId.HasValue && rooms.TryGetValue(match.RoomId.Value, out var r) ? r : null;
+                            teachers.TryGetValue(spec.TeacherId ?? cls.TeacherId, out var specTeacher);
+                            var room = spec.RoomId.HasValue && rooms.TryGetValue(spec.RoomId.Value, out var r) ? r : null;
+                            TimeSpan.TryParse(spec.StartTime, out var st);
                             var fixedSlot = FixedTimeSlot.FromStartTime(st);
+
                             inMemorySchedules.Add(new ClassScheduleDto
                             {
-                                LessonNo = lessonNo,
-                                ScheduleDate = cur,
-                                StartTime = match.StartTime,
-                                EndTime = match.EndTime,
-                                RoomId = match.RoomId,
+                                LessonNo = spec.LessonNo > 0 ? spec.LessonNo : lessonNo,
+                                ScheduleDate = spec.ScheduleDate,
+                                StartTime = spec.StartTime ?? "00:00",
+                                EndTime = spec.EndTime ?? "00:00",
+                                RoomId = spec.RoomId,
                                 RoomName = room?.Name,
-                                TeacherId = cls.TeacherId,
-                                TeacherName = teacher?.Name,
+                                TeacherId = spec.TeacherId ?? cls.TeacherId,
+                                TeacherName = specTeacher?.Name ?? teacher?.Name,
                                 SlotName = fixedSlot?.Name,
                                 Status = (int)ClassScheduleStatus.Scheduled,
-                                Code = $"SCH_PREVIEW_{cls.Code}_{lessonNo}",
-                                Name = $"Buổi học {lessonNo}"
+                                Code = $"SCH_PREVIEW_{cls.Code}_{spec.LessonNo}",
+                                Name = $"Buổi học {spec.LessonNo}"
                             });
                             lessonNo++;
                         }
-                        cur = cur.AddDays(1);
+                    }
+                    else
+                    {
+                        var orderedWS = cls.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
+                        int lessonNo = 1;
+                        var cur = semester.StartDate;
+                        while (cur <= semester.EndDate)
+                        {
+                            var match = orderedWS.FirstOrDefault(w => (int)cur.DayOfWeek == w.DayOfWeek);
+                            if (match != null && TimeSpan.TryParse(match.StartTime, out var st) && TimeSpan.TryParse(match.EndTime, out _))
+                            {
+                                var room = match.RoomId.HasValue && rooms.TryGetValue(match.RoomId.Value, out var r) ? r : null;
+                                var fixedSlot = FixedTimeSlot.FromStartTime(st);
+                                inMemorySchedules.Add(new ClassScheduleDto
+                                {
+                                    LessonNo = lessonNo,
+                                    ScheduleDate = cur,
+                                    StartTime = match.StartTime,
+                                    EndTime = match.EndTime,
+                                    RoomId = match.RoomId,
+                                    RoomName = room?.Name,
+                                    TeacherId = cls.TeacherId,
+                                    TeacherName = teacher?.Name,
+                                    SlotName = fixedSlot?.Name,
+                                    Status = (int)ClassScheduleStatus.Scheduled,
+                                    Code = $"SCH_PREVIEW_{cls.Code}_{lessonNo}",
+                                    Name = $"Buổi học {lessonNo}"
+                                });
+                                lessonNo++;
+                            }
+                            cur = cur.AddDays(1);
+                        }
                     }
 
                     resultList.Add(new ClassDto
@@ -3009,14 +3046,14 @@ namespace sep490_be.Services.Implementations
                         StatusName = "Planning",
                         Type = cls.EnrollType,
                         TypeName = cls.EnrollType == 1 ? "Online" : "Offline",
-                        StartDate = semester.StartDate,
-                        EndDate = semester.EndDate,
+                        StartDate = inMemorySchedules.Any() ? inMemorySchedules.Min(s => s.ScheduleDate) : semester.StartDate,
+                        EndDate = inMemorySchedules.Any() ? inMemorySchedules.Max(s => s.ScheduleDate) : semester.EndDate,
                         CourseId = cls.CourseId,
                         TeacherId = cls.TeacherId,
                         TeacherName = teacher?.Name,
                         SemesterId = semester.Id,
                         SemesterName = semester.Name,
-                        ExpectedLessons = lessonNo - 1,
+                        ExpectedLessons = inMemorySchedules.Count,
                         WeeklySchedulesJson = JsonSerializer.Serialize(cls.WeeklySchedules,
                             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
                         StudentCount = cls.Students.Count,
@@ -3058,6 +3095,8 @@ namespace sep490_be.Services.Implementations
         {
             var classes = await _classRepository.FindAll()
                 .Include(c => c.StudentClasses)
+                .Include(c => c.ClassSchedules)
+                    .ThenInclude(cs => cs.TimeSlot)
                 .Where(c => c.SemesterId == semesterId && c.Status == (int)ClassStatus.Planning && !c.IsDeleted)
                 .ToListAsync();
 
@@ -3072,6 +3111,21 @@ namespace sep490_be.Services.Implementations
                     weekly = JsonSerializer.Deserialize<List<WeeklyScheduleDto>>(c.WeeklySchedulesJson, jsonOpts) ?? new();
                 }
 
+                // Capture exact specific session schedules with individual dates, slots, rooms, and teachers
+                var specificSchedules = c.ClassSchedules
+                    .OrderBy(cs => cs.ScheduleDate)
+                    .ThenBy(cs => cs.LessonNo)
+                    .Select(cs => new SpecificSessionScheduleDto
+                    {
+                        LessonNo = cs.LessonNo ?? 0,
+                        ScheduleDate = cs.ScheduleDate ?? DateTime.MinValue,
+                        SlotId = cs.SlotId,
+                        StartTime = cs.TimeSlot != null ? cs.TimeSlot.StartTime.ToString(@"hh\:mm") : null,
+                        EndTime = cs.TimeSlot != null ? cs.TimeSlot.EndTime.ToString(@"hh\:mm") : null,
+                        RoomId = cs.RoomId,
+                        TeacherId = cs.TeacherId ?? c.TeacherId
+                    }).ToList();
+
                 snapshot.Classes.Add(new ClassDraftSaveDto
                 {
                     Code = c.Code,
@@ -3079,8 +3133,9 @@ namespace sep490_be.Services.Implementations
                     CourseId = c.CourseId ?? 0,
                     TeacherId = c.TeacherId ?? 0,
                     EnrollType = c.Type,
-                    ExpectedLessons = c.ExpectedLessons ?? 30,
+                    ExpectedLessons = c.ExpectedLessons ?? (specificSchedules.Count > 0 ? specificSchedules.Count : 30),
                     WeeklySchedules = weekly,
+                    SpecificSchedules = specificSchedules,
                     Students = c.StudentClasses.Select(sc => new StudentEnrollDto
                     {
                         StudentId = sc.StudentId,
@@ -3111,6 +3166,93 @@ namespace sep490_be.Services.Implementations
 
         private async Task GenerateClassSchedulesHelperAsync(Class entity, ClassSaveDto dto)
         {
+            // ── CHẾ ĐỘ 1: SpecificSchedules (Từng buổi riêng lẻ / Lịch cá nhân hóa đã lưu trong Snapshot) ──
+            if ((dto.ScheduleConfigMode == 1 || (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any())) && dto.SpecificSchedules != null && dto.SpecificSchedules.Any())
+            {
+                entity.ClassSchedules.Clear();
+
+                var dbTimeSlotCache = await _timeSlotRepository.FindAll()
+                    .Where(ts => !ts.IsDeleted)
+                    .ToListAsync();
+
+                int lessonNo = 1;
+                foreach (var spec in dto.SpecificSchedules.OrderBy(s => s.ScheduleDate).ThenBy(s => s.LessonNo))
+                {
+                    TimeSpan startSpan = TimeSpan.Zero;
+                    TimeSpan endSpan = TimeSpan.Zero;
+
+                    if (!string.IsNullOrWhiteSpace(spec.StartTime) && !string.IsNullOrWhiteSpace(spec.EndTime))
+                    {
+                        TimeSpan.TryParse(spec.StartTime, out startSpan);
+                        TimeSpan.TryParse(spec.EndTime, out endSpan);
+                    }
+                    else if (spec.SlotIndex.HasValue && spec.SlotIndex.Value >= 0 && spec.SlotIndex.Value < FixedTimeSlot.All.Length)
+                    {
+                        var fixedSlot = FixedTimeSlot.All[spec.SlotIndex.Value];
+                        startSpan = fixedSlot.Start;
+                        endSpan = fixedSlot.End;
+                    }
+
+                    if (startSpan != TimeSpan.Zero || endSpan != TimeSpan.Zero)
+                    {
+                        var fixedSlot = FixedTimeSlot.FromStartTime(startSpan);
+                        var timeSlot = dbTimeSlotCache.FirstOrDefault(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
+                        if (timeSlot == null)
+                        {
+                            var slotName = fixedSlot != null
+                                ? fixedSlot.Name
+                                : $"{startSpan:hh\\:mm} - {endSpan:hh\\:mm}";
+
+                            timeSlot = new TimeSlot
+                            {
+                                Code = $"TS_{startSpan:hhmm}_{endSpan:hhmm}",
+                                Name = slotName,
+                                StartTime = startSpan,
+                                EndTime = endSpan
+                            };
+                            await _timeSlotRepository.AddAsync(timeSlot);
+                            await _timeSlotRepository.SaveChangesAsync();
+                            dbTimeSlotCache.Add(timeSlot);
+                        }
+
+                        entity.ClassSchedules.Add(new ClassSchedule
+                        {
+                            LessonNo = spec.LessonNo > 0 ? spec.LessonNo : lessonNo,
+                            ScheduleDate = spec.ScheduleDate.Date,
+                            SlotId = timeSlot.Id,
+                            RoomId = entity.Type == 1 ? null : spec.RoomId,
+                            TeacherId = spec.TeacherId ?? dto.TeacherId,
+                            Status = (int)ClassScheduleStatus.Scheduled,
+                            Code = $"SCH_{entity.Code}_{spec.LessonNo}",
+                            Name = $"Buổi học {spec.LessonNo} - {entity.Name}"
+                        });
+                        lessonNo++;
+                    }
+                }
+
+                entity.ExpectedLessons = entity.ClassSchedules.Count;
+                if (entity.ClassSchedules.Any())
+                {
+                    entity.StartDate = entity.ClassSchedules.Min(s => s.ScheduleDate);
+                    entity.EndDate = entity.ClassSchedules.Max(s => s.ScheduleDate);
+                    entity.ScheduleDisplay = $"{entity.ClassSchedules.Count} buổi học ({entity.StartDate:dd/MM} - {entity.EndDate:dd/MM})";
+                }
+
+                if (dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+                {
+                    var jsonOptions = new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                    };
+                    entity.WeeklySchedulesJson = System.Text.Json.JsonSerializer.Serialize(dto.WeeklySchedules, jsonOptions);
+                    entity.ScheduleDisplay = string.Join(", ", dto.WeeklySchedules
+                        .OrderBy(w => w.DayOfWeek)
+                        .Select(w => $"{GetDayOfWeekName(w.DayOfWeek)} {w.StartTime}-{w.EndTime}"));
+                }
+                return;
+            }
+
+            // ── CHẾ ĐỘ 0: WeeklySchedules (Theo tuần lặp lại chuẩn) ────────────────
             if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any() || !dto.StartDate.HasValue)
             {
                 return;
@@ -3120,23 +3262,23 @@ namespace sep490_be.Services.Implementations
                 .OrderBy(w => w.DayOfWeek)
                 .Select(w => $"{GetDayOfWeekName(w.DayOfWeek)} {w.StartTime}-{w.EndTime}"));
 
-            var jsonOptions = new System.Text.Json.JsonSerializerOptions
+            var jsonOptionsDefault = new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
             };
-            entity.WeeklySchedulesJson = System.Text.Json.JsonSerializer.Serialize(dto.WeeklySchedules, jsonOptions);
+            entity.WeeklySchedulesJson = System.Text.Json.JsonSerializer.Serialize(dto.WeeklySchedules, jsonOptionsDefault);
 
             // Clear the existing navigation collection to replace old schedules
             entity.ClassSchedules.Clear();
 
             // Cache: load existing DB time slots once, keyed by (StartTime, EndTime)
-            var dbTimeSlotCache = await _timeSlotRepository.FindAll()
+            var dbTimeSlotCacheDefault = await _timeSlotRepository.FindAll()
                 .Where(ts => !ts.IsDeleted)
                 .ToListAsync();
 
             var currentDate = dto.StartDate.Value;
             var endDate = dto.EndDate;
-            int lessonNo = 1;
+            int lessonNoDefault = 1;
             var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
 
             if (endDate.HasValue)
@@ -3148,10 +3290,10 @@ namespace sep490_be.Services.Implementations
                     if (match != null)
                     {
                         var startSpan = TimeSpan.Parse(match.StartTime);
-                        var endSpan   = TimeSpan.Parse(match.EndTime);
+                        var endSpan = TimeSpan.Parse(match.EndTime);
 
                         var fixedSlot = FixedTimeSlot.FromStartTime(startSpan);
-                        var timeSlot = dbTimeSlotCache.FirstOrDefault(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
+                        var timeSlot = dbTimeSlotCacheDefault.FirstOrDefault(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
                         if (timeSlot == null)
                         {
                             var slotName = fixedSlot != null
@@ -3160,46 +3302,46 @@ namespace sep490_be.Services.Implementations
 
                             timeSlot = new TimeSlot
                             {
-                                Code      = $"TS_{match.StartTime.Replace(":", "")}_{match.EndTime.Replace(":", "")}",
-                                Name      = slotName,
+                                Code = $"TS_{match.StartTime.Replace(":", "")}_{match.EndTime.Replace(":", "")}",
+                                Name = slotName,
                                 StartTime = startSpan,
-                                EndTime   = endSpan
+                                EndTime = endSpan
                             };
                             await _timeSlotRepository.AddAsync(timeSlot);
                             await _timeSlotRepository.SaveChangesAsync();
-                            dbTimeSlotCache.Add(timeSlot);
+                            dbTimeSlotCacheDefault.Add(timeSlot);
                         }
 
                         entity.ClassSchedules.Add(new ClassSchedule
                         {
-                            LessonNo     = lessonNo,
+                            LessonNo = lessonNoDefault,
                             ScheduleDate = currentDate,
-                            SlotId       = timeSlot.Id,
-                            RoomId       = match.RoomId,
-                            TeacherId    = dto.TeacherId,
-                            Status       = (int)ClassScheduleStatus.Scheduled,
-                            Code         = $"SCH_{entity.Code}_{lessonNo}",
-                            Name         = $"Buổi học {lessonNo} - {entity.Name}"
+                            SlotId = timeSlot.Id,
+                            RoomId = match.RoomId,
+                            TeacherId = dto.TeacherId,
+                            Status = (int)ClassScheduleStatus.Scheduled,
+                            Code = $"SCH_{entity.Code}_{lessonNoDefault}",
+                            Name = $"Buổi học {lessonNoDefault} - {entity.Name}"
                         });
-                        lessonNo++;
+                        lessonNoDefault++;
                     }
                     currentDate = currentDate.AddDays(1);
                 }
-                entity.ExpectedLessons = lessonNo - 1;
+                entity.ExpectedLessons = lessonNoDefault - 1;
             }
             else
             {
                 int maxLessons = dto.ExpectedLessons.GetValueOrDefault(30);
-                while (lessonNo <= maxLessons)
+                while (lessonNoDefault <= maxLessons)
                 {
                     var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
                     if (match != null)
                     {
                         var startSpan = TimeSpan.Parse(match.StartTime);
-                        var endSpan   = TimeSpan.Parse(match.EndTime);
+                        var endSpan = TimeSpan.Parse(match.EndTime);
 
                         var fixedSlot = FixedTimeSlot.FromStartTime(startSpan);
-                        var timeSlot = dbTimeSlotCache.FirstOrDefault(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
+                        var timeSlot = dbTimeSlotCacheDefault.FirstOrDefault(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
                         if (timeSlot == null)
                         {
                             var slotName = fixedSlot != null
@@ -3208,28 +3350,28 @@ namespace sep490_be.Services.Implementations
 
                             timeSlot = new TimeSlot
                             {
-                                Code      = $"TS_{match.StartTime.Replace(":", "")}_{match.EndTime.Replace(":", "")}",
-                                Name      = slotName,
+                                Code = $"TS_{match.StartTime.Replace(":", "")}_{match.EndTime.Replace(":", "")}",
+                                Name = slotName,
                                 StartTime = startSpan,
-                                EndTime   = endSpan
+                                EndTime = endSpan
                             };
                             await _timeSlotRepository.AddAsync(timeSlot);
                             await _timeSlotRepository.SaveChangesAsync();
-                            dbTimeSlotCache.Add(timeSlot);
+                            dbTimeSlotCacheDefault.Add(timeSlot);
                         }
 
                         entity.ClassSchedules.Add(new ClassSchedule
                         {
-                            LessonNo     = lessonNo,
+                            LessonNo = lessonNoDefault,
                             ScheduleDate = currentDate,
-                            SlotId       = timeSlot.Id,
-                            RoomId       = match.RoomId,
-                            TeacherId    = dto.TeacherId,
-                            Status       = (int)ClassScheduleStatus.Scheduled,
-                            Code         = $"SCH_{entity.Code}_{lessonNo}",
-                            Name         = $"Buổi học {lessonNo} - {entity.Name}"
+                            SlotId = timeSlot.Id,
+                            RoomId = match.RoomId,
+                            TeacherId = dto.TeacherId,
+                            Status = (int)ClassScheduleStatus.Scheduled,
+                            Code = $"SCH_{entity.Code}_{lessonNoDefault}",
+                            Name = $"Buổi học {lessonNoDefault} - {entity.Name}"
                         });
-                        lessonNo++;
+                        lessonNoDefault++;
                     }
                     currentDate = currentDate.AddDays(1);
                 }

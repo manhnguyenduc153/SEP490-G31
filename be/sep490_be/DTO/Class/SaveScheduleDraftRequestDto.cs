@@ -24,6 +24,10 @@ namespace sep490_be.DTO.Class
         public int EnrollType { get; set; } = 0; // 0 = Offline, 1 = Online
         public List<WeeklyScheduleDto> WeeklySchedules { get; set; } = new();
         /// <summary>
+        /// Specific individual session schedules (captures custom moved dates, slot overrides, per-session rooms/teachers).
+        /// </summary>
+        public List<SpecificSessionScheduleDto> SpecificSchedules { get; set; } = new();
+        /// <summary>
         /// List of student IDs with their individual enroll type.
         /// </summary>
         public List<StudentEnrollDto> Students { get; set; } = new();
