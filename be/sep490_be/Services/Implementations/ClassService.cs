@@ -2361,6 +2361,82 @@ namespace sep490_be.Services.Implementations
                 return ApiResponse<MoveScheduleSlotResultDto>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
+
+        /// <summary>
+        /// Checks student-preference soft conflicts for a draft schedule move
+        /// (no persisted schedule ID — takes courseId/semesterId/studentIds directly).
+        /// Returns the list of students whose preferred day/slot does not match the target slot.
+        /// </summary>
+        public async Task<ApiResponse<List<StudentPreferenceWarningDto>>> CheckDraftSoftConflictAsync(DraftSoftConflictCheckDto dto)
+        {
+            try
+            {
+                if (dto.StudentIds == null || !dto.StudentIds.Any())
+                    return ApiResponse<List<StudentPreferenceWarningDto>>.Ok(new List<StudentPreferenceWarningDto>());
+
+                var studentRegs = await _studentRegistrationRepository.FindAll()
+                    .Include(sr => sr.Student)
+                    .Where(sr => sr.SemesterId == dto.SemesterId
+                              && sr.CourseId == dto.CourseId
+                              && dto.StudentIds.Contains(sr.StudentId))
+                    .ToListAsync();
+
+                string[] dayNames = new[] { "Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7" };
+                var warnings = new List<StudentPreferenceWarningDto>();
+
+                foreach (var reg in studentRegs)
+                {
+                    bool dayMismatch = false;
+                    bool slotMismatch = false;
+
+                    if (reg.PreferredDaysOfWeek.HasValue && reg.PreferredDaysOfWeek.Value > 0)
+                    {
+                        int mask = reg.PreferredDaysOfWeek.Value;
+                        if ((mask & (1 << dto.TargetDayOfWeek)) == 0)
+                            dayMismatch = true;
+                    }
+
+                    if (reg.PreferredSlotIndex.HasValue && dto.TargetSlotIndex >= 0)
+                    {
+                        if (reg.PreferredSlotIndex.Value != dto.TargetSlotIndex)
+                            slotMismatch = true;
+                    }
+
+                    if (dayMismatch || slotMismatch)
+                    {
+                        var prefDaysList = new List<string>();
+                        if (reg.PreferredDaysOfWeek.HasValue)
+                        {
+                            for (int d = 0; d < 7; d++)
+                            {
+                                if ((reg.PreferredDaysOfWeek.Value & (1 << d)) != 0)
+                                    prefDaysList.Add(dayNames[d]);
+                            }
+                        }
+                        string prefDaysStr = prefDaysList.Any() ? string.Join(", ", prefDaysList) : "Bất kỳ";
+
+                        string prefSlotStr = "Bất kỳ";
+                        if (reg.PreferredSlotIndex.HasValue && reg.PreferredSlotIndex.Value >= 0 && reg.PreferredSlotIndex.Value < FixedTimeSlot.All.Length)
+                            prefSlotStr = FixedTimeSlot.All[reg.PreferredSlotIndex.Value].Name;
+
+                        warnings.Add(new StudentPreferenceWarningDto
+                        {
+                            StudentId = reg.StudentId,
+                            StudentName = reg.Student?.Name,
+                            StudentEmail = reg.Student?.Email,
+                            PreferredDays = prefDaysStr,
+                            PreferredSlot = prefSlotStr
+                        });
+                    }
+                }
+
+                return ApiResponse<List<StudentPreferenceWarningDto>>.Ok(warnings);
+            }
+            catch (Exception ex)
+            {
+                return ApiResponse<List<StudentPreferenceWarningDto>>.Fail(ex.Message, StatusCodes.Status500InternalServerError);
+            }
+        }
     }
 }
 

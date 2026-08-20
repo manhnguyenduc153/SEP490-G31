@@ -1024,7 +1024,7 @@ namespace sep490_be.Services.Implementations
 
                 // ── 9. Solve ────────────────────────────────────────────────────────────
                 var solver = new CpSolver();
-                solver.StringParameters = "max_time_in_seconds:30.0";
+                solver.StringParameters = "max_time_in_seconds:60.0;num_search_workers:8";
                 var status = solver.Solve(model);
 
                 if (status != CpSolverStatus.Feasible && status != CpSolverStatus.Optimal)
@@ -1934,7 +1934,7 @@ namespace sep490_be.Services.Implementations
 
                 // 11. Solve
                 var solver = new CpSolver();
-                solver.StringParameters = "max_time_in_seconds:30.0";
+                solver.StringParameters = "max_time_in_seconds:60.0;num_search_workers:8";
                 var status = solver.Solve(model);
 
                 if (status != CpSolverStatus.Feasible && status != CpSolverStatus.Optimal)
@@ -1975,7 +1975,7 @@ namespace sep490_be.Services.Implementations
                         coursePrefix = "KH";
                     }
                     var classCode = $"{coursePrefix}{DateTime.Now:ddMMHH}_{semester.Code}_CA{draft.PreferredSlotIndex + 1}_{i + 1}";
-                    var className = $"Lớp {draft.CourseName} - {semester.Name} (Ca {draft.PreferredSlotIndex + 1}) - Lớp {i + 1}";
+                    var className = $"{draft.CourseName} - {semester.Code} (Ca {draft.PreferredSlotIndex + 1}) - Lớp {i + 1}";
 
                     // Build weekly schedules for this draft class
                     var newWS = new List<WeeklyScheduleDto>();

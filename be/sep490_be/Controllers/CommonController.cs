@@ -143,5 +143,13 @@ namespace sep490_be.Controllers
             var response = await _classService.MoveScheduleSlotAsync(id, dto);
             return StatusCode(response.StatusCode, response);
         }
+
+        // POST: api/Common/draft/check-soft-conflict
+        [HttpPost("draft/check-soft-conflict")]
+        public async Task<IActionResult> CheckDraftSoftConflict([FromBody] DraftSoftConflictCheckDto dto)
+        {
+            var response = await _classService.CheckDraftSoftConflictAsync(dto);
+            return StatusCode(response.StatusCode, response);
+        }
     }
 }
