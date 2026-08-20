@@ -785,12 +785,27 @@ namespace sep490_be.Services.Implementations
                     return "ERR_COURSE_NOT_FOUND";
             }
 
-            // Kiểm tra giáo viên có tồn tại
+            // Kiểm tra giáo viên có tồn tại & đủ trình độ (IELTS Band) cho khóa học
             if (dto.TeacherId.HasValue)
             {
-                var teacherExists = await _teacherRepository.ExistsAsync(t => t.Id == dto.TeacherId.Value);
-                if (!teacherExists)
+                var teacher = await _teacherRepository.FindAll()
+                    .FirstOrDefaultAsync(t => t.Id == dto.TeacherId.Value && t.Status == (int)TeacherStatus.Active && !t.IsDeleted);
+                if (teacher == null)
                     return "ERR_TEACHER_NOT_FOUND";
+
+                if (dto.CourseId.HasValue)
+                {
+                    var course = await _courseRepository.GetByIdAsync(dto.CourseId.Value);
+                    if (course?.RequiredGradeLevel.HasValue == true)
+                    {
+                        int reqBand = (int)course.RequiredGradeLevel.Value;
+                        int tBand = teacher.GradeLevel.HasValue ? (int)teacher.GradeLevel.Value : 0;
+                        if (tBand < reqBand)
+                        {
+                            return "ERR_TEACHER_GRADE_LEVEL_INSUFFICIENT";
+                        }
+                    }
+                }
             }
 
             // Kiểm tra học sinh có tồn tại
@@ -804,13 +819,19 @@ namespace sep490_be.Services.Implementations
 
             // Kiểm tra sức chứa phòng học so với số lượng học sinh (chỉ áp dụng cho lớp Offline)
             int studentCount = dto.Students?.Count ?? 0;
-            if (dto.Type != 1 && dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+            if (dto.Type != 1)
             {
-                var roomIds = dto.WeeklySchedules
-                    .Where(w => w.RoomId.HasValue)
-                    .Select(w => w.RoomId.Value)
-                    .Distinct()
-                    .ToList();
+                var roomIds = new HashSet<int>();
+                if (dto.ScheduleConfigMode == 1 && dto.SpecificSchedules != null && dto.SpecificSchedules.Any())
+                {
+                    foreach (var s in dto.SpecificSchedules.Where(s => s.RoomId.HasValue))
+                        roomIds.Add(s.RoomId!.Value);
+                }
+                else if (dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+                {
+                    foreach (var w in dto.WeeklySchedules.Where(w => w.RoomId.HasValue))
+                        roomIds.Add(w.RoomId!.Value);
+                }
 
                 if (roomIds.Any())
                 {
@@ -865,36 +886,74 @@ namespace sep490_be.Services.Implementations
                 }
             }
 
-            // 2. Kiểm tra trùng lịch học của học sinh (1 học sinh chỉ được học 1 lớp tại 1 thời điểm)
-            DateTime? proposedStartDate = dto.StartDate;
-            DateTime? proposedEndDate = null;
-            int? expectedLessons = dto.ExpectedLessons;
-
-            if (dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
+            // 2. Thu thập danh sách proposed schedules từ WeeklySchedules hoặc SpecificSchedules
+            var propSchedules = new List<(DateTime Date, TimeSpan Start, TimeSpan End)>();
+            if (dto.ScheduleConfigMode == 1 && dto.SpecificSchedules != null && dto.SpecificSchedules.Any())
             {
-                var sem = await _semesterRepository.GetByIdAsync(dto.SemesterId.Value);
-                if (sem != null && !sem.IsDeleted)
+                foreach (var spec in dto.SpecificSchedules.OrderBy(s => s.ScheduleDate).ThenBy(s => s.LessonNo))
                 {
-                    proposedStartDate = sem.StartDate;
-                    proposedEndDate = sem.EndDate;
+                    TimeSpan startSpan = TimeSpan.Zero;
+                    TimeSpan endSpan = TimeSpan.Zero;
+
+                    if (!string.IsNullOrWhiteSpace(spec.StartTime) && !string.IsNullOrWhiteSpace(spec.EndTime))
+                    {
+                        TimeSpan.TryParse(spec.StartTime, out startSpan);
+                        TimeSpan.TryParse(spec.EndTime, out endSpan);
+                    }
+                    else if (spec.SlotIndex.HasValue && spec.SlotIndex.Value >= 0 && spec.SlotIndex.Value < FixedTimeSlot.All.Length)
+                    {
+                        var fixedSlot = FixedTimeSlot.All[spec.SlotIndex.Value];
+                        startSpan = fixedSlot.Start;
+                        endSpan = fixedSlot.End;
+                    }
+
+                    if (startSpan != TimeSpan.Zero || endSpan != TimeSpan.Zero)
+                    {
+                        propSchedules.Add((spec.ScheduleDate.Date, startSpan, endSpan));
+                    }
                 }
             }
-            else if (dto.StartDate.HasValue && expectedLessons.HasValue && expectedLessons.Value > 0 && dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+            else if (dto.WeeklySchedules != null && dto.WeeklySchedules.Any() && dto.StartDate.HasValue)
             {
-                var currentDate = dto.StartDate.Value;
-                int lessonNo = 1;
-                var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
-                if (!weeklySchedules.Any(w => w.DayOfWeek < 0 || w.DayOfWeek > 6))
+                DateTime? proposedStartDate = dto.StartDate;
+                DateTime? proposedEndDate = null;
+                int? expectedLessons = dto.ExpectedLessons;
+
+                if (dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
                 {
-                    while (lessonNo <= expectedLessons.Value)
+                    var sem = await _semesterRepository.GetByIdAsync(dto.SemesterId.Value);
+                    if (sem != null && !sem.IsDeleted)
+                    {
+                        proposedStartDate = sem.StartDate;
+                        proposedEndDate = sem.EndDate;
+                    }
+                }
+
+                var currentDate = proposedStartDate.Value;
+                var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
+
+                if (proposedEndDate.HasValue)
+                {
+                    while (currentDate <= proposedEndDate.Value)
                     {
                         var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
-                        if (match != null)
+                        if (match != null && TimeSpan.TryParse(match.StartTime, out var startSpan) && TimeSpan.TryParse(match.EndTime, out var endSpan))
                         {
-                            if (lessonNo == expectedLessons.Value)
-                            {
-                                proposedEndDate = currentDate;
-                            }
+                            propSchedules.Add((currentDate, startSpan, endSpan));
+                        }
+                        currentDate = currentDate.AddDays(1);
+                    }
+                }
+                else
+                {
+                    int lessonNo = 1;
+                    int maxLessons = expectedLessons.GetValueOrDefault(30);
+                    while (lessonNo <= maxLessons)
+                    {
+                        var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                        if (match != null && TimeSpan.TryParse(match.StartTime, out var startSpan) && TimeSpan.TryParse(match.EndTime, out var endSpan))
+                        {
+                            propSchedules.Add((currentDate, startSpan, endSpan));
                             lessonNo++;
                         }
                         currentDate = currentDate.AddDays(1);
@@ -902,8 +961,12 @@ namespace sep490_be.Services.Implementations
                 }
             }
 
-            if (dto.StudentIds != null && dto.StudentIds.Any() && proposedStartDate.HasValue && proposedEndDate.HasValue && dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+            // 3. Kiểm tra trùng lịch học của học sinh (Hard constraint: 1 học sinh chỉ được học 1 lớp tại 1 thời điểm)
+            if (dto.StudentIds != null && dto.StudentIds.Any() && propSchedules.Any())
             {
+                var minPropDate = propSchedules.Min(p => p.Date);
+                var maxPropDate = propSchedules.Max(p => p.Date);
+
                 var otherStudentClasses = await _studentClassRepository.FindAll()
                     .Include(sc => sc.Student)
                     .Include(sc => sc.Class)
@@ -924,44 +987,12 @@ namespace sep490_be.Services.Implementations
                                   && otherClassIds.Contains(cs.ClassId.Value)
                                   && cs.Class != null
                                   && !cs.Class.IsDeleted
-                                  && cs.ScheduleDate >= proposedStartDate
-                                  && cs.ScheduleDate <= proposedEndDate)
+                                  && cs.ScheduleDate >= minPropDate
+                                  && cs.ScheduleDate <= maxPropDate)
                         .ToListAsync();
 
                     if (otherSchedules.Any())
                     {
-                        // Generate proposed schedules for comparison
-                        var propSchedules = new List<(DateTime Date, TimeSpan Start, TimeSpan End)>();
-                        var currentDate = proposedStartDate.Value;
-                        var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
-
-                        if (dto.SemesterId.HasValue && dto.SemesterId.Value > 0)
-                        {
-                            while (currentDate <= proposedEndDate.Value)
-                            {
-                                var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
-                                if (match != null && TimeSpan.TryParse(match.StartTime, out var startSpan) && TimeSpan.TryParse(match.EndTime, out var endSpan))
-                                {
-                                    propSchedules.Add((currentDate, startSpan, endSpan));
-                                }
-                                currentDate = currentDate.AddDays(1);
-                            }
-                        }
-                        else
-                        {
-                            int lessonNo = 1;
-                            while (lessonNo <= expectedLessons.GetValueOrDefault(30))
-                            {
-                                var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
-                                if (match != null && TimeSpan.TryParse(match.StartTime, out var startSpan) && TimeSpan.TryParse(match.EndTime, out var endSpan))
-                                {
-                                    propSchedules.Add((currentDate, startSpan, endSpan));
-                                    lessonNo++;
-                                }
-                                currentDate = currentDate.AddDays(1);
-                            }
-                        }
-
                         var conflictingStudentIds = new HashSet<int>();
                         foreach (var sc in otherStudentClasses)
                         {
@@ -1008,7 +1039,90 @@ namespace sep490_be.Services.Implementations
                 }
             }
 
-            // Kiểm tra trùng lịch dạy của giáo viên hoặc phòng học
+            // 4. Soft constraint: Kiểm tra nguyện vọng khung giờ & thứ rảnh của học sinh đăng ký
+            if (!dto.ForceOverride && dto.SemesterId.HasValue && dto.SemesterId.Value > 0 && dto.CourseId.HasValue && dto.StudentIds != null && dto.StudentIds.Any() && propSchedules.Any())
+            {
+                var studentRegs = await _studentRegistrationRepository.FindAll()
+                    .Include(sr => sr.Student)
+                    .Where(sr => sr.SemesterId == dto.SemesterId.Value
+                              && sr.CourseId == dto.CourseId.Value
+                              && dto.StudentIds.Contains(sr.StudentId))
+                    .ToListAsync();
+
+                if (studentRegs.Any())
+                {
+                    string[] dayNames = new[] { "Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7" };
+                    var softWarnings = new List<StudentPreferenceWarningDto>();
+
+                    foreach (var reg in studentRegs)
+                    {
+                        bool hasMismatch = false;
+                        foreach (var prop in propSchedules)
+                        {
+                            int dayOfWeek = (int)prop.Date.DayOfWeek;
+                            int slotIdx = FixedTimeSlot.FromStartTime(prop.Start)?.Index ?? -1;
+
+                            if (reg.PreferredDaysOfWeek.HasValue && reg.PreferredDaysOfWeek.Value > 0)
+                            {
+                                if ((reg.PreferredDaysOfWeek.Value & (1 << dayOfWeek)) == 0)
+                                {
+                                    hasMismatch = true;
+                                    break;
+                                }
+                            }
+
+                            if (reg.PreferredSlotIndex.HasValue && slotIdx >= 0)
+                            {
+                                if (reg.PreferredSlotIndex.Value != slotIdx)
+                                {
+                                    hasMismatch = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (hasMismatch)
+                        {
+                            var prefDaysList = new List<string>();
+                            if (reg.PreferredDaysOfWeek.HasValue)
+                            {
+                                for (int d = 0; d < 7; d++)
+                                {
+                                    if ((reg.PreferredDaysOfWeek.Value & (1 << d)) != 0)
+                                        prefDaysList.Add(dayNames[d]);
+                                }
+                            }
+                            string prefDaysStr = prefDaysList.Any() ? string.Join(", ", prefDaysList) : "Bất kỳ";
+
+                            string prefSlotStr = "Bất kỳ";
+                            if (reg.PreferredSlotIndex.HasValue && reg.PreferredSlotIndex.Value >= 0 && reg.PreferredSlotIndex.Value < FixedTimeSlot.All.Length)
+                            {
+                                prefSlotStr = FixedTimeSlot.All[reg.PreferredSlotIndex.Value].Name;
+                            }
+
+                            softWarnings.Add(new StudentPreferenceWarningDto
+                            {
+                                StudentId = reg.StudentId,
+                                StudentName = reg.Student?.Name,
+                                StudentEmail = reg.Student?.Email,
+                                PreferredDays = prefDaysStr,
+                                PreferredSlot = prefSlotStr
+                            });
+                        }
+                    }
+
+                    if (softWarnings.Any())
+                    {
+                        var jsonOpts = new System.Text.Json.JsonSerializerOptions
+                        {
+                            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                        };
+                        return $"WARNING_STUDENT_PREFERENCES_VIOLATED__{System.Text.Json.JsonSerializer.Serialize(softWarnings, jsonOpts)}";
+                    }
+                }
+            }
+
+            // 5. Kiểm tra trùng lịch dạy của giáo viên hoặc phòng học
             var conflictCheck = await _optService.CheckConflictAsync(dto);
             if (conflictCheck.Success && conflictCheck.Data != null && conflictCheck.Data.HasConflict)
             {
@@ -1047,6 +1161,84 @@ namespace sep490_be.Services.Implementations
 
         private async Task GenerateSchedulesAsync(Class entity, ClassSaveDto dto)
         {
+            var jsonOptions = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            };
+
+            entity.AutoRefund = dto.AutoRefund;
+            entity.SemesterId = dto.SemesterId;
+            entity.ClassSchedules.Clear();
+
+            // ── CHẾ ĐỘ 1: SpecificSessions (Từng buổi / Lịch tháng) ────────────────
+            if (dto.ScheduleConfigMode == 1 && dto.SpecificSchedules != null && dto.SpecificSchedules.Any())
+            {
+                int lessonNo = 1;
+                foreach (var spec in dto.SpecificSchedules.OrderBy(s => s.ScheduleDate).ThenBy(s => s.LessonNo))
+                {
+                    TimeSpan startSpan = TimeSpan.Zero;
+                    TimeSpan endSpan = TimeSpan.Zero;
+
+                    if (!string.IsNullOrWhiteSpace(spec.StartTime) && !string.IsNullOrWhiteSpace(spec.EndTime))
+                    {
+                        TimeSpan.TryParse(spec.StartTime, out startSpan);
+                        TimeSpan.TryParse(spec.EndTime, out endSpan);
+                    }
+                    else if (spec.SlotIndex.HasValue && spec.SlotIndex.Value >= 0 && spec.SlotIndex.Value < FixedTimeSlot.All.Length)
+                    {
+                        var fixedSlot = FixedTimeSlot.All[spec.SlotIndex.Value];
+                        startSpan = fixedSlot.Start;
+                        endSpan = fixedSlot.End;
+                    }
+
+                    if (startSpan != TimeSpan.Zero || endSpan != TimeSpan.Zero)
+                    {
+                        var timeSlot = await _timeSlotRepository.FindAll()
+                            .FirstOrDefaultAsync(ts => ts.StartTime == startSpan && ts.EndTime == endSpan);
+                        if (timeSlot == null)
+                        {
+                            timeSlot = new TimeSlot
+                            {
+                                Code = $"TS_{startSpan:hhmm}_{endSpan:hhmm}",
+                                Name = $"{startSpan:hh\\:mm} - {endSpan:hh\\:mm}",
+                                StartTime = startSpan,
+                                EndTime = endSpan
+                            };
+                            await _timeSlotRepository.AddAsync(timeSlot);
+                            await _timeSlotRepository.SaveChangesAsync();
+                        }
+
+                        entity.ClassSchedules.Add(new ClassSchedule
+                        {
+                            LessonNo = spec.LessonNo > 0 ? spec.LessonNo : lessonNo,
+                            ScheduleDate = spec.ScheduleDate.Date,
+                            SlotId = timeSlot.Id,
+                            RoomId = dto.Type == 1 ? null : spec.RoomId,
+                            TeacherId = spec.TeacherId ?? dto.TeacherId,
+                            Status = 0, // Scheduled
+                            Code = $"SCH_{entity.Code}_{lessonNo}",
+                            Name = $"Buổi học {lessonNo} - {entity.Name}"
+                        });
+                        lessonNo++;
+                    }
+                }
+
+                entity.ExpectedLessons = entity.ClassSchedules.Count;
+                if (entity.ClassSchedules.Any())
+                {
+                    entity.StartDate = entity.ClassSchedules.Min(s => s.ScheduleDate);
+                    entity.EndDate = entity.ClassSchedules.Max(s => s.ScheduleDate);
+                    entity.ScheduleDisplay = $"{entity.ClassSchedules.Count} buổi học ({entity.StartDate:dd/MM} - {entity.EndDate:dd/MM})";
+                }
+
+                if (dto.WeeklySchedules != null && dto.WeeklySchedules.Any())
+                {
+                    entity.WeeklySchedulesJson = System.Text.Json.JsonSerializer.Serialize(dto.WeeklySchedules, jsonOptions);
+                }
+                return;
+            }
+
+            // ── CHẾ ĐỘ 0: WeeklySchedules (Theo tuần lặp lại) ──────────────────────
             if (dto.WeeklySchedules == null || !dto.WeeklySchedules.Any() || !dto.StartDate.HasValue)
             {
                 return;
@@ -1057,26 +1249,16 @@ namespace sep490_be.Services.Implementations
                 .OrderBy(w => w.DayOfWeek)
                 .Select(w => $"{GetDayOfWeekName(w.DayOfWeek)} {w.StartTime}-{w.EndTime}"));
 
-            // Serialize WeeklySchedulesJson with CamelCase naming policy
-            var jsonOptions = new System.Text.Json.JsonSerializerOptions
-            {
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
-            };
             entity.WeeklySchedulesJson = System.Text.Json.JsonSerializer.Serialize(dto.WeeklySchedules, jsonOptions);
-            entity.AutoRefund = dto.AutoRefund;
-            entity.SemesterId = dto.SemesterId;
-
-            // Clear the existing navigation collection
-            entity.ClassSchedules.Clear();
 
             // Generate dates
             var currentDate = dto.StartDate.Value;
             var endDate = dto.EndDate;
-            int lessonNo = 1;
-            var weeklySchedules = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
+            int generatedLessonNo = 1;
+            var weeklySchedulesList = dto.WeeklySchedules.OrderBy(w => w.DayOfWeek).ToList();
 
             // Guard against infinite loops if the DayOfWeek values are invalid
-            if (weeklySchedules.Any(w => w.DayOfWeek < 0 || w.DayOfWeek > 6))
+            if (weeklySchedulesList.Any(w => w.DayOfWeek < 0 || w.DayOfWeek > 6))
             {
                 return;
             }
@@ -1100,7 +1282,7 @@ namespace sep490_be.Services.Implementations
                 // Dynamic ExpectedLessons based on Semester date range
                 while (currentDate <= endDate.Value)
                 {
-                    var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                    var match = weeklySchedulesList.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
                     if (match != null)
                     {
                         var startSpan = TimeSpan.Parse(match.StartTime);
@@ -1123,28 +1305,28 @@ namespace sep490_be.Services.Implementations
 
                         entity.ClassSchedules.Add(new ClassSchedule
                         {
-                            LessonNo = lessonNo,
+                            LessonNo = generatedLessonNo,
                             ScheduleDate = currentDate,
                             SlotId = timeSlot.Id,
-                            RoomId = match.RoomId,
+                            RoomId = dto.Type == 1 ? null : match.RoomId,
                             TeacherId = dto.TeacherId,
                             Status = 0, // Scheduled
-                            Code = $"SCH_{entity.Code}_{lessonNo}",
-                            Name = $"Buổi học {lessonNo} - {entity.Name}"
+                            Code = $"SCH_{entity.Code}_{generatedLessonNo}",
+                            Name = $"Buổi học {generatedLessonNo} - {entity.Name}"
                         });
-                        lessonNo++;
+                        generatedLessonNo++;
                     }
                     currentDate = currentDate.AddDays(1);
                 }
-                entity.ExpectedLessons = lessonNo - 1;
+                entity.ExpectedLessons = generatedLessonNo - 1;
             }
             else
             {
-                // Old fallback if no semester is bound
+                // Fallback if no semester is bound
                 int maxLessons = dto.ExpectedLessons.GetValueOrDefault(30);
-                while (lessonNo <= maxLessons)
+                while (generatedLessonNo <= maxLessons)
                 {
-                    var match = weeklySchedules.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
+                    var match = weeklySchedulesList.FirstOrDefault(w => (int)currentDate.DayOfWeek == w.DayOfWeek);
                     if (match != null)
                     {
                         var startSpan = TimeSpan.Parse(match.StartTime);
@@ -1167,16 +1349,16 @@ namespace sep490_be.Services.Implementations
 
                         entity.ClassSchedules.Add(new ClassSchedule
                         {
-                            LessonNo = lessonNo,
+                            LessonNo = generatedLessonNo,
                             ScheduleDate = currentDate,
                             SlotId = timeSlot.Id,
-                            RoomId = match.RoomId,
+                            RoomId = dto.Type == 1 ? null : match.RoomId,
                             TeacherId = dto.TeacherId,
                             Status = 0, // Scheduled
-                            Code = $"SCH_{entity.Code}_{lessonNo}",
-                            Name = $"Buổi học {lessonNo} - {entity.Name}"
+                            Code = $"SCH_{entity.Code}_{generatedLessonNo}",
+                            Name = $"Buổi học {generatedLessonNo} - {entity.Name}"
                         });
-                        lessonNo++;
+                        generatedLessonNo++;
                     }
                     currentDate = currentDate.AddDays(1);
                 }

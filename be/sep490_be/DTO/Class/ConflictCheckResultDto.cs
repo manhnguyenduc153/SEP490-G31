@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace sep490_be.DTO.Class
@@ -7,6 +7,7 @@ namespace sep490_be.DTO.Class
     {
         public bool HasConflict { get; set; }
         public List<ConflictDetailDto> Conflicts { get; set; } = new List<ConflictDetailDto>();
+        public List<StudentPreferenceWarningDto> SoftWarnings { get; set; } = new List<StudentPreferenceWarningDto>();
     }
 
     public class ConflictDetailDto
