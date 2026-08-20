@@ -45,18 +45,20 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
+                searchDto ??= new ExamSearchDto();
+                int pageNumber = searchDto.PageNumber <= 0 ? 1 : searchDto.PageNumber;
+                int pageSize = searchDto.PageSize <= 0 ? 10 : searchDto.PageSize;
+
                 var query = _examRepository.FindAll()
-                    .Include(e => e.Class)
-                    .Include(e => e.ExamQuestions)
-                    .Include(e => e.ExamAttempts)
-                    .Where(e => !e.IsDeleted && (e.Class == null || !e.Class.IsDeleted))
+                    .Where(e => !e.IsDeleted)
                     .AsQueryable();
 
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
                 {
-                    query = query.Where(e => e.Title.Contains(searchDto.Keyword)
-                                             || (e.Code != null && e.Code.Contains(searchDto.Keyword))
-                                             || (e.Description != null && e.Description.Contains(searchDto.Keyword)));
+                    var kw = searchDto.Keyword.Trim();
+                    query = query.Where(e => e.Title.Contains(kw)
+                                             || (e.Code != null && e.Code.Contains(kw))
+                                             || (e.Description != null && e.Description.Contains(kw)));
                 }
 
                 if (searchDto.ClassId.HasValue)
@@ -75,11 +77,11 @@ namespace sep490_be.Services.Implementations
                 }
 
                 var totalCount = await query.CountAsync();
-                
+
                 var items = await query
                     .OrderByDescending(e => e.Id)
-                    .Skip((searchDto.PageNumber - 1) * searchDto.PageSize)
-                    .Take(searchDto.PageSize)
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
                     .Select(e => new ExamDto
                     {
                         Id = e.Id,
@@ -111,15 +113,15 @@ namespace sep490_be.Services.Implementations
                 {
                     Items = items,
                     TotalRecords = totalCount,
-                    PageIndex = searchDto.PageNumber,
-                    PageSize = searchDto.PageSize
+                    PageIndex = pageNumber,
+                    PageSize = pageSize
                 };
 
                 return ApiResponse<PagingResponse<ExamDto>>.Ok(paging, "GET_EXAM_LIST_SUCCESS");
             }
             catch (Exception ex)
             {
-                return ApiResponse<PagingResponse<ExamDto>>.Fail("Error retrieving exams: " + ex.Message);
+                return ApiResponse<PagingResponse<ExamDto>>.Fail("Error retrieving exams: " + ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 
@@ -127,6 +129,10 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
+                searchDto ??= new ExamSearchDto();
+                int pageNumber = searchDto.PageNumber <= 0 ? 1 : searchDto.PageNumber;
+                int pageSize = searchDto.PageSize <= 0 ? 10 : searchDto.PageSize;
+
                 // Find teacher by email or code
                 Teacher? teacher = null;
                 if (!string.IsNullOrWhiteSpace(teacherEmailOrCode))
@@ -159,16 +165,14 @@ namespace sep490_be.Services.Implementations
                     .ToListAsync();
 
                 var query = _examRepository.FindAll()
-                    .Include(e => e.Class)
-                    .Include(e => e.ExamQuestions)
-                    .Include(e => e.ExamAttempts)
-                    .Where(e => !e.IsDeleted && e.ClassId.HasValue && classIds.Contains(e.ClassId.Value) && (e.Class == null || !e.Class.IsDeleted))
+                    .Where(e => !e.IsDeleted && e.ClassId.HasValue && classIds.Contains(e.ClassId.Value))
                     .AsQueryable();
 
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
                 {
-                    query = query.Where(e => e.Title.Contains(searchDto.Keyword)
-                                             || (e.Code != null && e.Code.Contains(searchDto.Keyword)));
+                    var kw = searchDto.Keyword.Trim();
+                    query = query.Where(e => e.Title.Contains(kw)
+                                             || (e.Code != null && e.Code.Contains(kw)));
                 }
 
                 if (searchDto.ClassId.HasValue)
@@ -185,8 +189,8 @@ namespace sep490_be.Services.Implementations
 
                 var items = await query
                     .OrderByDescending(e => e.Id)
-                    .Skip((searchDto.PageNumber - 1) * searchDto.PageSize)
-                    .Take(searchDto.PageSize)
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
                     .Select(e => new ExamDto
                     {
                         Id = e.Id,
@@ -218,15 +222,15 @@ namespace sep490_be.Services.Implementations
                 {
                     Items = items,
                     TotalRecords = totalCount,
-                    PageIndex = searchDto.PageNumber,
-                    PageSize = searchDto.PageSize
+                    PageIndex = pageNumber,
+                    PageSize = pageSize
                 };
 
                 return ApiResponse<PagingResponse<ExamDto>>.Ok(paging, "GET_EXAM_LIST_SUCCESS");
             }
             catch (Exception ex)
             {
-                return ApiResponse<PagingResponse<ExamDto>>.Fail("Error retrieving teacher exams: " + ex.Message);
+                return ApiResponse<PagingResponse<ExamDto>>.Fail("Error retrieving teacher exams: " + ex.Message, StatusCodes.Status500InternalServerError);
             }
         }
 

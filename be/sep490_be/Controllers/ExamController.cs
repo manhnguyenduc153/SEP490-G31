@@ -24,7 +24,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Exam
         [HttpGet]
-        [HasPermission("Exam.View,TeachingExam")]
+        [HasPermission("Exam.View,TeachingExam,TeachingClass,Class.View,StudentExam,MyClass")]
         public async Task<IActionResult> GetAll([FromQuery] ExamSearchDto searchDto)
         {
             var response = await _service.GetAllAsync(searchDto);
@@ -33,7 +33,7 @@ namespace sep490_be.Controllers
 
         // GET: api/Exam/5
         [HttpGet("{id}")]
-        [HasPermission("Exam.View,TeachingExam")]
+        [HasPermission("Exam.View,TeachingExam,TeachingClass,Class.View,StudentExam,MyClass")]
         public async Task<IActionResult> GetById(int id)
         {
             var response = await _service.GetByIdAsync(id);
