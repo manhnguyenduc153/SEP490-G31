@@ -21,6 +21,7 @@ namespace sep490_be.Services.Interfaces
         Task<ApiResponse<PagingResponse<ClassDto>>> GetAccessibleClassesAsync(string username, ClassSearchDto searchDto);
         Task<ApiResponse<ClassScheduleDto>> UpdateScheduleSlotAsync(int id, UpdateScheduleSlotDto dto);
         Task<ApiResponse<MoveScheduleSlotResultDto>> MoveScheduleSlotAsync(int id, MoveScheduleSlotDto dto);
+        Task<ApiResponse<List<StudentPreferenceWarningDto>>> CheckDraftSoftConflictAsync(DraftSoftConflictCheckDto dto);
     }
 }
 
