@@ -31,6 +31,10 @@ namespace sep490_be.DTO.Exam
         public int SubmissionCount { get; set; }
         public decimal? LatestScore { get; set; }
         public bool IsGraded { get; set; }
+        // Single skill shared by every question in the exam (see IeltsBandScale.GetSingleSkillType),
+        // null when mixed/unset. Lets clients know Score/LatestScore is already an IELTS band (0-9)
+        // without needing the full Questions list.
+        public int? SkillType { get; set; }
         public List<int> QuestionIds { get; set; } = new List<int>();
         public List<QuestionDto> Questions { get; set; } = new List<QuestionDto>();
     }

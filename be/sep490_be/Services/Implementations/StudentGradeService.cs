@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using sep490_be.Common;
 using sep490_be.DTO;
 using sep490_be.DTO.StudentGrade;
 using sep490_be.Models;
@@ -103,9 +104,10 @@ namespace sep490_be.Services.Implementations
                         ComponentCode = component.Code,
                         ComponentName = component.Name,
                         Weight = component.Weight,
-                        RawScore = Round1(rawScore),
-                        Score = Round1(hasOverride && overrideScore.HasValue ? overrideScore.Value : rawScore),
-                        IsOverride = hasOverride
+                        RawScore = RoundBand(rawScore),
+                        Score = RoundBand(hasOverride && overrideScore.HasValue ? overrideScore.Value : rawScore),
+                        IsOverride = hasOverride,
+                        Band = rawScores.TryGetValue(component.Code, out var band) ? RoundBand(band) : (decimal?)null
                     };
                 }).ToList();
 
@@ -125,7 +127,7 @@ namespace sep490_be.Services.Implementations
                     CourseId = classInfo.CourseId,
                     CourseCode = classInfo.Course?.Code,
                     CourseName = classInfo.Course?.Name,
-                    AverageScore = Round1(average),
+                    AverageScore = RoundBand(average),
                     Components = scoreComponents,
                     Homeworks = homeworkScores,
                     Exams = examScores
@@ -401,7 +403,7 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<List<StudentGradeOverrideDto>>.Fail("ERR_GRADE_COMPONENT_INVALID", StatusCodes.Status400BadRequest);
                 }
 
-                if (dto.Overrides.Any(x => x.Score.HasValue && (x.Score.Value < 0 || x.Score.Value > 10)))
+                if (dto.Overrides.Any(x => x.Score.HasValue && (x.Score.Value < 0 || x.Score.Value > 9)))
                 {
                     return ApiResponse<List<StudentGradeOverrideDto>>.Fail("ERR_GRADE_SCORE_RANGE", StatusCodes.Status400BadRequest);
                 }
@@ -441,7 +443,7 @@ namespace sep490_be.Services.Implementations
                     entity.IsDeleted = false;
                     entity.DeletedAt = null;
                     entity.DeletedBy = null;
-                    entity.Score = score;
+                    entity.Score = RoundBand(score);
                 }
 
                 await _repository.SaveOverridesAsync(toAdd, toUpdate, toRemove);
@@ -473,6 +475,8 @@ namespace sep490_be.Services.Implementations
         }
 
         private static decimal Round1(decimal value) => Math.Round(value, 1, MidpointRounding.AwayFromZero);
+
+        private static decimal RoundBand(decimal value) => IeltsBandScale.RoundToHalfBand(value);
 
         private static GradeComponentDto MapComponent(GradeComponent entity) => new()
         {

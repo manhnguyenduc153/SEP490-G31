@@ -1,3 +1,4 @@
+using sep490_be.Common;
 using sep490_be.Models;
 using sep490_be.Repositories.Interfaces;
 using sep490_be.Repositories.Common;
@@ -88,7 +89,8 @@ namespace sep490_be.Repositories.Implementations
 
                 var bestScore = exam.ExamAttempts
                     .Where(attempt => attempt.StudentId == studentId)
-                    .Select(attempt => NormalizeScore(attempt.Score, exam.TotalScore ?? 10m))
+                    .Select(attempt => IeltsBandScale.ComputeAttemptBand(exam, attempt.Score)
+                        ?? NormalizeScore(attempt.Score, exam.TotalScore ?? 10m))
                     .DefaultIfEmpty(0m)
                     .Max();
 
@@ -122,10 +124,13 @@ namespace sep490_be.Repositories.Implementations
             };
         }
 
+        // Target scale is 9 (band), not 10: the overall class average is reported in band units
+        // now that Listening/Reading/Writing/Speaking all store their score directly as a band.
+        // Only Homework (and any legacy mixed-skill exam) still needs rescaling through here.
         private static decimal NormalizeScore(decimal? score, decimal total)
         {
             if (!score.HasValue || total <= 0) return 0m;
-            return Math.Max(0m, Math.Min(10m, score.Value / total * 10m));
+            return Math.Max(0m, Math.Min(9m, score.Value / total * 9m));
         }
 
         public async Task<List<sep490_be.DTO.StudentGrade.MyGradeHomeworkDto>> GetHomeworkScoresAsync(int classId, int studentId)
@@ -159,8 +164,9 @@ namespace sep490_be.Repositories.Implementations
         public async Task<List<sep490_be.DTO.StudentGrade.MyGradeExamDto>> GetExamScoresAsync(int classId, int studentId)
         {
             var exams = await _dbContext.Exams.AsNoTracking()
+                .Include(x => x.ExamQuestions)
+                .ThenInclude(eq => eq.Question)
                 .Where(x => x.ClassId == classId && !x.IsDeleted && (x.Class == null || !x.Class.IsDeleted))
-                .Select(x => new { x.Id, x.Title, x.TotalScore })
                 .ToListAsync();
 
             if (exams.Count == 0) return new();
@@ -174,13 +180,21 @@ namespace sep490_be.Repositories.Implementations
 
             var scoreByExam = attempts.ToDictionary(x => x.ExamId, x => x.Score);
 
-            return exams.Select(e => new sep490_be.DTO.StudentGrade.MyGradeExamDto
+            return exams.Select(e =>
             {
-                Id = e.Id,
-                Title = e.Title,
-                TotalScore = e.TotalScore ?? 10m,
-                Score = scoreByExam.TryGetValue(e.Id, out var s) ? s : null,
-                NormalizedScore = NormalizeScore(scoreByExam.TryGetValue(e.Id, out var s2) ? s2 : null, e.TotalScore ?? 10m)
+                var score = scoreByExam.TryGetValue(e.Id, out var s) ? s : null;
+                var band = IeltsBandScale.ComputeAttemptBand(e, score);
+                return new sep490_be.DTO.StudentGrade.MyGradeExamDto
+                {
+                    Id = e.Id,
+                    Title = e.Title,
+                    TotalScore = e.TotalScore ?? 10m,
+                    Score = score,
+                    // Band-graded exams (all 4 skills) are already on the final scale; only
+                    // legacy mixed-skill exams still need rescaling against exam.TotalScore.
+                    NormalizedScore = band ?? NormalizeScore(score, e.TotalScore ?? 10m),
+                    Band = band
+                };
             }).ToList();
         }
 

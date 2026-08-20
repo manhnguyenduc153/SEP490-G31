@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using sep490_be.Common;
 using sep490_be.DTO;
 using sep490_be.DTO.Dashboard;
 using sep490_be.Enums;
@@ -354,24 +355,38 @@ namespace sep490_be.Services.Implementations
         }
 
         // ── 10. Exam Grade Distribution ──────────────────────────────────────
+        // Listening/Reading/Writing/Speaking exams store Score directly as an IELTS band (0-9);
+        // only legacy mixed-skill exams still use the old points-out-of-TotalScore scale, so
+        // those are rescaled to the same 0-9 range before bucketing.
         private async Task<List<ExamGradeDistributionDto>> GetExamGradeDistributionAsync()
         {
-            var examScores = await _dbContext.ExamAttempts
+            var attempts = await _dbContext.ExamAttempts
                 .Where(ea => !ea.IsDeleted && ea.Score.HasValue)
-                .Select(ea => (double)ea.Score!.Value)
+                .Include(ea => ea.Exam)
+                    .ThenInclude(e => e.ExamQuestions)
+                        .ThenInclude(eq => eq.Question)
                 .ToListAsync();
 
-            var weakCount = examScores.Count(s => s < 5.0);
-            var averageCount = examScores.Count(s => s >= 5.0 && s < 6.5);
-            var goodCount = examScores.Count(s => s >= 6.5 && s < 8.0);
-            var outstandingCount = examScores.Count(s => s >= 8.0);
+            var examScores = attempts.Select(ea =>
+            {
+                var band = IeltsBandScale.ComputeAttemptBand(ea.Exam, ea.Score);
+                if (band.HasValue) return (double)band.Value;
+
+                var total = ea.Exam?.TotalScore ?? 10m;
+                return total > 0 ? (double)Math.Max(0m, Math.Min(9m, ea.Score!.Value / total * 9m)) : 0.0;
+            }).ToList();
+
+            var weakCount = examScores.Count(s => s < 4.0);
+            var averageCount = examScores.Count(s => s >= 4.0 && s < 5.5);
+            var goodCount = examScores.Count(s => s >= 5.5 && s < 7.0);
+            var outstandingCount = examScores.Count(s => s >= 7.0);
 
             return new List<ExamGradeDistributionDto>
             {
-                new() { ScoreBand = "< 5.0 (Weak)", StudentCount = weakCount },
-                new() { ScoreBand = "5.0 - 6.5 (Average)", StudentCount = averageCount },
-                new() { ScoreBand = "6.5 - 8.0 (Good)", StudentCount = goodCount },
-                new() { ScoreBand = "8.0 - 10.0 (Excellent)", StudentCount = outstandingCount }
+                new() { ScoreBand = "< 4.0 (Weak)", StudentCount = weakCount },
+                new() { ScoreBand = "4.0 - 5.5 (Average)", StudentCount = averageCount },
+                new() { ScoreBand = "5.5 - 7.0 (Good)", StudentCount = goodCount },
+                new() { ScoreBand = "7.0 - 9.0 (Excellent)", StudentCount = outstandingCount }
             };
         }
     }

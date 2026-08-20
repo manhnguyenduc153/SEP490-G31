@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using sep490_be.Common;
 using sep490_be.DTO;
 using sep490_be.DTO.Common;
 using sep490_be.DTO.Report;
@@ -126,17 +127,26 @@ namespace sep490_be.Services.Implementations
         {
             try
             {
-                var examEntity = await _dbContext.Exams.FirstOrDefaultAsync(e => e.Id == examId);
+                var examEntity = await _dbContext.Exams
+                    .Include(e => e.ExamQuestions)
+                        .ThenInclude(eq => eq.Question)
+                    .FirstOrDefaultAsync(e => e.Id == examId);
                 if (examEntity == null)
                 {
                     return ApiResponse<ExamResultReportDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
+                // Band-graded exams (Listening/Reading/Writing/Speaking) store Score directly as a
+                // 0-9 band, so the report's "out of" figure is 9, not the exam's configured TotalScore.
+                var examSkillType = IeltsBandScale.GetSingleSkillType(examEntity);
+                var isBandGraded = examSkillType is IeltsBandScale.ListeningSkillType or IeltsBandScale.ReadingSkillType
+                    or IeltsBandScale.SpeakingSkillType or IeltsBandScale.WritingSkillType;
+
                 var report = new ExamResultReportDto
                 {
                     ExamId = examId,
                     ExamTitle = examEntity.Title,
-                    TotalScore = examEntity.TotalScore ?? 10m,
+                    TotalScore = isBandGraded ? IeltsBandScale.SpeakingWritingMaxBand : (examEntity.TotalScore ?? 10m),
                     PassingScore = examEntity.PassingScore ?? 5m
                 };
 
@@ -324,6 +334,8 @@ namespace sep490_be.Services.Implementations
                         if (hasAnyScore)
                         {
                             row.FinalScore = Math.Round(finalScore, 2);
+                            // Class components are now weighted band values (0-9) — 5.0 doubles as
+                            // both the old 0-10 pass bar and a natural IELTS "modest user" threshold.
                             row.IsPassed = row.FinalScore >= 5.0m;
                         }
 
