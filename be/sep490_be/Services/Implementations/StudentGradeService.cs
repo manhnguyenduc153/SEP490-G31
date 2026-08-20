@@ -348,6 +348,7 @@ namespace sep490_be.Services.Implementations
                 }
 
                 await _repository.SaveCourseComponentsAsync(courseId, toAdd, toUpdate, removed);
+                await transaction.CommitAsync();
 
                 var newComponents = await _repository.GetComponentsAsync(courseId);
                 var result = newComponents.Select(x => MapComponent(x)).ToList();
