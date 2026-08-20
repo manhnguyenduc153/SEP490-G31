@@ -28,7 +28,7 @@ namespace sep490_be.Services.Implementations
                 var classEntity = await _dbContext.Classes
                     .Include(c => c.StudentClasses)
                         .ThenInclude(sc => sc!.Student)
-                    .FirstOrDefaultAsync(c => c.Id == classId);
+                    .FirstOrDefaultAsync(c => c.Id == classId && !c.IsDeleted);
 
                 if (classEntity == null)
                 {
@@ -36,7 +36,7 @@ namespace sep490_be.Services.Implementations
                 }
 
                 var schedules = await _dbContext.ClassSchedules
-                    .Where(cs => cs.ClassId == classId)
+                    .Where(cs => cs.ClassId == classId && !cs.IsDeleted)
                     .OrderBy(cs => cs.LessonNo)
                     .ToListAsync();
 
@@ -243,7 +243,7 @@ namespace sep490_be.Services.Implementations
                     .Include(c => c.Course)
                     .Include(c => c.StudentClasses)
                         .ThenInclude(sc => sc.Student)
-                    .FirstOrDefaultAsync(c => c.Id == classId);
+                    .FirstOrDefaultAsync(c => c.Id == classId && !c.IsDeleted);
 
                 if (classEntity == null)
                 {

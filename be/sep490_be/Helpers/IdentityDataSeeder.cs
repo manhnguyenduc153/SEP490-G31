@@ -138,7 +138,7 @@ namespace sep490_be.Helpers
 
             var teacherPermissions = new List<string>
             {
-                Permissions.Class.Class_View,
+                //Permissions.Class.Class_View,
                 Permissions.TeachingClass.TeachingClassPage,
                 Permissions.HomeworkManagement.HomeworkManagement_View,
                 Permissions.HomeworkManagement.HomeworkManagement_Create,
@@ -149,7 +149,7 @@ namespace sep490_be.Helpers
                 Permissions.Attendance.Attendance_Edit,
                 Permissions.Attendance.Attendance_Delete,
                 Permissions.Attendance.Attendance_SaveAttendance,
-                Permissions.Attendance.Attendance_EditAllTime,
+                //Permissions.Attendance.Attendance_EditAllTime,
                 Permissions.StudentGrade.StudentGrade_ViewSettings,
                 Permissions.StudentGrade.StudentGrade_Create,
                 Permissions.StudentGrade.StudentGrade_Edit,

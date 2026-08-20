@@ -18,6 +18,7 @@ namespace sep490_be.Repositories.Implementations
                 .Include(x => x.Course)
                 .Include(x => x.ClassSchedule)
                 .Include(x => x.Teacher)
+                .Where(x => !x.IsDeleted && (x.Class == null || !x.Class.IsDeleted))
                 .AsQueryable();
         }
 
@@ -28,7 +29,7 @@ namespace sep490_be.Repositories.Implementations
                 .Include(x => x.Course)
                 .Include(x => x.ClassSchedule)
                 .Include(x => x.Teacher)
-                .FirstOrDefaultAsync(x => x.Id == id);
+                .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted && (x.Class == null || !x.Class.IsDeleted));
         }
     }
 }

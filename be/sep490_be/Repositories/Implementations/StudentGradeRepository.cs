@@ -55,10 +55,10 @@ namespace sep490_be.Repositories.Implementations
 
         public async Task<decimal> CalculateAttendanceScoreAsync(int classId, int studentId)
         {
-            var totalSessions = await _dbContext.ClassSchedules.AsNoTracking().CountAsync(x => x.ClassId == classId);
+            var totalSessions = await _dbContext.ClassSchedules.AsNoTracking().CountAsync(x => x.ClassId == classId && !x.IsDeleted && (x.Class == null || !x.Class.IsDeleted));
             if (totalSessions == 0) return 0m;
             var attendances = await _dbContext.Attendances.AsNoTracking().Include(x => x.ClassSchedule)
-                .Where(x => x.StudentId == studentId && x.ClassSchedule != null && x.ClassSchedule.ClassId == classId && x.Status != -1)
+                .Where(x => x.StudentId == studentId && x.ClassSchedule != null && !x.ClassSchedule.IsDeleted && x.ClassSchedule.ClassId == classId && (x.ClassSchedule.Class == null || !x.ClassSchedule.Class.IsDeleted) && x.Status != -1)
                 .Select(x => x.Status).ToListAsync();
             var attended = attendances.Count(x => x > 0);
             return (decimal)attended / totalSessions * 10m;
@@ -70,7 +70,7 @@ namespace sep490_be.Repositories.Implementations
                 .Include(e => e.ExamQuestions)
                     .ThenInclude(eq => eq.Question)
                 .Include(e => e.ExamAttempts)
-                .Where(e => e.ClassId == classId)
+                .Where(e => e.ClassId == classId && !e.IsDeleted && (e.Class == null || !e.Class.IsDeleted))
                 .ToListAsync();
 
             var scoresBySkill = new Dictionary<string, List<decimal>>(StringComparer.OrdinalIgnoreCase)
@@ -131,7 +131,7 @@ namespace sep490_be.Repositories.Implementations
         public async Task<List<sep490_be.DTO.StudentGrade.MyGradeHomeworkDto>> GetHomeworkScoresAsync(int classId, int studentId)
         {
             var homeworks = await _dbContext.Homeworks.AsNoTracking()
-                .Where(x => x.ClassId == classId)
+                .Where(x => x.ClassId == classId && !x.IsDeleted && (x.Class == null || !x.Class.IsDeleted))
                 .Select(x => new { x.Id, x.Title, x.TotalScore })
                 .ToListAsync();
 
@@ -159,7 +159,7 @@ namespace sep490_be.Repositories.Implementations
         public async Task<List<sep490_be.DTO.StudentGrade.MyGradeExamDto>> GetExamScoresAsync(int classId, int studentId)
         {
             var exams = await _dbContext.Exams.AsNoTracking()
-                .Where(x => x.ClassId == classId)
+                .Where(x => x.ClassId == classId && !x.IsDeleted && (x.Class == null || !x.Class.IsDeleted))
                 .Select(x => new { x.Id, x.Title, x.TotalScore })
                 .ToListAsync();
 

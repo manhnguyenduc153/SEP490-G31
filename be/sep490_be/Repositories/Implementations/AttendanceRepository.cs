@@ -22,13 +22,14 @@ namespace sep490_be.Repositories.Implementations
                 .Include(cs => cs.Class)
                     .ThenInclude(c => c!.StudentClasses)
                         .ThenInclude(sc => sc!.Student)
-                .FirstOrDefaultAsync(cs => cs.Id == scheduleId);
+                .FirstOrDefaultAsync(cs => cs.Id == scheduleId && !cs.IsDeleted && (cs.Class == null || !cs.Class.IsDeleted));
         }
 
         public async Task<ClassSchedule?> GetScheduleAsync(int scheduleId)
         {
             return await _dbContext.ClassSchedules
-                .FirstOrDefaultAsync(cs => cs.Id == scheduleId);
+                .Include(cs => cs.Class)
+                .FirstOrDefaultAsync(cs => cs.Id == scheduleId && !cs.IsDeleted && (cs.Class == null || !cs.Class.IsDeleted));
         }
 
         public async Task<Class?> GetClassWithStudentClassesAsync(int classId)
@@ -36,13 +37,13 @@ namespace sep490_be.Repositories.Implementations
             return await _dbContext.Classes
                 .Include(c => c.StudentClasses)
                     .ThenInclude(sc => sc!.Student)
-                .FirstOrDefaultAsync(c => c.Id == classId);
+                .FirstOrDefaultAsync(c => c.Id == classId && !c.IsDeleted);
         }
 
         public async Task<List<ClassSchedule>> GetSchedulesByClassIdAsync(int classId)
         {
             return await _dbContext.ClassSchedules
-                .Where(cs => cs.ClassId == classId)
+                .Where(cs => cs.ClassId == classId && !cs.IsDeleted && (cs.Class == null || !cs.Class.IsDeleted))
                 .OrderBy(cs => cs.LessonNo)
                 .ToListAsync();
         }

@@ -18,6 +18,7 @@ namespace sep490_be.Repositories.Implementations
                 .Include(c => c.Teacher)
                 .Include(c => c.Semester)
                 .Include(c => c.StudentClasses)
+                .Where(c => !c.IsDeleted)
                 .AsQueryable();
         }
 
@@ -35,7 +36,7 @@ namespace sep490_be.Repositories.Implementations
                     .ThenInclude(cs => cs.Room)
                 .Include(c => c.ClassSchedules)
                     .ThenInclude(cs => cs.Teacher)
-                .FirstOrDefaultAsync(c => c.Id == id);
+                .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
         }
 
         public async Task<Class?> GetClassWithBasicDetailsByIdAsync(int id)
@@ -45,7 +46,7 @@ namespace sep490_be.Repositories.Implementations
                 .Include(c => c.Teacher)
                 .Include(c => c.Semester)
                 .Include(c => c.StudentClasses)
-                .FirstOrDefaultAsync(c => c.Id == id);
+                .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
         }
 
         public async Task<Class?> GetClassForEditAsync(int id)
@@ -53,7 +54,7 @@ namespace sep490_be.Repositories.Implementations
             return await FindAll(trackChanges: true)
                 .Include(c => c.StudentClasses)
                 .Include(c => c.ClassSchedules)
-                .FirstOrDefaultAsync(c => c.Id == id);
+                .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted);
         }
     }
 }

@@ -48,7 +48,7 @@ namespace sep490_be.Services.Implementations
                     .Include(e => e.Class)
                     .Include(e => e.ExamQuestions)
                     .Include(e => e.ExamAttempts)
-                    .Where(e => !e.IsDeleted)
+                    .Where(e => !e.IsDeleted && (e.Class == null || !e.Class.IsDeleted))
                     .AsQueryable();
 
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
@@ -161,7 +161,7 @@ namespace sep490_be.Services.Implementations
                     .Include(e => e.Class)
                     .Include(e => e.ExamQuestions)
                     .Include(e => e.ExamAttempts)
-                    .Where(e => !e.IsDeleted && e.ClassId.HasValue && classIds.Contains(e.ClassId.Value))
+                    .Where(e => !e.IsDeleted && e.ClassId.HasValue && classIds.Contains(e.ClassId.Value) && (e.Class == null || !e.Class.IsDeleted))
                     .AsQueryable();
 
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
@@ -242,7 +242,7 @@ namespace sep490_be.Services.Implementations
                         .ThenInclude(eq => eq.Question)
                             .ThenInclude(q => q.QuestionPassage)
                     .Include(e => e.ExamAttempts)
-                    .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+                    .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted && (e.Class == null || !e.Class.IsDeleted));
 
                 if (exam == null)
                 {
@@ -693,8 +693,9 @@ namespace sep490_be.Services.Implementations
                 if (exam.ClassId.HasValue)
                 {
                     var classIds = student.StudentClasses
-                        .Where(sc => sc.Status == (int)Enums.StudentClassStatus.Enrolled
+                        .Where(sc => (sc.Status == (int)Enums.StudentClassStatus.Enrolled
                                   || sc.Status == (int)Enums.StudentClassStatus.Studying)
+                                  && (sc.Class == null || !sc.Class.IsDeleted))
                         .Select(sc => sc.ClassId)
                         .ToList();
 
@@ -901,8 +902,9 @@ namespace sep490_be.Services.Implementations
                 if (exam.ClassId.HasValue)
                 {
                     var classIds = student.StudentClasses
-                        .Where(sc => sc.Status == (int)Enums.StudentClassStatus.Enrolled
+                        .Where(sc => (sc.Status == (int)Enums.StudentClassStatus.Enrolled
                                   || sc.Status == (int)Enums.StudentClassStatus.Studying)
+                                  && (sc.Class == null || !sc.Class.IsDeleted))
                         .Select(sc => sc.ClassId)
                         .ToList();
 
@@ -1235,8 +1237,9 @@ namespace sep490_be.Services.Implementations
                 if (exam.ClassId.HasValue)
                 {
                     var classIds = student.StudentClasses
-                        .Where(sc => sc.Status == (int)Enums.StudentClassStatus.Enrolled
+                        .Where(sc => (sc.Status == (int)Enums.StudentClassStatus.Enrolled
                                   || sc.Status == (int)Enums.StudentClassStatus.Studying)
+                                  && (sc.Class == null || !sc.Class.IsDeleted))
                         .Select(sc => sc.ClassId)
                         .ToList();
 
@@ -1274,8 +1277,9 @@ namespace sep490_be.Services.Implementations
 
                 // Get student's enrolled/studying class ids — Enrolled=0, Studying=1
                 var classIds = student.StudentClasses
-                    .Where(sc => sc.Status == (int)Enums.StudentClassStatus.Enrolled
+                    .Where(sc => (sc.Status == (int)Enums.StudentClassStatus.Enrolled
                               || sc.Status == (int)Enums.StudentClassStatus.Studying)
+                              && (sc.Class == null || !sc.Class.IsDeleted))
                     .Select(sc => sc.ClassId)
                     .ToList();
 
@@ -1288,7 +1292,7 @@ namespace sep490_be.Services.Implementations
                 var exams = await _examRepository.FindAll()
                     .Include(e => e.Class)
                     .Include(e => e.ExamAttempts)
-                    .Where(e => e.ClassId.HasValue && classIds.Contains(e.ClassId.Value) && e.Status == 1 && !e.IsDeleted)
+                    .Where(e => e.ClassId.HasValue && classIds.Contains(e.ClassId.Value) && e.Status == 1 && !e.IsDeleted && (e.Class == null || !e.Class.IsDeleted))
                     .OrderByDescending(e => e.Id)
                     .ToListAsync();
 
