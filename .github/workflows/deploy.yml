@@ -19,6 +19,11 @@ jobs:
           script: |
             set -e
 
+            echo "===== Cleanup Docker BEFORE build to free space ====="
+            docker container prune -f || true
+            docker system prune -af || true
+            docker builder prune -af || true
+
             echo "===== Pull latest code ====="
             cd ~/SEP490-G31
             git pull origin main
@@ -30,7 +35,7 @@ jobs:
             echo "===== Restart API ====="
             docker compose up -d --remove-orphans api
 
-            echo "===== Cleanup Docker thoroughly ====="
+            echo "===== Cleanup Docker after deploy ====="
             docker container prune -f || true
             docker system prune -af || true
             docker builder prune -af || true
