@@ -15,13 +15,33 @@ namespace sep490_be.Services.Implementations
 
         public FileService(IConfiguration configuration)
         {
-            var cloudName = configuration["Cloudinary:CloudName"];
-            var apiKey = configuration["Cloudinary:ApiKey"];
-            var apiSecret = configuration["Cloudinary:ApiSecret"];
+            var cloudName = configuration["Cloudinary:CloudName"]
+                ?? configuration["Cloudinary__CloudName"]
+                ?? configuration["CLOUDINARY_CLOUD_NAME"]
+                ?? configuration["Cloudinary_CloudName"]
+                ?? Environment.GetEnvironmentVariable("Cloudinary__CloudName")
+                ?? Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME")
+                ?? Environment.GetEnvironmentVariable("Cloudinary_CloudName");
 
-            if (!string.IsNullOrEmpty(cloudName) && !string.IsNullOrEmpty(apiKey) && !string.IsNullOrEmpty(apiSecret))
+            var apiKey = configuration["Cloudinary:ApiKey"]
+                ?? configuration["Cloudinary__ApiKey"]
+                ?? configuration["CLOUDINARY_API_KEY"]
+                ?? configuration["Cloudinary_ApiKey"]
+                ?? Environment.GetEnvironmentVariable("Cloudinary__ApiKey")
+                ?? Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY")
+                ?? Environment.GetEnvironmentVariable("Cloudinary_ApiKey");
+
+            var apiSecret = configuration["Cloudinary:ApiSecret"]
+                ?? configuration["Cloudinary__ApiSecret"]
+                ?? configuration["CLOUDINARY_API_SECRET"]
+                ?? configuration["Cloudinary_ApiSecret"]
+                ?? Environment.GetEnvironmentVariable("Cloudinary__ApiSecret")
+                ?? Environment.GetEnvironmentVariable("CLOUDINARY_API_SECRET")
+                ?? Environment.GetEnvironmentVariable("Cloudinary_ApiSecret");
+
+            if (!string.IsNullOrWhiteSpace(cloudName) && !string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiSecret))
             {
-                var account = new Account(cloudName, apiKey, apiSecret);
+                var account = new Account(cloudName.Trim(), apiKey.Trim(), apiSecret.Trim());
                 _cloudinary = new Cloudinary(account);
                 _cloudinary.Api.Secure = true;
             }
