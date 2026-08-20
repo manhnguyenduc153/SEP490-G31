@@ -1,5 +1,7 @@
-using Microsoft.AspNetCore.Hosting;
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using sep490_be.Services.Interfaces;
 using System;
 using System.IO;
@@ -9,11 +11,24 @@ namespace sep490_be.Services.Implementations
 {
     public class FileService : IFileService
     {
-        private readonly IWebHostEnvironment _env;
+        private readonly Cloudinary _cloudinary;
 
-        public FileService(IWebHostEnvironment env)
+        public FileService(IConfiguration configuration)
         {
-            _env = env;
+            var cloudName = configuration["Cloudinary:CloudName"];
+            var apiKey = configuration["Cloudinary:ApiKey"];
+            var apiSecret = configuration["Cloudinary:ApiSecret"];
+
+            if (!string.IsNullOrEmpty(cloudName) && !string.IsNullOrEmpty(apiKey) && !string.IsNullOrEmpty(apiSecret))
+            {
+                var account = new Account(cloudName, apiKey, apiSecret);
+                _cloudinary = new Cloudinary(account);
+                _cloudinary.Api.Secure = true;
+            }
+            else
+            {
+                _cloudinary = null!;
+            }
         }
 
         public async Task<string> UploadFileAsync(IFormFile file, string folderName)
@@ -21,29 +36,39 @@ namespace sep490_be.Services.Implementations
             if (file == null || file.Length == 0)
                 throw new ArgumentException("File is empty or null.");
 
-            var webRootPath = _env.WebRootPath;
-            if (string.IsNullOrEmpty(webRootPath))
+            if (_cloudinary == null)
+                throw new InvalidOperationException("Cloudinary configuration is missing. Please configure Cloudinary:CloudName, ApiKey, and ApiSecret.");
+
+            using var stream = file.OpenReadStream();
+            var fileName = Path.GetFileNameWithoutExtension(file.FileName);
+            var ext = Path.GetExtension(file.FileName).ToLower();
+
+            var isImage = ext == ".jpg" || ext == ".png" || ext == ".jpeg" || ext == ".webp" || ext == ".gif" || ext == ".svg";
+
+            if (isImage)
             {
-                webRootPath = Path.Combine(_env.ContentRootPath, "wwwroot");
+                var uploadParams = new ImageUploadParams
+                {
+                    File = new FileDescription(file.FileName, stream),
+                    Folder = $"sep490/{folderName}",
+                    PublicId = $"{fileName}_{Guid.NewGuid():N}"
+                };
+                var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+                return uploadResult.SecureUrl?.ToString() ?? uploadResult.Url?.ToString() ?? "";
             }
-
-            var uploadsFolder = Path.Combine(webRootPath, "uploads", folderName);
-            if (!Directory.Exists(uploadsFolder))
+            else
             {
-                Directory.CreateDirectory(uploadsFolder);
+                var rawUploadParams = new RawUploadParams
+                {
+                    File = new FileDescription(file.FileName, stream),
+                    Folder = $"sep490/{folderName}",
+                    PublicId = $"{fileName}_{Guid.NewGuid():N}{ext}"
+                };
+                var uploadResult = await _cloudinary.UploadAsync(rawUploadParams);
+                return uploadResult.SecureUrl?.ToString() ?? uploadResult.Url?.ToString() ?? "";
             }
-
-            var uniqueFileName = Guid.NewGuid().ToString() + "_" + file.FileName;
-            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-            using (var fileStream = new FileStream(filePath, FileMode.Create))
-            {
-                await file.CopyToAsync(fileStream);
-            }
-
-            // Return relative path to be accessible via URL
-            return $"/uploads/{folderName}/{uniqueFileName}";
         }
     }
 }
+
 
