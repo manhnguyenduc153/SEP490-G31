@@ -2,7 +2,7 @@ using sep490_be.Models.BaseEntities;
 
 namespace sep490_be.Models
 {
-    public class StudentRegistration : BaseEntity<int>
+    public class StudentRegistration : AuditableEntity<int>
     {
         public int StudentId { get; set; }
         public int CourseId { get; set; }

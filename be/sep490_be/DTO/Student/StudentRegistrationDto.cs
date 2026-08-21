@@ -21,6 +21,8 @@ namespace sep490_be.DTO.Student
         public string? StatusName { get; set; }
         public int EnrollType { get; set; } // 0 = Offline, 1 = Online
         public string? EnrollTypeName { get; set; } // "Offline" / "Online"
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 }
 
