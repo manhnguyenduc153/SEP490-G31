@@ -912,7 +912,9 @@ namespace sep490_be.Services.Implementations
                 Status = entity.Status,
                 StatusName = ((StudentRegistrationStatus)entity.Status).GetStringValue(),
                 EnrollType = entity.EnrollType,
-                EnrollTypeName = entity.EnrollType == 1 ? "Online" : "Offline"
+                EnrollTypeName = entity.EnrollType == 1 ? "Online" : "Offline",
+                CreatedAt = entity.CreatedAt,
+                UpdatedAt = entity.UpdatedAt
             };
         }
 

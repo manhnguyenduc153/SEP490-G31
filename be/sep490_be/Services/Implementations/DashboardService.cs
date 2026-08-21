@@ -197,7 +197,7 @@ namespace sep490_be.Services.Implementations
                 .Where(r => r.Student != null && !r.Student.IsDeleted
                     && r.Course != null && !r.Course.IsDeleted
                     && r.Status == (int)StudentRegistrationStatus.Pending)
-                .OrderByDescending(r => r.Id)
+                .OrderByDescending(r => r.CreatedAt)
                 .Take(10)
                 .Select(r => new RecentRegistrationDto
                 {
@@ -205,7 +205,9 @@ namespace sep490_be.Services.Implementations
                     StudentName = r.Student.Name,
                     CourseName = r.Course.Name,
                     PreferredSlots = r.PreferredSlotsJson,
-                    RegistrationDate = r.Student.CreatedAt
+                    EnrollType = r.EnrollType,
+                    EnrollTypeName = r.EnrollType == 1 ? "Online" : "Offline",
+                    RegistrationDate = r.CreatedAt.Year > 2000 ? r.CreatedAt : (r.Student.CreatedAt.Year > 2000 ? r.Student.CreatedAt : DateTime.UtcNow)
                 })
                 .ToListAsync();
         }

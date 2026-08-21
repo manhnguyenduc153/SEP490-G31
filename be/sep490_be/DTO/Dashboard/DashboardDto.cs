@@ -56,6 +56,8 @@ namespace sep490_be.DTO.Dashboard
         public string StudentName { get; set; } = string.Empty;
         public string CourseName { get; set; } = string.Empty;
         public string PreferredSlots { get; set; } = string.Empty;
+        public int EnrollType { get; set; } // 0 = Offline, 1 = Online
+        public string EnrollTypeName { get; set; } = string.Empty;
         public DateTime RegistrationDate { get; set; }
     }
 

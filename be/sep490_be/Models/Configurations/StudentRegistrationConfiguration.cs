@@ -13,6 +13,8 @@ namespace sep490_be.Models.Configurations
             builder.Property(x => x.PreferredSlotIndex).IsRequired(false);
             builder.Property(x => x.PreferredDaysOfWeek).IsRequired(false);
 
+            builder.HasQueryFilter(x => !x.IsDeleted);
+
             builder.HasOne(x => x.Student)
                 .WithMany()
                 .HasForeignKey(x => x.StudentId)
