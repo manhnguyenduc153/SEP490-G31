@@ -518,7 +518,7 @@ namespace sep490_be.Services.Implementations
                 {
                     try
                     {
-                        await _notificationService.SendExamCreatedNotificationAsync(exam);
+                        await _notificationService.SendExamPublishedNotificationAsync(exam);
                     }
                     catch { }
                 }
@@ -600,6 +600,15 @@ namespace sep490_be.Services.Implementations
 
                 await _examRepository.UpdateAsync(exam);
                 await _examRepository.SaveChangesAsync();
+
+                if (_notificationService != null && successMessage == "PUBLISH_EXAM_SUCCESS" && exam.Type == 1 && exam.ClassId.HasValue)
+                {
+                    try
+                    {
+                        await _notificationService.SendExamPublishedNotificationAsync(exam);
+                    }
+                    catch { }
+                }
 
                 var result = await GetByIdAsync(id);
                 if (result.Success && result.Data != null)

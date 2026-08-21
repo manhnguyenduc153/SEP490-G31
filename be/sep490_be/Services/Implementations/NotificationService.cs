@@ -250,7 +250,111 @@ namespace sep490_be.Services.Implementations
             string title = "Bài kiểm tra mới";
             string content = $"Bạn có bài kiểm tra mới: '{examEntity.Title}' trong lớp {classEntity.Name}.";
 
-            await SaveAndBroadcastNotificationAsync(classEntity, title, content);
+            // Only the class's Teacher and Students should be notified when Operation staff
+            // creates an exam — admin/operation-staff group is excluded here on purpose.
+            await SaveAndBroadcastNotificationAsync(classEntity, title, content, includeAdminGroup: false);
+        }
+
+        public async Task SendExamPublishedNotificationAsync(Exam examEntity)
+        {
+            if (examEntity == null || !examEntity.ClassId.HasValue) return;
+
+            var classEntity = await _dbContext.Classes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == examEntity.ClassId.Value && !c.IsDeleted);
+
+            if (classEntity == null) return;
+
+            string title = "Bài kiểm tra đã được công bố";
+            string content = $"Bài kiểm tra '{examEntity.Title}' trong lớp {classEntity.Name} đã được công bố.";
+
+            try
+            {
+                var notification = new Notification
+                {
+                    Title = title,
+                    Content = content,
+                    Status = (int)NotificationStatus.Unread,
+                    ClassId = classEntity.Id,
+                    TargetType = (int)NotificationTargetType.Class,
+                    TargetId = classEntity.Id,
+                    SentAt = DateTime.UtcNow,
+                    Code = $"NOTIF-{Guid.NewGuid().ToString().Substring(0, 8).ToUpper()}",
+                    Name = title
+                };
+
+                _dbContext.Notifications.Add(notification);
+                await _dbContext.SaveChangesAsync();
+
+                var recipientUserNames = new List<string>();
+                var targetUserIds = new List<string>();
+
+                // Students of the class
+                var studentEmails = await _dbContext.StudentClasses
+                    .Where(sc => sc.ClassId == classEntity.Id)
+                    .Include(sc => sc.Student)
+                    .Where(sc => sc.Student != null && !string.IsNullOrEmpty(sc.Student.Email))
+                    .Select(sc => sc.Student.Email!.Trim())
+                    .ToListAsync();
+
+                foreach (var email in studentEmails)
+                {
+                    var identityUser = await _userManager.FindByEmailAsync(email);
+                    if (identityUser?.UserName != null)
+                    {
+                        recipientUserNames.Add(identityUser.UserName.Trim().ToLowerInvariant());
+                        targetUserIds.Add(identityUser.Id);
+                    }
+                }
+
+                // Operation staff
+                var operationStaffUsers = await _userManager.GetUsersInRoleAsync("Operation staff");
+                foreach (var user in operationStaffUsers)
+                {
+                    if (!string.IsNullOrEmpty(user.UserName))
+                        recipientUserNames.Add(user.UserName.Trim().ToLowerInvariant());
+                    targetUserIds.Add(user.Id);
+                }
+
+                var uniqueRecipients = recipientUserNames.Distinct().ToList();
+
+                var payload = new
+                {
+                    id = notification.Id,
+                    title = notification.Title,
+                    content = notification.Content,
+                    classId = classEntity.Id,
+                    sentAt = notification.SentAt,
+                    status = notification.Status
+                };
+
+                _logger.LogInformation("Broadcasting 'exam published' notification for class {ClassId}. Recipients: {Recipients}",
+                    classEntity.Id, string.Join(", ", uniqueRecipients));
+
+                if (uniqueRecipients.Any())
+                {
+                    await _hubContext.Clients.Users(uniqueRecipients).SendAsync("ReceiveNotification", payload);
+                }
+
+                var distinctUserIds = targetUserIds.Distinct().ToList();
+                if (distinctUserIds.Any())
+                {
+                    var fcmTokens = await _dbContext.UserDeviceTokens
+                        .Where(t => distinctUserIds.Contains(t.UserId))
+                        .Select(t => t.FcmToken)
+                        .ToListAsync();
+
+                    await SendFcmNotificationAsync(fcmTokens, title, content, new Dictionary<string, string>
+                    {
+                        { "classId", classEntity.Id.ToString() },
+                        { "sentAt", notification.SentAt.ToString("o") }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error while broadcasting 'exam published' notification for class {ClassId}", classEntity.Id);
+            }
         }
 
         public async Task SendHomeworkCreatedNotificationAsync(Homework homeworkEntity)
@@ -269,7 +373,7 @@ namespace sep490_be.Services.Implementations
             await SaveAndBroadcastNotificationAsync(classEntity, title, content);
         }
 
-        private async Task SaveAndBroadcastNotificationAsync(Class classEntity, string title, string content)
+        private async Task SaveAndBroadcastNotificationAsync(Class classEntity, string title, string content, bool includeAdminGroup = true)
         {
             try
             {
@@ -352,12 +456,15 @@ namespace sep490_be.Services.Implementations
                     targetUserIds.AddRange(userIds);
                 }
 
-                // Send to Admin/Center manager/Academic staff group via SignalR
-                await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
+                if (includeAdminGroup)
+                {
+                    // Send to Admin/Center manager/Academic staff group via SignalR
+                    await _hubContext.Clients.Group(NotificationHub.AdminGroup).SendAsync("ReceiveNotification", payload);
 
-                // Include Admin/Manager FCM tokens so they receive push notifications on mobile too
-                var adminUserIds = await GetAdminUserIdsAsync();
-                targetUserIds.AddRange(adminUserIds);
+                    // Include Admin/Manager FCM tokens so they receive push notifications on mobile too
+                    var adminUserIds = await GetAdminUserIdsAsync();
+                    targetUserIds.AddRange(adminUserIds);
+                }
 
                 var distinctUserIds = targetUserIds.Distinct().ToList();
                 if (distinctUserIds.Any())
