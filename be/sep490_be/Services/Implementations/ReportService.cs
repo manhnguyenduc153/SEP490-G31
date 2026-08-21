@@ -9,6 +9,7 @@ using sep490_be.DTO.Common;
 using sep490_be.DTO.Report;
 using sep490_be.Models;
 using sep490_be.Services.Interfaces;
+using sep490_be.Repositories.Interfaces;
 using sep490_be.Enums;
 
 namespace sep490_be.Services.Implementations
@@ -16,10 +17,12 @@ namespace sep490_be.Services.Implementations
     public class ReportService : IReportService
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly IStudentGradeRepository _studentGradeRepository;
 
-        public ReportService(ApplicationDbContext dbContext)
+        public ReportService(ApplicationDbContext dbContext, IStudentGradeRepository studentGradeRepository)
         {
             _dbContext = dbContext;
+            _studentGradeRepository = studentGradeRepository;
         }
 
         public async Task<ApiResponse<ClassAttendanceSheetDto>> GetClassAttendanceSheetAsync(int classId)
@@ -136,8 +139,6 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ExamResultReportDto>.Fail("ERR_EXAM_NOT_FOUND", StatusCodes.Status404NotFound);
                 }
 
-                // Band-graded exams (Listening/Reading/Writing/Speaking) store Score directly as a
-                // 0-9 band, so the report's "out of" figure is 9, not the exam's configured TotalScore.
                 var examSkillType = IeltsBandScale.GetSingleSkillType(examEntity);
                 var isBandGraded = examSkillType is IeltsBandScale.ListeningSkillType or IeltsBandScale.ReadingSkillType
                     or IeltsBandScale.SpeakingSkillType or IeltsBandScale.WritingSkillType;
@@ -154,7 +155,6 @@ namespace sep490_be.Services.Implementations
                 var targetStudentIds = new List<int>();
                 if (examEntity.ClassId.HasValue)
                 {
-                    // Students in the class
                     var studentClasses = await _dbContext.StudentClasses
                         .Where(sc => sc.ClassId == examEntity.ClassId.Value)
                         .Select(sc => sc.StudentId)
@@ -163,7 +163,6 @@ namespace sep490_be.Services.Implementations
                 }
                 else
                 {
-                    // If no class linked, get all students who attempted or have a grade
                     var attemptedIds = await _dbContext.ExamAttempts
                         .Where(ea => ea.ExamId == examId)
                         .Select(ea => ea.StudentId)
@@ -202,13 +201,21 @@ namespace sep490_be.Services.Implementations
                         var studentAttempts = attempts.Where(a => a.StudentId == s.Id).ToList();
                         var studentGrade = grades.FirstOrDefault(g => g.StudentClass.StudentId == s.Id);
 
+                        decimal? attemptScore = studentAttempts.Any() ? studentAttempts.Max(a => a.Score) : null;
+                        decimal? finalScore = studentGrade?.FinalScore ?? attemptScore;
+
+                        if (finalScore.HasValue && isBandGraded)
+                        {
+                            finalScore = IeltsBandScale.RoundToHalfBand(finalScore.Value);
+                        }
+
                         var result = new StudentExamResultDto
                         {
                             StudentId = s.Id,
                             StudentCode = s.Code ?? "",
                             StudentName = s.Name ?? "",
                             AttemptCount = studentAttempts.Count,
-                            FinalScore = studentGrade?.FinalScore ?? (studentAttempts.Any() ? studentAttempts.Max(a => a.Score) : null),
+                            FinalScore = finalScore,
                             SubmittedAt = studentAttempts.OrderByDescending(a => a.SubmitTime).FirstOrDefault()?.SubmitTime
                         };
 
@@ -233,7 +240,8 @@ namespace sep490_be.Services.Implementations
 
                     if (report.ParticipatedStudents > 0)
                     {
-                        report.AverageScore = Math.Round(totalScoreSum / report.ParticipatedStudents, 2);
+                        var avg = totalScoreSum / report.ParticipatedStudents;
+                        report.AverageScore = isBandGraded ? IeltsBandScale.RoundToHalfBand(avg) : Math.Round(avg, 2);
                         report.PassRate = Math.Round((decimal)report.PassedStudents / report.ParticipatedStudents * 100, 2);
                     }
                 }
@@ -265,6 +273,9 @@ namespace sep490_be.Services.Implementations
                     return ApiResponse<ClassGradeReportDto>.Fail("ERR_CLASS_HAS_NO_COURSE", StatusCodes.Status400BadRequest);
                 }
 
+                var courseId = classEntity.CourseId.Value;
+                await _studentGradeRepository.EnsureDefaultComponentsAsync(courseId);
+
                 var report = new ClassGradeReportDto
                 {
                     ClassId = classId,
@@ -273,10 +284,7 @@ namespace sep490_be.Services.Implementations
                 };
 
                 // Lấy cấu trúc điểm (Components) của Course
-                var components = await _dbContext.GradeComponents
-                    .Where(gc => gc.CourseId == classEntity.CourseId)
-                    .OrderBy(gc => gc.SortOrder)
-                    .ToListAsync();
+                var components = await _studentGradeRepository.GetComponentsAsync(courseId);
 
                 foreach (var comp in components)
                 {
@@ -292,51 +300,65 @@ namespace sep490_be.Services.Implementations
                     });
                 }
 
-                // Lấy toàn bộ điểm Override của học sinh trong lớp
-                var overrides = await _dbContext.StudentGradeOverrides
-                    .Include(o => o.StudentClass)
-                    .Where(o => o.StudentClass.ClassId == classId)
-                    .ToListAsync();
+                var componentIds = components.Select(c => c.Id).ToList();
 
                 if (classEntity.StudentClasses != null)
                 {
-                    foreach (var sc in classEntity.StudentClasses)
+                    foreach (var sc in classEntity.StudentClasses.Where(x => x.Student != null && !x.Student.IsDeleted))
                     {
-                        if (sc.Student == null) continue;
-
+                        var student = sc.Student!;
                         var row = new StudentGradeRowDto
                         {
-                            StudentId = sc.Student.Id,
-                            StudentCode = sc.Student.Code ?? "",
-                            StudentName = sc.Student.Name ?? ""
+                            StudentId = student.Id,
+                            StudentCode = student.Code ?? "",
+                            StudentName = student.Name ?? ""
                         };
 
-                        decimal finalScore = 0;
-                        decimal totalWeight = 0;
+                        var overrides = await _studentGradeRepository.GetStudentOverridesAsync(sc.Id, componentIds);
+                        var rawScores = await _studentGradeRepository.CalculateExamSkillScoresAsync(classId, student.Id);
+
+                        decimal weightedSum = 0m;
+                        decimal totalWeight = 0m;
                         bool hasAnyScore = false;
 
                         foreach (var comp in components)
                         {
-                            var overrideScore = overrides.FirstOrDefault(o => o.StudentClassId == sc.Id && o.GradeComponentId == comp.Id);
-                            if (overrideScore != null)
+                            var hasOverride = overrides.TryGetValue(comp.Id, out var overrideScore);
+                            var hasRawScore = rawScores.TryGetValue(comp.Code, out var rawScore);
+
+                            if (hasOverride && overrideScore.HasValue)
                             {
-                                row.ComponentScores[comp.Id] = overrideScore.Score;
-                                finalScore += overrideScore.Score * (comp.Weight / 100m);
-                                totalWeight += comp.Weight;
+                                var finalCompScore = IeltsBandScale.RoundToHalfBand(overrideScore.Value);
+                                row.ComponentScores[comp.Id] = finalCompScore;
+                                weightedSum += finalCompScore * Math.Max(0m, comp.Weight);
+                                totalWeight += Math.Max(0m, comp.Weight);
+                                hasAnyScore = true;
+                            }
+                            else if (hasRawScore)
+                            {
+                                var finalCompScore = IeltsBandScale.RoundToHalfBand(rawScore);
+                                row.ComponentScores[comp.Id] = finalCompScore;
+                                weightedSum += finalCompScore * Math.Max(0m, comp.Weight);
+                                totalWeight += Math.Max(0m, comp.Weight);
                                 hasAnyScore = true;
                             }
                             else
                             {
-                                row.ComponentScores[comp.Id] = null;
+                                row.ComponentScores[comp.Id] = 0m;
+                                totalWeight += Math.Max(0m, comp.Weight);
                             }
                         }
 
-                        if (hasAnyScore)
+                        if (hasAnyScore && totalWeight > 0)
                         {
-                            row.FinalScore = Math.Round(finalScore, 2);
-                            // Class components are now weighted band values (0-9) — 5.0 doubles as
-                            // both the old 0-10 pass bar and a natural IELTS "modest user" threshold.
+                            var rawAvg = weightedSum / totalWeight;
+                            row.FinalScore = IeltsBandScale.RoundToHalfBand(rawAvg);
                             row.IsPassed = row.FinalScore >= 5.0m;
+                        }
+                        else
+                        {
+                            row.FinalScore = 0m;
+                            row.IsPassed = false;
                         }
 
                         report.Students.Add(row);

@@ -57,10 +57,13 @@ namespace sep490_be.Services.Implementations
                 .CountAsync(s => !s.IsDeleted && s.Status == (int)StudentStatus.Active);
 
             var totalClasses = await _dbContext.Set<Class>()
-                .CountAsync(c => !c.IsDeleted &&
+                .CountAsync(c => !c.IsDeleted && (c.Course == null || !c.Course.IsDeleted) &&
                     (c.Status == (int)ClassStatus.Planning || c.Status == (int)ClassStatus.Active));
 
-            // Attendance rate: (Present + Late) / Total
+            var activeTeachers = await _dbContext.Set<Teacher>()
+                .CountAsync(t => !t.IsDeleted && t.Status == 1);
+
+            // Attendance rate (for backward compatibility if needed)
             var totalAttendance = await _dbContext.Set<Attendance>()
                 .CountAsync(a => !a.IsDeleted);
 
@@ -73,12 +76,13 @@ namespace sep490_be.Services.Implementations
                 : 0;
 
             var pendingRegistrations = await _dbContext.Set<StudentRegistration>()
-                .CountAsync(r => r.Status == (int)StudentRegistrationStatus.Pending);
+                .CountAsync(r => (r.Course == null || !r.Course.IsDeleted) && (r.Student == null || !r.Student.IsDeleted) && r.Status == (int)StudentRegistrationStatus.Pending);
 
             return new DashboardMetricsDto
             {
                 TotalStudents = totalStudents,
                 TotalClasses = totalClasses,
+                ActiveTeachers = activeTeachers,
                 AverageAttendanceRate = averageAttendanceRate,
                 PendingRegistrations = pendingRegistrations
             };
@@ -91,7 +95,10 @@ namespace sep490_be.Services.Implementations
             var startDate = new DateTime(now.Year, now.Month, 1).AddMonths(-11);
 
             var enrollments = await _dbContext.Set<StudentClass>()
-                .Where(sc => sc.EnrollDate != null && sc.EnrollDate >= startDate)
+                .Where(sc => sc.EnrollDate != null && sc.EnrollDate >= startDate
+                    && sc.Student != null && !sc.Student.IsDeleted
+                    && sc.Class != null && !sc.Class.IsDeleted
+                    && sc.Class.Course != null && !sc.Class.Course.IsDeleted)
                 .GroupBy(sc => new { sc.EnrollDate!.Value.Year, sc.EnrollDate!.Value.Month })
                 .Select(g => new MonthlyEnrollmentDto
                 {
@@ -128,7 +135,9 @@ namespace sep490_be.Services.Implementations
             var courseStudentCounts = await _dbContext.Set<StudentClass>()
                 .Include(sc => sc.Class)
                     .ThenInclude(c => c.Course)
-                .Where(sc => sc.Class != null && sc.Class.Course != null && !sc.Class.IsDeleted)
+                .Where(sc => sc.Student != null && !sc.Student.IsDeleted
+                    && sc.Class != null && !sc.Class.IsDeleted
+                    && sc.Class.Course != null && !sc.Class.Course.IsDeleted)
                 .GroupBy(sc => sc.Class!.Course!.Name)
                 .Select(g => new
                 {
@@ -152,7 +161,7 @@ namespace sep490_be.Services.Implementations
         private async Task<List<ClassStatusDistributionDto>> GetClassStatusDistributionAsync()
         {
             var statusGroups = await _dbContext.Set<Class>()
-                .Where(c => !c.IsDeleted && c.Status != (int)ClassStatus.Cancelled)
+                .Where(c => !c.IsDeleted && (c.Course == null || !c.Course.IsDeleted) && c.Status != (int)ClassStatus.Cancelled)
                 .GroupBy(c => c.Status)
                 .Select(g => new
                 {
@@ -185,7 +194,9 @@ namespace sep490_be.Services.Implementations
             return await _dbContext.Set<StudentRegistration>()
                 .Include(r => r.Student)
                 .Include(r => r.Course)
-                .Where(r => r.Status == (int)StudentRegistrationStatus.Pending)
+                .Where(r => r.Student != null && !r.Student.IsDeleted
+                    && r.Course != null && !r.Course.IsDeleted
+                    && r.Status == (int)StudentRegistrationStatus.Pending)
                 .OrderByDescending(r => r.Id)
                 .Take(10)
                 .Select(r => new RecentRegistrationDto
@@ -202,69 +213,7 @@ namespace sep490_be.Services.Implementations
         // ── 6. Low Attendance Alerts (< 80%) ────────────────────────────────
         private async Task<List<LowAttendanceAlertDto>> GetLowAttendanceAlertsAsync()
         {
-            // Get all attendance records for active classes, grouped by student + class
-            var attendanceData = await _dbContext.Set<Attendance>()
-                .Include(a => a.ClassSchedule)
-                    .ThenInclude(cs => cs!.Class)
-                .Include(a => a.Student)
-                .Where(a => !a.IsDeleted
-                    && a.ClassSchedule != null
-                    && a.ClassSchedule.Class != null
-                    && !a.ClassSchedule.Class.IsDeleted
-                    && a.ClassSchedule.Class.Status == (int)ClassStatus.Active
-                    && a.Student != null
-                    && !a.Student.IsDeleted)
-                .Select(a => new
-                {
-                    StudentId = a.StudentId!.Value,
-                    StudentName = a.Student!.Name,
-                    ClassName = a.ClassSchedule!.Class!.Name,
-                    ClassId = a.ClassSchedule.ClassId!.Value,
-                    a.Status,
-                    ScheduleDate = a.ClassSchedule.ScheduleDate
-                })
-                .ToListAsync();
-
-            // Group by student + class
-            var grouped = attendanceData
-                .GroupBy(a => new { a.StudentId, a.ClassId })
-                .Select(g =>
-                {
-                    var total = g.Count();
-                    var present = g.Count(a =>
-                        a.Status == (int)AttendanceStatus.Present ||
-                        a.Status == (int)AttendanceStatus.Late);
-                    var rate = total > 0 ? Math.Round((double)present / total * 100, 1) : 100;
-
-                    // Calculate consecutive absences (from latest schedule date backwards)
-                    var orderedByDate = g
-                        .OrderByDescending(a => a.ScheduleDate)
-                        .ToList();
-                    var consecutiveAbsences = 0;
-                    foreach (var record in orderedByDate)
-                    {
-                        if (record.Status == (int)AttendanceStatus.Absent)
-                            consecutiveAbsences++;
-                        else
-                            break;
-                    }
-
-                    return new LowAttendanceAlertDto
-                    {
-                        StudentId = g.Key.StudentId,
-                        StudentName = g.First().StudentName,
-                        ClassName = g.First().ClassName,
-                        AttendanceRate = rate,
-                        ConsecutiveAbsences = consecutiveAbsences,
-                        Status = rate < 70 || consecutiveAbsences >= 3 ? "Critical" : "Warning"
-                    };
-                })
-                .Where(a => a.AttendanceRate < 80)
-                .OrderBy(a => a.AttendanceRate)
-                .Take(10)
-                .ToList();
-
-            return grouped;
+            return new List<LowAttendanceAlertDto>();
         }
 
         // ── 7. Room Utilization ─────────────────────────────────────────────
@@ -279,7 +228,10 @@ namespace sep490_be.Services.Implementations
             var endDate = now.AddDays(15);
 
             var roomScheduleCounts = await _dbContext.ClassSchedules
-                .Where(cs => !cs.IsDeleted && cs.RoomId.HasValue && cs.ScheduleDate >= startDate && cs.ScheduleDate <= endDate)
+                .Where(cs => !cs.IsDeleted
+                    && cs.RoomId.HasValue
+                    && (cs.Class == null || (!cs.Class.IsDeleted && (cs.Class.Course == null || !cs.Class.Course.IsDeleted)))
+                    && cs.ScheduleDate >= startDate && cs.ScheduleDate <= endDate)
                 .GroupBy(cs => cs.RoomId!.Value)
                 .Select(g => new { RoomId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.RoomId, x => x.Count);
@@ -317,7 +269,10 @@ namespace sep490_be.Services.Implementations
             var endDate = now.AddDays(15);
 
             var teacherScheduleCounts = await _dbContext.ClassSchedules
-                .Where(cs => !cs.IsDeleted && cs.TeacherId.HasValue && cs.ScheduleDate >= startDate && cs.ScheduleDate <= endDate)
+                .Where(cs => !cs.IsDeleted
+                    && cs.TeacherId.HasValue
+                    && (cs.Class == null || (!cs.Class.IsDeleted && (cs.Class.Course == null || !cs.Class.Course.IsDeleted)))
+                    && cs.ScheduleDate >= startDate && cs.ScheduleDate <= endDate)
                 .GroupBy(cs => cs.TeacherId!.Value)
                 .Select(g => new { TeacherId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.TeacherId, x => x.Count);
@@ -342,10 +297,10 @@ namespace sep490_be.Services.Implementations
         private async Task<GradingProgressDto> GetGradingProgressAsync()
         {
             var pendingHomeworks = await _dbContext.HomeworkSubmissions
-                .CountAsync(s => !s.IsDeleted && s.Score == null);
+                .CountAsync(s => !s.IsDeleted && s.Homework != null && !s.Homework.IsDeleted && s.Score == null);
 
             var pendingExams = await _dbContext.ExamAttempts
-                .CountAsync(ea => !ea.IsDeleted && ea.SubmitTime != null && ea.Score == null);
+                .CountAsync(ea => !ea.IsDeleted && ea.Exam != null && !ea.Exam.IsDeleted && ea.SubmitTime != null && ea.Score == null);
 
             return new GradingProgressDto
             {
@@ -355,13 +310,10 @@ namespace sep490_be.Services.Implementations
         }
 
         // ── 10. Exam Grade Distribution ──────────────────────────────────────
-        // Listening/Reading/Writing/Speaking exams store Score directly as an IELTS band (0-9);
-        // only legacy mixed-skill exams still use the old points-out-of-TotalScore scale, so
-        // those are rescaled to the same 0-9 range before bucketing.
         private async Task<List<ExamGradeDistributionDto>> GetExamGradeDistributionAsync()
         {
             var attempts = await _dbContext.ExamAttempts
-                .Where(ea => !ea.IsDeleted && ea.Score.HasValue)
+                .Where(ea => !ea.IsDeleted && ea.Exam != null && !ea.Exam.IsDeleted && ea.Score.HasValue)
                 .Include(ea => ea.Exam)
                     .ThenInclude(e => e.ExamQuestions)
                         .ThenInclude(eq => eq.Question)
