@@ -20,6 +20,7 @@ namespace sep490_be.DTO.Dashboard
     {
         public int TotalStudents { get; set; }
         public int TotalClasses { get; set; }
+        public int ActiveTeachers { get; set; }
         public double AverageAttendanceRate { get; set; }
         public int PendingRegistrations { get; set; }
     }
