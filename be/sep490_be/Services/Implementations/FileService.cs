@@ -54,7 +54,11 @@ namespace sep490_be.Services.Implementations
         public async Task<string> UploadFileAsync(IFormFile file, string folderName)
         {
             if (file == null || file.Length == 0)
-                throw new ArgumentException("File is empty or null.");
+                throw new ArgumentException("ERR_NO_FILE_UPLOADED");
+
+            const long maxFileSize = 10 * 1024 * 1024; // 10 MB
+            if (file.Length > maxFileSize)
+                throw new ArgumentException("ERR_FILE_SIZE_EXCEEDS_10MB");
 
             if (_cloudinary == null)
                 throw new InvalidOperationException("Cloudinary configuration is missing. Please configure Cloudinary:CloudName, ApiKey, and ApiSecret.");
@@ -74,7 +78,18 @@ namespace sep490_be.Services.Implementations
                     PublicId = $"{fileName}_{Guid.NewGuid():N}"
                 };
                 var uploadResult = await _cloudinary.UploadAsync(uploadParams);
-                return uploadResult.SecureUrl?.ToString() ?? uploadResult.Url?.ToString() ?? "";
+                if (uploadResult.Error != null)
+                {
+                    throw new Exception("ERR_FILE_UPLOAD_FAILED");
+                }
+
+                var url = uploadResult.SecureUrl?.ToString() ?? uploadResult.Url?.ToString();
+                if (string.IsNullOrWhiteSpace(url))
+                {
+                    throw new Exception("ERR_FILE_UPLOAD_FAILED");
+                }
+
+                return url;
             }
             else
             {
@@ -85,7 +100,18 @@ namespace sep490_be.Services.Implementations
                     PublicId = $"{fileName}_{Guid.NewGuid():N}{ext}"
                 };
                 var uploadResult = await _cloudinary.UploadAsync(rawUploadParams);
-                return uploadResult.SecureUrl?.ToString() ?? uploadResult.Url?.ToString() ?? "";
+                if (uploadResult.Error != null)
+                {
+                    throw new Exception("ERR_FILE_UPLOAD_FAILED");
+                }
+
+                var url = uploadResult.SecureUrl?.ToString() ?? uploadResult.Url?.ToString();
+                if (string.IsNullOrWhiteSpace(url))
+                {
+                    throw new Exception("ERR_FILE_UPLOAD_FAILED");
+                }
+
+                return url;
             }
         }
     }
