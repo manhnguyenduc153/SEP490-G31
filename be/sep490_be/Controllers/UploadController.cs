@@ -12,6 +12,7 @@ namespace sep490_be.Controllers
     [ApiController]
     public class UploadController : ControllerBase
     {
+        private const long MaxFileSize = 10 * 1024 * 1024; // 10 MB
         private readonly IFileService _fileService;
 
         public UploadController(IFileService fileService)
@@ -20,54 +21,85 @@ namespace sep490_be.Controllers
         }
 
         [HttpPost("image")]
+        [RequestSizeLimit(15 * 1024 * 1024)]
+        [RequestFormLimits(MultipartBodyLengthLimit = 15 * 1024 * 1024)]
         public async Task<IActionResult> UploadImage(IFormFile file)
         {
             try
             {
                 if (file == null || file.Length == 0)
                 {
-                    return BadRequest(ApiResponse<string>.Fail("No file uploaded."));
+                    return BadRequest(ApiResponse<string>.Fail("ERR_NO_FILE_UPLOADED"));
                 }
 
-                // Check file extension if needed
-                var ext = System.IO.Path.GetExtension(file.FileName).ToLower();
-                if (ext != ".jpg" && ext != ".png" && ext != ".jpeg")
+                if (file.Length > MaxFileSize)
                 {
-                    return BadRequest(ApiResponse<string>.Fail("Only .jpg, .jpeg, .png are allowed."));
+                    return BadRequest(ApiResponse<string>.Fail("ERR_FILE_SIZE_EXCEEDS_10MB"));
+                }
+
+                var ext = System.IO.Path.GetExtension(file.FileName).ToLower();
+                if (ext != ".jpg" && ext != ".png" && ext != ".jpeg" && ext != ".webp")
+                {
+                    return BadRequest(ApiResponse<string>.Fail("ERR_UPLOAD_IMAGE_FORMAT_INVALID"));
                 }
 
                 var path = await _fileService.UploadFileAsync(file, "images");
-                return Ok(ApiResponse<string>.Ok(path, "File uploaded successfully."));
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    return BadRequest(ApiResponse<string>.Fail("ERR_FILE_UPLOAD_FAILED"));
+                }
+
+                return Ok(ApiResponse<string>.Ok(path, "MSG_IMAGE_UPLOAD_SUCCESS"));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ApiResponse<string>.Fail(ex.Message));
             }
             catch (Exception ex)
             {
-                return StatusCode(500, ApiResponse<string>.Fail($"Internal server error: {ex.Message}", 500));
+                return StatusCode(500, ApiResponse<string>.Fail(ex.Message.StartsWith("ERR_") ? ex.Message : "ERR_INTERNAL_SERVER_ERROR", 500));
             }
         }
 
         [HttpPost("document")]
+        [RequestSizeLimit(15 * 1024 * 1024)]
+        [RequestFormLimits(MultipartBodyLengthLimit = 15 * 1024 * 1024)]
         public async Task<IActionResult> UploadDocument(IFormFile file)
         {
             try
             {
                 if (file == null || file.Length == 0)
                 {
-                    return BadRequest(ApiResponse<string>.Fail("No file uploaded."));
+                    return BadRequest(ApiResponse<string>.Fail("ERR_NO_FILE_UPLOADED"));
+                }
+
+                if (file.Length > MaxFileSize)
+                {
+                    return BadRequest(ApiResponse<string>.Fail("ERR_FILE_SIZE_EXCEEDS_10MB"));
                 }
 
                 var ext = System.IO.Path.GetExtension(file.FileName).ToLower();
-                var allowed = new[] { ".jpg", ".png", ".jpeg", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".rar", ".7z", ".txt", ".csv", ".mp3", ".wav", ".ogg", ".m4a", ".mp4", ".webm", ".mkv" };
+                var allowed = new[] { ".jpg", ".png", ".jpeg", ".webp", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".rar", ".7z", ".txt", ".csv", ".mp3", ".wav", ".ogg", ".m4a", ".mp4", ".webm", ".mkv" };
                 if (!Array.Exists(allowed, e => e == ext))
                 {
-                    return BadRequest(ApiResponse<string>.Fail("File format is not allowed."));
+                    return BadRequest(ApiResponse<string>.Fail("ERR_FILE_FORMAT_NOT_ALLOWED"));
                 }
 
                 var path = await _fileService.UploadFileAsync(file, "documents");
-                return Ok(ApiResponse<string>.Ok(path, "Document uploaded successfully."));
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    return BadRequest(ApiResponse<string>.Fail("ERR_FILE_UPLOAD_FAILED"));
+                }
+
+                return Ok(ApiResponse<string>.Ok(path, "MSG_DOCUMENT_UPLOAD_SUCCESS"));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ApiResponse<string>.Fail(ex.Message));
             }
             catch (Exception ex)
             {
-                return StatusCode(500, ApiResponse<string>.Fail($"Internal server error: {ex.Message}", 500));
+                return StatusCode(500, ApiResponse<string>.Fail(ex.Message.StartsWith("ERR_") ? ex.Message : "ERR_INTERNAL_SERVER_ERROR", 500));
             }
         }
     }
