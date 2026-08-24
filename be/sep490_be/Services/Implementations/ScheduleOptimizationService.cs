@@ -1024,7 +1024,7 @@ namespace sep490_be.Services.Implementations
 
                 // ── 9. Solve ────────────────────────────────────────────────────────────
                 var solver = new CpSolver();
-                solver.StringParameters = "max_time_in_seconds:60.0;num_search_workers:8";
+                solver.StringParameters = "max_time_in_seconds:30.0;num_search_workers:8";
                 var status = solver.Solve(model);
 
                 if (status != CpSolverStatus.Feasible && status != CpSolverStatus.Optimal)
